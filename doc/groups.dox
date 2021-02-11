@@ -1,0 +1,35 @@
+/**
+ * @brief The main, catch-all namespace for Roboticslab UC3M.
+ */
+namespace roboticslab {}
+
+/**
+ * \defgroup teo-sharon_libraries teo-sharon Libraries
+ *
+ * @brief teo-sharon libraries.
+ *
+ */
+
+/**
+ * \defgroup teo-sharon_programs teo-sharon Programs
+ *
+ * @brief teo-sharon programs.
+ */
+
+/**
+ * \defgroup teo-sharon_applications teo-sharon Applications (Collections of Programs)
+ *
+ * @brief teo-sharon applications (collections of programs).
+ */
+
+/**
+ * \defgroup teo-sharon_examples teo-sharon Examples
+ *
+ * @brief teo-sharon examples.
+ */
+
+/**
+ * \defgroup teo-sharon_tests teo-sharon Tests
+ *
+ * @brief teo-sharon tests.
+ */

@@ -1,0 +1,51 @@
+<application>
+	<name>objectsDumper</name>
+	<dependencies>
+		<port>/xtion/depthImage:o</port>
+		<port>/xtion/rgbImage:o</port>
+		<port>/teo/head/state:o</port>
+	</dependencies>
+	<module>
+		<name>yarpdatadumper</name>
+		<parameters>--name /dumper/xtion/depthImage:o --type depth --downsample 2</parameters>
+		<node>localhost</node>
+	</module>
+	<connection>
+		<from>/xtion/depthImage:o</from>
+		<to>/dumper/xtion/depthImage:o</to>
+		<protocol>udp</protocol>
+	</connection>
+	<module>
+		<name>yarpdatadumper</name>
+		<parameters>--name /dumper/xtion/rgbImage:o --type image  --downsample 2</parameters>
+		<node>localhost</node>
+	</module>
+	<connection>
+		<from>/xtion/rgbImage:o</from>
+		<to>/dumper/xtion/rgbImage:o</to>
+		<protocol>udp</protocol>
+	</connection>
+	<module>
+		<name>yarpdatadumper</name>
+		<parameters>--name /dumper/teo/head/state:o --type bottle </parameters>
+		<node>localhost</node>
+	</module>
+	<connection>
+		<from>/teo/head/state:o</from>
+		<to>/dumper/teo/head/state:o</to>
+		<protocol>udp</protocol>
+	</connection>
+
+	<module>
+		<name>yarpdatadumper</name>
+		<parameters>--name  /dumper/rgbdDetection/xtion/state:o --type bottle </parameters>
+		<node>localhost</node>
+	</module>
+
+	<connection>
+		<from>/rgbdDetection/xtion/state:o</from>
+		<to>/dumper/rgbdDetection/xtion/state:o</to>
+		<protocol>udp</protocol>
+	</connection>
+
+</application>
