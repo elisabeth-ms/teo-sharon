@@ -2,4 +2,4 @@
 # Authors: Elisabeth Menendez
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
-add_subdirectory(colorsDetection)
+add_subdirectory(CropSalientObject)

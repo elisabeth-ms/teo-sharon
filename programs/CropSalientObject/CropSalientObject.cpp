@@ -1,6 +1,6 @@
 // -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
-#include "ColorsDetection.hpp"
+#include "CropSalientObject.hpp"
 
 #include <cstdio>
 
@@ -10,7 +10,7 @@ using namespace sharon;
 
 /************************************************************************/
 
-bool ColorsDetection::configure(yarp::os::ResourceFinder & rf)
+bool CropSalientObject::configure(yarp::os::ResourceFinder & rf)
 {
     cropSelector = DEFAULT_CROP_SELECTOR;
     std::string strRGBDDevice = DEFAULT_RGBD_DEVICE;
@@ -62,9 +62,47 @@ bool ColorsDetection::configure(yarp::os::ResourceFinder & rf)
     }
     yInfo("RGBDDevice ok view.\n");
 
+    //-----------------OPEN LOCAL PORTS------------//
+    std::string portPrefix("/rgbdDetection");
+    portPrefix += strRGBDRemote;
+    if(!outRgbImgPort.open(portPrefix + "/croppedImg:o"))
+    {
+        yError("Bad outRgbImgPort.open\n");
+        return false;
+    }
+    if(!outDepthImgPort.open(portPrefix + "/croppedDepthImg:o"))
+    {
+        yError("Bad outDepthImgPort.open\n");
+        return false;
+    }
+
+
+    if(!outPort.open(portPrefix + "/state:o"))
+    {
+        yError("Bad outPort.open\n");
+        return false;
+    }
+
+    if(!inFileNamePort.open(portPrefix + "/imageName:i"))
+    {
+        yError("Bad fileNamePort.open\n");
+        return false;
+    }
+
+    yarp::os::Network::connect("/server/imageName", portPrefix + "/imageName:i");
+
+    if(cropSelector != 0)
+    {
+        outCropSelectorImg.open(strRGBDLocal + "/cropSelector/img:o");
+        inCropSelectorPort.open(strRGBDLocal + "/cropSelector/state:i");
+    }
+
     segmentorThread.setIRGBDSensor(iRGBDSensor);
-    segmentorThread.setOutImg(&outImg);
+    segmentorThread.setOutRgbImgPort(&outRgbImgPort);
+    segmentorThread.setOutDepthImgPort(&outDepthImgPort);
     segmentorThread.setOutPort(&outPort);
+    segmentorThread.setFileNamePort(&inFileNamePort);
+
 
     segmentorThread.setCropSelector(cropSelector);
     if(cropSelector != 0) {
@@ -72,25 +110,6 @@ bool ColorsDetection::configure(yarp::os::ResourceFinder & rf)
         segmentorThread.setInCropSelectorPort(&inCropSelectorPort);
     }
 
-    //-----------------OPEN LOCAL PORTS------------//
-    std::string portPrefix("/rgbdDetection");
-    portPrefix += strRGBDRemote;
-    if(!outImg.open(portPrefix + "/img:o"))
-    {
-        yError("Bad outImg.open\n");
-        return false;
-    }
-    if(!outPort.open(portPrefix + "/state:o"))
-    {
-        yError("Bad outPort.open\n");
-        return false;
-    }
-
-    if(cropSelector != 0)
-    {
-        outCropSelectorImg.open(strRGBDLocal + "/cropSelector/img:o");
-        inCropSelectorPort.open(strRGBDLocal + "/cropSelector/state:i");
-    }
 
     if(!segmentorThread.init(rf))
     {
@@ -104,14 +123,14 @@ bool ColorsDetection::configure(yarp::os::ResourceFinder & rf)
 
 /************************************************************************/
 
-double ColorsDetection::getPeriod()
+double CropSalientObject::getPeriod()
 {
     return watchdog;  // Fixed, in seconds, the slow thread that calls updateModule below
 }
 
 /************************************************************************/
 
-bool ColorsDetection::updateModule()
+bool CropSalientObject::updateModule()
 {
     printf("ColorsDetection alive...\n");
     return true;
@@ -119,18 +138,22 @@ bool ColorsDetection::updateModule()
 
 /************************************************************************/
 
-bool ColorsDetection::interruptModule()
+bool CropSalientObject::interruptModule()
 {
     printf("RgbdDetection closing...\n");
     segmentorThread.stop();
-    outImg.interrupt();
+    outRgbImgPort.interrupt();
+    outDepthImgPort.interrupt();
     outPort.interrupt();
+    inFileNamePort.interrupt();
     if(cropSelector != 0) {
         outCropSelectorImg.interrupt();
         inCropSelectorPort.interrupt();
     }
     dd.close();
-    outImg.close();
+    outRgbImgPort.close();
+    outDepthImgPort.close();
+    inFileNamePort.close();
     outPort.close();
     if(cropSelector != 0) {
         outCropSelectorImg.close();

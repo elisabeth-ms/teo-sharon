@@ -2,17 +2,17 @@
 # Authors: Elisabeth Menendez
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
-if(ENABLE_colorsDetection)
+if(ENABLE_cropSalientObject)
 
-set(KEYWORD "colorsDetection")
+set(KEYWORD "cropSalientObject")
 
 # Retrieve a list of targets defined elsewhere.
 get_property(_exported_targets GLOBAL PROPERTY TEO_SHARON_TARGETS)
 
 # Configure executable build target.
 add_executable(${KEYWORD} main.cpp
-                          ColorsDetection.cpp
-                          ColorsDetection.hpp
+                          CropSalientObject.cpp
+                          CropSalientObject.hpp
                           SegmentorThread.cpp
                           SegmentorThread.hpp)
 
@@ -28,6 +28,6 @@ target_link_libraries(${KEYWORD} YARP::YARP_OS
 # Create installation rule.
 install(TARGETS ${KEYWORD}
         DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT colors_detection)
+        COMPONENT crop_salient_object)
 
 endif()

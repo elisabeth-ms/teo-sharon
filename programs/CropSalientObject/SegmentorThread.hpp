@@ -29,9 +29,13 @@
 #include <opencv2/core/types_c.h>
 #include <opencv2/core/core_c.h>
 #include <opencv2/imgproc/imgproc_c.h>
+#include <yarp/cv/Cv.h>
+
+#include <fstream>
+#include <random>
 
 #define DEFAULT_RATE_MS 20
-
+#define BACKGROUND_CROP false
 using namespace std;
 using namespace cv;
 
@@ -42,20 +46,25 @@ namespace sharon {
 class SegmentorThread : public yarp::os::PeriodicThread
 {
 public:
-    SegmentorThread() : PeriodicThread(DEFAULT_RATE_MS * 0.001) {}
+    SegmentorThread() : PeriodicThread(DEFAULT_RATE_MS*0.001) {}
 
     void setIRGBDSensor(yarp::dev::IRGBDSensor * _iRGBDSensor);
-    void setOutImg(yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > * _pOutImg);
+    void setOutRgbImgPort(yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > * _pOutRgbImgPort);
+    void setOutDepthImgPort(yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelFloat> > * _pOutDepthImgPort);
+    void setFileNamePort(yarp::os::BufferedPort<yarp::os::Bottle>* _pInFileNamePort);
+
     void setOutPort(yarp::os::Port *_pOutPort);
     bool init(yarp::os::ResourceFinder &rf);
+    Point getCentroid(InputArray Points);
 
     void setCropSelector(int cropSelector) { this->cropSelector = cropSelector; }
     void setOutCropSelectorImg(yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> >* outCropSelectorImg) { this->outCropSelectorImg = outCropSelectorImg; }
     void setInCropSelectorPort(yarp::os::Port* inCropSelectorPort) { this->inCropSelectorPort = inCropSelectorPort; }
     void depthFilter(Mat &image, yarp::sig::ImageOf<yarp::sig::PixelFloat>& depth,float maxDistance);
     bool findCup(const Mat& origImage,const Mat& image, vector<Point>& points);
-    bool findMilkBottle(const Mat& origImage,const Mat& image, vector<Point>& points);
-    int  countWindowPixels(Mat & image, int roiX, int roiY, int roiWidth, int roiHeight, float * xAvg, float * yAvg);
+    bool cropSalientObject(const Mat& origImage,const Mat& image, const Mat &depthImage, Mat & croppedImage, Mat & croppedDepthImage, int &bx, int &by);
+    int  countWindowPixels(Mat & image, int roiX, int roiY, int roiWidth, int roiHeight, float * xAvg, float * yAvg, vector<float>& yvector);
+    bool storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb,yarp::sig::ImageOf<yarp::sig::PixelRgb> cropRgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth,yarp::sig::ImageOf<yarp::sig::PixelFloat> cropDepth, string strRgbFileName);
 
 private:
     void run() override; // The periodical function
@@ -64,8 +73,11 @@ private:
     //IDetector* iDetector;
 
     yarp::dev::IRGBDSensor *iRGBDSensor;
-    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > *pOutImg;  // for testing
+    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > *pOutRgbImgPort;  // Port for sending the cropped image of the rgb frames
+    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelFloat> > *pOutDepthImgPort;  // Port for sending the cropped image of the depth frames
+    yarp::os::BufferedPort<yarp::os::Bottle> *pInFileNamePort;
     yarp::os::Port *pOutPort;
+
     //
     double fx_d,fy_d,cx_d,cy_d;
     //

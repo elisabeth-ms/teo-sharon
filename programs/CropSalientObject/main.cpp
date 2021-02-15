@@ -25,17 +25,17 @@
 #include <yarp/os/Network.h>
 #include <yarp/os/ResourceFinder.h>
 
-#include "ColorsDetection.hpp"
+#include "CropSalientObject.hpp"
 
 int main(int argc, char ** argv)
 {
     yarp::os::ResourceFinder rf;
     rf.setVerbose(true);
-    rf.setDefaultContext("colorsDetection");
-    rf.setDefaultConfigFile("colorsDetection.ini");
+    rf.setDefaultContext("CropSalientObject");
+    rf.setDefaultConfigFile("CropSalientObject.ini");
     rf.configure(argc, argv);
 
-    sharon::ColorsDetection mod;
+    sharon::CropSalientObject mod;
 
     if (rf.check("help"))
     {

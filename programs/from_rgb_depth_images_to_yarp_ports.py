@@ -18,15 +18,21 @@ import sys
 import yarp
 import numpy as np
 import struct
-
+import copy
 from os import listdir
 from os.path import isfile, join
 
 def fromRgbImageFileToArray(rgbImageFile):
     # Read rgb image file and create the rgb image array 
     imgFile=mpimg.imread(rgbImageFile)
-    imgArray = np.array(imgFile)
-    return imgArray
+    print(imgFile.shape)
+    img_array = np.zeros((imgFile.shape[0],imgFile.shape[1], imgFile.shape[2]), dtype=np.uint8)
+    for i in range(imgFile.shape[0]):
+        for j in range(imgFile.shape[1]):
+            for k in range(imgFile.shape[2]):
+                img_array[i,j,k] = imgFile[i,j,k]
+    return  img_array 
+
 
 def fromDepthImageFileToArray(depthImageFile):
     # Depth image
@@ -92,11 +98,12 @@ if __name__ == "__main__":
 
         yarpRgbImg = yarp.ImageRgb()
         imgArray = fromRgbImageFileToArray(rgbImage)
-        yarpRgbImg.resize(imgArray.shape[1],imgArray.shape[0])
-        yarpRgbImg.setExternal(imgArray.data, imgArray.shape[1], imgArray.shape[0])
+        copyImg = copy.copy(imgArray)
+        yarpRgbImg.resize(copyImg.shape[1],copyImg.shape[0])
+
+        yarpRgbImg.setExternal(copyImg.data, copyImg.shape[1], copyImg.shape[0])
 
         
-
         try:
             while True:
                 print('Send the rgb and depth images through the ports...')
@@ -145,6 +152,7 @@ if __name__ == "__main__":
 
             yarpRgbImg = yarp.ImageRgb()
             imgArray = fromRgbImageFileToArray(currentRgbImage)
+
             yarpRgbImg.resize(imgArray.shape[1],imgArray.shape[0])
             yarpRgbImg.setExternal(imgArray.data, imgArray.shape[1], imgArray.shape[0])
 
