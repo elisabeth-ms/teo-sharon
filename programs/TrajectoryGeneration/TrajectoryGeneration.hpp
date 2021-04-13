@@ -10,6 +10,9 @@
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/base/Planner.h>
+#include <ompl/base/spaces/SE3StateSpace.h>
+#include <ompl/base/goals/GoalState.h>
+
 #define DEFAULT_ROBOT "teoSim" // teo or teoSim (default teo)
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
@@ -29,11 +32,13 @@ namespace teo
  * @brief Trajectory Generation Core.
  *
  */
-   class TrajectoryGeneration : public yarp::os::RFModule, public yarp::os::RateThread
+   class TrajectoryGeneration : public yarp::os::RFModule, private yarp::os::PortReader
     {        
         public:
-        TrajectoryGeneration() :  yarp::os::RateThread(INPUT_READING_MS) {} // constructor
+        //TrajectoryGeneration();// constructor
         virtual bool configure(yarp::os::ResourceFinder &rf);
+        bool read(yarp::os::ConnectionReader & reader) override;
+
         private:
 
             /** robot used (teo/teoSim) **/
@@ -91,10 +96,16 @@ namespace teo
             ob::PlannerPtr planner;
             og::PathGeometric * pth;
 
-
+            yarp::os::RpcServer rpcServer;
+            
             bool isValid(const ob::State *state);
-            bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace>start, ob::ScopedState<ob::RealVectorStateSpace>goal);
+            bool computeDiscretePath( ob::ScopedState<ob::SE3StateSpace>start,  ob::ScopedState<ob::SE3StateSpace>goal);
             bool followDiscretePath(og::PathGeometric * discretePath);
+
+
+
+            ob::StateSpacePtr space;
+
 
 
      }; // class TrajectoryGeneration
