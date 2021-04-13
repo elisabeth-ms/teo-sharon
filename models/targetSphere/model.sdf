@@ -1,0 +1,53 @@
+<?xml version='1.0'?>
+<sdf version='1.6'>
+  <model name='targetSphere'>
+    <link name='link_1'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.1</iyy>
+          <iyz>0</iyz>
+          <izz>0.1</izz>
+        </inertia>
+        <pose frame=''>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose frame=''>0 0 0 0 -0 0</pose>
+      <gravity>0</gravity>
+      <self_collide>0</self_collide>
+      <kinematic>1</kinematic>
+      <enable_wind>0</enable_wind>
+      <visual name='visual'>
+        <pose frame=''>0 0 0 0 -0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.1</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <lighting>1</lighting>
+          <script>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+            <name>Gazebo/Grey</name>
+          </script>
+          <shader type='vertex'>
+            <normal_map>__default__</normal_map>
+          </shader>
+          <ambient>0.988 0.914 0.31 0.3</ambient>
+          <diffuse>0.988 0.914 0.31 0.3</diffuse>
+          <specular>0.929 0.831 0 0.3</specular>
+          <emissive>0.929 0.831 0 0.3</emissive>
+        </material>
+        <transparency>0.5</transparency>
+        <cast_shadows>1</cast_shadows>
+      </visual>
+    </link>
+    <static>0</static>
+    <allow_auto_disable>1</allow_auto_disable>
+    <plugin name='target_sphere_plugin' filename='libgazebo_yarp_basestate.so'>
+          <yarpConfigurationFile>model://teo/conf/targetSphere.ini</yarpConfigurationFile>
+    </plugin>
+  </model>
+</sdf>

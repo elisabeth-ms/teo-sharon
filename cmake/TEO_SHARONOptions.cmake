@@ -4,7 +4,10 @@ include(CMakeDependentOption)
 option(ENABLE_ExampleLibrary "Choose if you want to compile ExampleLibrary" TRUE)
 
 # options: cpp programs
-option(ENABLE_cropSalientObject "Choose if you want to compile colorsDetection" TRUE)
+option(ENABLE_cropSalientObject "Choose if you want to compile cropSalientObject" TRUE)
+
+# options: cpp programs
+option(ENABLE_trajectoryGeneration "Choose if you want to compile trajectoryGeneration" TRUE)
 
 # options: force default
 option(ENABLE_exampleExtraOption "Enable/disable option exampleExtraOption" TRUE)

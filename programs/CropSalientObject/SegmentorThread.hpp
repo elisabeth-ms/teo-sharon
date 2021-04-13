@@ -61,10 +61,13 @@ public:
     void setOutCropSelectorImg(yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> >* outCropSelectorImg) { this->outCropSelectorImg = outCropSelectorImg; }
     void setInCropSelectorPort(yarp::os::Port* inCropSelectorPort) { this->inCropSelectorPort = inCropSelectorPort; }
     void depthFilter(Mat &image, yarp::sig::ImageOf<yarp::sig::PixelFloat>& depth,float maxDistance);
-    bool findCup(const Mat& origImage,const Mat& image, vector<Point>& points);
-    bool cropSalientObject(const Mat& origImage,const Mat& image, const Mat &depthImage, Mat & croppedImage, Mat & croppedDepthImage, int &bx, int &by);
+    vector<float> findCup(const Mat& origImage,const Mat& image, vector<Point>& points);
+    vector<float> cropSalientObject(Mat& origImage,const Mat& image, const Mat &depthImage, Mat & croppedImage, Mat & croppedDepthImage, int &bx, int &by);
     int  countWindowPixels(Mat & image, int roiX, int roiY, int roiWidth, int roiHeight, float * xAvg, float * yAvg, vector<float>& yvector);
     bool storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb,yarp::sig::ImageOf<yarp::sig::PixelRgb> cropRgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth,yarp::sig::ImageOf<yarp::sig::PixelFloat> cropDepth, string strRgbFileName);
+    vector<float> getBoundingBox(int origImageWidth, int origImageHeitgh, int bxRoi, int byRoi, const Mat& maskDepth);
+    bool createLabelsFile(string strFileName, vector<float> boundingBox, int label, yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth);
+    vector<float> findGlass(const Mat& origImage,const Mat& image, const Mat &depthImage);
 
 private:
     void run() override; // The periodical function

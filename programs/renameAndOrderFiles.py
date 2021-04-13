@@ -19,7 +19,7 @@ if __name__ == "__main__":
     print('Starting number for renaming: ', start)
     print('Selected extension of files: ', ext)
 
-    if ext!= '.ppm' and ext!='.float':
+    if ext!= '.ppm' and ext!='.float' and ext!='.txt' and ext!='.jpg':
         sys.exit(0)
     
     path = getcwd()

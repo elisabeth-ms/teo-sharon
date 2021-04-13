@@ -63,11 +63,11 @@ if __name__ == "__main__":
             strImageFile = "".join(listImageFile) 
             #print(strImageFile)
             
-            if not os.path.exists(strImageFile+'.ppm'):
-                print("Save rgbImage: ", strImageFile,".ppm")
-                im.save(strImageFile + '.ppm')
-                print("Save depthImage: ", strImageFile,".float")
-                yarp.write(yarpImgDepth,strImageFile + '.float')
+            if not os.path.exists("rgbImage_o/"+strImageFile+'.ppm'):
+                print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
+                im.save("rgbImage_o/"+ strImageFile + '.ppm')
+                print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
+                yarp.write(yarpImgDepth,"depthImage_o/"+strImageFile + '.float')
     except KeyboardInterrupt:
         print("Press Ctrl-C to terminate while statement")
     pass

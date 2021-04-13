@@ -14,11 +14,12 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake
                               ${CMAKE_SOURCE_DIR}/cmake/find-modules)
 
 # Hard dependencies.
+find_package(YARP 3.3 REQUIRED COMPONENTS os dev)
 find_package(YCM 0.11 REQUIRED)
-find_package(YARP 3.2 REQUIRED COMPONENTS OS dev)
 find_package(COLOR_DEBUG REQUIRED)
 find_package(ROBOTICSLAB_VISION REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(ROBOTICSLAB_KINEMATICS_DYNAMICS REQUIRED)
 
 # Soft dependencies.
 find_package(Doxygen QUIET)
@@ -26,6 +27,9 @@ find_package(GTestSources 1.6.0 QUIET)
 
 # Add WITH_PLUGINS if this projects exports YARP devices.
 yarp_configure_external_installation(teo-sharon)
+
+
+
 
 # Retrieve current TEO_SHARON version.
 include(TEO_SHARONVersion)
