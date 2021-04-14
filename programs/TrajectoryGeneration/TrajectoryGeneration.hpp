@@ -93,14 +93,13 @@ namespace teo
 
             ob::SpaceInformationPtr si;
             ob::ProblemDefinitionPtr pdef;
-            ob::PlannerPtr planner;
             og::PathGeometric * pth;
 
             yarp::os::RpcServer rpcServer;
             
             bool isValid(const ob::State *state);
             bool computeDiscretePath( ob::ScopedState<ob::SE3StateSpace>start,  ob::ScopedState<ob::SE3StateSpace>goal);
-            bool followDiscretePath(og::PathGeometric * discretePath);
+            bool followDiscretePath();
 
 
 
