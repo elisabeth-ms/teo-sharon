@@ -227,6 +227,36 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         return false;
     }
 
+
+    KDL::Chain trunkAndRightArmChain = makeTeoFixedTrunkAndRightArmKinematicsFromDH();
+
+    unsigned int nj = trunkAndRightArmChain.getNrOfJoints();
+    yInfo()<<"Number of joints: "<<nj;
+    KDL::JntArray jointpositions = KDL::JntArray(nj);
+
+    for(unsigned int i=0;i<6;i++){
+        jointpositions(i)=currentQ[i]* KDL::deg2rad;
+    }
+    for(unsigned int i=0;i<nj;i++){
+        yInfo()<<jointpositions(i);
+    }
+    
+    KDL::Frame frameCartPos;    
+ 
+    // Calculate forward position kinematics
+    int kinematics_status;
+    KDL::ChainFkSolverPos_recursive fksolver(trunkAndRightArmChain);
+    kinematics_status = fksolver.JntToCart(jointpositions,frameCartPos);
+    yInfo()<<kinematics_status;
+    std::vector<double> test = frameToVector(frameCartPos);
+
+    yInfo()<<"From cartesian solver: "<<xStart;
+    yInfo()<<"From fksolver: "<< test;
+
+    
+
+
+
     // if(isValid(startState))
     //      yInfo()<<"Valid starting state";
     // else{
