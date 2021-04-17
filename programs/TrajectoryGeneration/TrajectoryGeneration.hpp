@@ -6,6 +6,13 @@
 #include "ICartesianSolver.h"
 #include "KinematicRepresentation.hpp"
 
+#include <kdl/chain.hpp>
+#include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl/frames.hpp>
+#include <kdl/jntarray.hpp>
+#include <kdl/joint.hpp>
+#include <kdl/utilities/utility.h>
+
 #include <yarp/os/Semaphore.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/planners/rrt/RRTstar.h>
@@ -13,7 +20,17 @@
 #include <ompl/base/spaces/SE3StateSpace.h>
 #include <ompl/base/goals/GoalState.h>
 
-#define DEFAULT_ROBOT "teoSim" // teo or teoSim (default teo)
+
+// fcl
+// #include "fcl/octree.h"
+#include "fcl/config.h"
+#include <fcl/collision.h>
+#include <fcl/collision_object.h>
+#include <fcl/shape/geometric_shapes.h>
+#include <fcl/shape/geometric_shapes_utility.h>
+
+
+#define DEFAULT_ROBOT "teo" // teo or teoSim (default teo)
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
 #define INPUT_READING_MS 10
@@ -73,6 +90,7 @@ namespace teo
             yarp::dev::PolyDriver rightArmSolverDevice;
             ICartesianSolver *rightArmICartesianSolver;
          
+            KDL::Chain trunkAndRightArmchain;
           
 
             /****** FUNCTIONS ******/            
@@ -101,9 +119,24 @@ namespace teo
             bool computeDiscretePath( ob::ScopedState<ob::SE3StateSpace>start,  ob::ScopedState<ob::SE3StateSpace>goal);
             bool followDiscretePath();
 
-
-
             ob::StateSpacePtr space;
+
+            typedef std::shared_ptr <fcl::CollisionGeometry> CollisionGeometryPtr_t;
+            fcl::Transform3f tfTeoBox {fcl::Vec3f {0., 0, 0}};
+            fcl::Transform3f tfEndEffector {fcl::Vec3f {0., 0, 0}};
+            fcl::Transform3f tfTable{fcl::Vec3f{1.0, 0.0, -0.895}};
+
+            CollisionGeometryPtr_t teoBox{new fcl::Box{0.35, 0.45, 1.75}};
+            fcl::CollisionObject teoBoxObject{teoBox, tfTeoBox};
+
+            CollisionGeometryPtr_t endEffector{new fcl::Box{0.25,0.25,0.45}};
+            fcl::CollisionObject endEffectorObject{endEffector, tfEndEffector};
+
+            CollisionGeometryPtr_t tableBox{new fcl::Box{1.4, 1.5, 1.9}};
+            fcl::CollisionObject tableBoxObject{tableBox, tfTable};
+
+            bool collide(const ob::State *stateEndEffector);
+
 
 
 

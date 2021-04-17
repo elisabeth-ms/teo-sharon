@@ -19,8 +19,27 @@ using namespace teo;
 
 #define DEFAULT_MAX_DIFF_INV 0.0000001
 #define DEFAULT_PREFIX "/trajectoryGeneration"
-#define DEFAULT_RANGE_RRT 0.05
+#define DEFAULT_RANGE_RRT 0.1
 #define DEFAULT_PRUNE_THRESHOLD 0.6
+
+static KDL::Chain makeTeoFixedTrunkAndRightArmKinematicsFromDH()
+{
+    const KDL::Joint rotZ(KDL::Joint::RotZ);
+    const KDL::Joint fixed(KDL::Joint::None);//Rigid Connection
+    KDL::Chain chain;
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.0, -KDL::PI/2, 0.1932, 0.0)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI/2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.215, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09, 0, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0,KDL::PI/2, 0, -KDL::PI/2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0,0, 0.0975, 0)));
+
+    return chain;
+}
 
 /************************************************************************/
 
@@ -94,6 +113,13 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     else
         yInfo() << "Acquired rightArmIPositionDirect interface";
 
+    // std::vector<int> modes(numRightArmJoints, VOCAB_CM_POSITION_DIRECT);
+
+    // if (!rightArmIControlMode->setControlModes(modes.data()))
+    // {
+    //     yError() << "Unable to change mode";
+    //     return 1;
+    // }
     // ----- Configuring KDL Solver for trunk and right arm -----
 
     if (!rightArmDevice.view(rightArmIControlLimits))
@@ -113,7 +139,6 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         qrMax.addDouble(max);
         yInfo("Joint %d limits: [%f,%f]", joint, min, max);
     }
-
 
     yarp::os::Property rightArmSolverOptions;
     std::string rightKinPath = rf.findFileByName("teo-fixedTrunk-rightArm-fetch.ini");
@@ -160,16 +185,15 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     //     printf("Joint: %d Min: %f Max: %f\n", i, min, max);
     // }
 
-
-    bounds.setLow(0, 0.0);
+    bounds.setLow(0, 0. - 0.4);
     bounds.setHigh(0, 0.8);
 
     bounds.setLow(1, -0.8);
-    bounds.setHigh(1,0.8);
+    bounds.setHigh(1, 0.2);
 
-    bounds.setLow(2, -0.3);
-    bounds.setHigh(2, 0.6);
-    
+    bounds.setLow(2, -0.5);
+    bounds.setHigh(2, 0.8);
+
     space->as<ob::SE3StateSpace>()->setBounds(bounds);
     //space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
 
@@ -180,14 +204,35 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
 
+
+    // LETS CHECK IF WE HAVE THE SAME RESULT WITH FWDKIN AND JNTTOCART
+
+    
+
+    
+    std::vector<double> currentQ(numRightArmJoints);
+    if (!rightArmIEncoders->getEncoders(currentQ.data()))
+    {
+        //yError() << "Failed getEncoders() of right-arm";
+        return false;
+    }
+
+    // Check if we are in the starting state
+
+    std::vector<double> xStart;
+
+    if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+    {
+        //yError() << "fwdKin failed";
+        return false;
+    }
+
     // if(isValid(startState))
     //      yInfo()<<"Valid starting state";
     // else{
     //     yInfo()<<"Not valid starting state";
     // }
 
-
-    
     // start = new ob::ScopedState<ob::RealVectorStateSpace> (space);
     // goal = new ob::ScopedState<ob::RealVectorStateSpace>(space);
 
@@ -248,6 +293,9 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
     // }
     // return false;
 
+    if (collide(state))
+        return false;
+
     // cast the abstract state type to the type we expect
     const ob::SE3StateSpace::StateType *se3state = state->as<ob::SE3StateSpace::StateType>();
 
@@ -296,8 +344,9 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
     bool computeInvKin = true;
 
     double diffSumSquare = 0;
-    for(int i=0; i<6; i++){
-        diffSumSquare+=(xStart[i]-testAxisAngle[i])*(xStart[i]-testAxisAngle[i]);
+    for (int i = 0; i < 6; i++)
+    {
+        diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
     }
 
     //yInfo() << "diffSumSquare: " << diffSumSquare;
@@ -315,7 +364,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
         {
             //yError() << "invKin() failed";
-            
+
             return false;
         }
     }
@@ -339,6 +388,12 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     ob::State *startState = pdef->getStartState(0);
 
+    if (collide(startState))
+        yInfo("Start state collides");
+    else
+    {
+        yInfo("Start state doesn't collide");
+    }
 
     if (isValid(startState))
         yInfo() << "Valid starting state";
@@ -352,9 +407,15 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     pdef->setGoalState(goal);
 
-
-
     ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+
+    if (collide(goalState))
+        yInfo("Goal state collides");
+    else
+    {
+        yInfo("Goal state doesn't collide");
+    }
+
     if (isValid(goalState))
         yInfo() << "Valid goal state";
     else
@@ -387,7 +448,7 @@ bool TrajectoryGeneration::followDiscretePath()
     std::size_t j = 0;
     while (j < pth->getStateCount())
     {
-        yInfo()<<"Follow path "<<j;
+        yInfo() << "Follow path " << j;
         ob::State *s1 = pth->getState(j);
 
         const ob::SE3StateSpace::StateType *se3state = s1->as<ob::SE3StateSpace::StateType>();
@@ -430,9 +491,9 @@ bool TrajectoryGeneration::followDiscretePath()
         bool computeInvKin = true;
 
         double diffSumSquare = 0;
-        for(int i=0; i<6; i++){
-            diffSumSquare+=(xStart[i]-testAxisAngle[i])*(xStart[i]-testAxisAngle[i]);
-
+        for (int i = 0; i < 6; i++)
+        {
+            diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
         }
 
         yInfo() << "diffSumSquare: " << diffSumSquare;
@@ -451,19 +512,17 @@ bool TrajectoryGeneration::followDiscretePath()
             {
                 yError() << "invKin() failed";
             }
-             yInfo()<<"Move to desireQ: "<<desireQ;
+            yInfo() << "Move to desireQ: " << desireQ;
 
             for (int joint = 0; joint < numRightArmJoints; joint++)
             {
                 rightArmIPositionControl->positionMove(joint, desireQ[joint]);
             }
-
+            // rightArmIPositionDirect->setPositions(desireQ.data());
             yInfo("Moving to next state in the path");
         }
 
-       
-
-        yarp::os::Time::delay(0.1);
+        yarp::os::Time::delay(0.4);
         j++;
     }
 }
@@ -486,7 +545,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         yError() << "Failed getEncoders() of right-arm";
     }
 
-    yInfo()<<"currentQ: "<<currentQ;
+    yInfo() << "currentQ: " << currentQ;
     std::vector<double> xStart;
 
     if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
@@ -513,21 +572,23 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     pdef->clearStartStates();
     pdef->addStartState(start);
 
-    std::vector<double> xGoal;
-    std::vector<double> qGoal(numRightArmJoints);
-    qGoal[0] = command.get(0).asDouble();//-50;
-    qGoal[1] = command.get(1).asDouble();//10;
-    qGoal[2] = command.get(2).asDouble();//40;
-    qGoal[3] = command.get(3).asDouble();//-50;
-    qGoal[4] = command.get(4).asDouble();//70;
-    qGoal[5] = command.get(5).asDouble();//-20;
-    yInfo()<<qGoal;
-    if (!rightArmICartesianSolver->fwdKin(qGoal, xGoal))
-    {
-        yError() << "fwdKin failed";
-        reply.addString("Invalid goal state");
-        return reply.write(*writer);
-    }
+    std::vector<double> xGoal(6);
+    for (int i = 0; i < 6; i++)
+        xGoal[i] = command.get(i).asDouble();
+    // std::vector<double> qGoal(numRightArmJoints);
+    // qGoal[0] = command.get(0).asDouble();//-50;
+    // qGoal[1] = command.get(1).asDouble();//10;
+    // qGoal[2] = command.get(2).asDouble();//40;
+    // qGoal[3] = command.get(3).asDouble();//-50;
+    // qGoal[4] = command.get(4).asDouble();//70;
+    // qGoal[5] = command.get(5).asDouble();//-20;
+    // yInfo()<<qGoal;
+    // if (!rightArmICartesianSolver->fwdKin(qGoal, xGoal))
+    // {
+    //     yError() << "fwdKin failed";
+    //     reply.addString("Invalid goal state");
+    //     return reply.write(*writer);
+    // }
     yInfo() << "Goal:" << xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
     // std::vector<double> desireQ(numRightArmJoints);
@@ -535,7 +596,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     // if (!rightArmICartesianSolver->invKin(xGoal, currentQ, desireQ))
     // {
     //     yError() << "invKin() failed";
-            
+
     //     return false;
     // }
     // yInfo()<<"desired goal q: "<< desireQ;
@@ -548,7 +609,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     goal->rotation().y = qy;
     goal->rotation().z = qz;
     goal->rotation().w = qw;
-    
+
     pdef->clearGoal();
 
     pdef->setGoalState(goal);
@@ -602,8 +663,44 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     {
         followDiscretePath();
     }
-   
+
     reply.addString("Motion Done");
 
     return reply.write(*writer);
+}
+
+bool TrajectoryGeneration::collide(const ob::State *stateEndEffector)
+{
+
+    // cast the abstract state type to the type we expect
+    const ob::SE3StateSpace::StateType *se3state = stateEndEffector->as<ob::SE3StateSpace::StateType>();
+
+    // extract the first component of the state and cast it to what we expect
+    const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
+
+    // extract the second component of the state and cast it to what we expect
+    const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
+
+    fcl::Vec3f translation(pos->values[0], pos->values[1], pos->values[2]);
+    fcl::Quaternion3f rotation(rot->w, rot->x, rot->y, rot->z);
+
+    endEffectorObject.setTransform(rotation, translation);
+    fcl::CollisionRequest requestType(1, false, 1, false);
+    fcl::CollisionResult collisionResult;
+    fcl::collide(&endEffectorObject, &teoBoxObject, requestType, collisionResult);
+
+    if (collisionResult.isCollision())
+    {
+        yInfo("Collision between end effector and teo's body.");
+        return true;
+    }
+
+    fcl::collide(&endEffectorObject, &tableBoxObject, requestType, collisionResult);
+    if (collisionResult.isCollision())
+    {
+        yInfo("Collision between end effector and table.");
+        return true;
+    }
+
+    return false;
 }

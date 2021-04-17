@@ -46,8 +46,6 @@
     </link>
     <static>0</static>
     <allow_auto_disable>1</allow_auto_disable>
-    <plugin name='target_sphere_plugin' filename='libgazebo_yarp_basestate.so'>
-          <yarpConfigurationFile>model://teo/conf/targetSphere.ini</yarpConfigurationFile>
-    </plugin>
+    <plugin name='pose publisher' filename='libgazebo_yarp_modelposepublisher.so'></plugin>
   </model>
 </sdf>

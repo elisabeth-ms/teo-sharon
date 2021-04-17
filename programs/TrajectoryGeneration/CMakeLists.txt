@@ -25,6 +25,8 @@ add_executable(${KEYWORD} main.cpp
                           TrajectoryGeneration.cpp
                           )
 
+add_executable(clientTrajectoryGenerationTargetPoseGazebo clientTrajectoryGenerationTargetPoseGazebo.cpp)
+
 # Link external libraries.
 
 target_link_libraries(${KEYWORD} 
@@ -34,9 +36,19 @@ target_link_libraries(${KEYWORD}
                                  ROBOTICSLAB::KdlVectorConverterLib
                                  ROBOTICSLAB::KinematicRepresentationLib
 				 ${OMPL_LIBRARIES} 
+                                 fcl
                                  )
 
-target_include_directories(${KEYWORD} PRIVATE ${orocos_kdl_INCLUDE_DIRS}  ${OMPL_INCLUDE_DIRS})
+target_link_libraries(clientTrajectoryGenerationTargetPoseGazebo
+                                 YARP::YARP_init
+                                 YARP::YARP_dev
+                                 ${orocos_kdl_LIBRARIES}
+                                 ROBOTICSLAB::KdlVectorConverterLib
+                                 ROBOTICSLAB::KinematicRepresentationLib
+                                 )
+
+target_include_directories(${KEYWORD} PRIVATE ${orocos_kdl_INCLUDE_DIRS}  ${OMPL_INCLUDE_DIRS}     ${FCL_INCLUDE_DIRS})
+target_include_directories(clientTrajectoryGenerationTargetPoseGazebo PRIVATE ${orocos_kdl_INCLUDE_DIRS}  ${OMPL_INCLUDE_DIRS}     ${FCL_INCLUDE_DIRS})
 
 # Create installation rule.
 install(TARGETS ${KEYWORD}
