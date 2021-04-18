@@ -19,8 +19,9 @@
 #include <ompl/base/Planner.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
 #include <ompl/base/goals/GoalState.h>
-
-
+#include <ompl/geometric/planners/rrt/BiTRRT.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
+#include <ompl/geometric/planners/rlrt/BiRLRT.h>
 // fcl
 // #include "fcl/octree.h"
 #include "fcl/config.h"
@@ -34,6 +35,17 @@
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
 #define INPUT_READING_MS 10
+
+
+#define AXIAL_SHOULDER_LINK_LENGTH 0.32901
+#define AXIAL_SHOULDER_LINK_RADIUS 0.06
+#define FRONTAL_ELBOW_LINK_LENGTH 0.215
+#define FRONTAL_ELBOW_LINK_RADIUS 0.06
+
+#define FRONTAL_WRIST_LINK_LENGTH 0.25
+#define FRONTAL_WRIST_LINK_RADIUS 0.07
+
+
 
 using namespace yarp::os;
 using namespace roboticslab;
@@ -121,20 +133,38 @@ namespace teo
             ob::StateSpacePtr space;
 
             typedef std::shared_ptr <fcl::CollisionGeometry> CollisionGeometryPtr_t;
-            fcl::Transform3f tfTeoBox {fcl::Vec3f {0., 0, 0}};
+            fcl::Transform3f tfTeoTopBox {fcl::Vec3f {0.0, 0.0, 0.35}};
+            fcl::Transform3f tfTeoBottomBox {fcl::Vec3f {0.0, 0.0, -0.4}};
             fcl::Transform3f tfEndEffector {fcl::Vec3f {0., 0, 0}};
-            fcl::Transform3f tfTable{fcl::Vec3f{1.0, 0.0, -0.895}};
+            fcl::Transform3f tfTable{fcl::Vec3f{1.0, 0.0, -0.9}};
 
-            CollisionGeometryPtr_t teoBox{new fcl::Box{0.35, 0.45, 1.75}};
-            fcl::CollisionObject teoBoxObject{teoBox, tfTeoBox};
+
+            CollisionGeometryPtr_t teoTopBox{new fcl::Box{0.3, 0.45, 0.7}};
+            CollisionGeometryPtr_t teoBottomBox{new fcl::Box{0.38, 0.54, 0.8}};
+            fcl::CollisionObject teoTopBoxObject{teoTopBox, tfTeoTopBox};
+            fcl::CollisionObject teoBottomBoxObject{teoBottomBox, tfTeoBottomBox};
 
             CollisionGeometryPtr_t endEffector{new fcl::Box{0.25,0.25,0.45}};
             fcl::CollisionObject endEffectorObject{endEffector, tfEndEffector};
 
-            CollisionGeometryPtr_t tableBox{new fcl::Box{1.4, 1.5, 1.9}};
+            CollisionGeometryPtr_t tableBox{new fcl::Box{1.3, 1.8, 2.0}};
             fcl::CollisionObject tableBoxObject{tableBox, tfTable};
 
+            KDL::Chain trunkAndRightArmChain;
             bool collide(const ob::State *stateEndEffector);
+            bool collide(KDL::JntArray jointpositions);
+
+            fcl::Transform3f tfLinkCenter;
+            CollisionGeometryPtr_t teoAxialShoulder{new fcl::Cylinder{AXIAL_SHOULDER_LINK_RADIUS, AXIAL_SHOULDER_LINK_LENGTH}};
+            CollisionGeometryPtr_t teoFrontalElbow{new fcl::Cylinder{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
+            CollisionGeometryPtr_t teoFrontalWrist{new fcl::Box{ FRONTAL_WRIST_LINK_LENGTH,0.15,0.1}};
+
+            std::vector<fcl::CollisionObject> rightArmCollisionObjects;
+            std::vector<KDL::Frame> rightArmCenterLinkWrtJoint;
+            int linksToCheckCollisions[3] = {4,6,8};
+
+            const char *linkNames[3] = { "Axial shoulder", "Frontal Elbow", "Frontal wrist"};
+            
 
 
 

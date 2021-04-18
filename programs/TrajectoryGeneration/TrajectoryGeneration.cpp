@@ -13,6 +13,7 @@
 #include <yarp/os/LogStream.h>
 #include <KdlVectorConverter.hpp>
 
+
 using namespace roboticslab::KinRepresentation;
 using namespace roboticslab::KdlVectorConverter;
 using namespace teo;
@@ -25,18 +26,18 @@ using namespace teo;
 static KDL::Chain makeTeoFixedTrunkAndRightArmKinematicsFromDH()
 {
     const KDL::Joint rotZ(KDL::Joint::RotZ);
-    const KDL::Joint fixed(KDL::Joint::None);//Rigid Connection
+    const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
     KDL::Chain chain;
-    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.0, -KDL::PI/2, 0.1932, 0.0)));
-    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI/2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI / 2)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, 0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, -KDL::PI / 2)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, KDL::PI / 2, 0, 0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.215, 0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09, 0, 0, -KDL::PI / 2)));
-    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0,KDL::PI/2, 0, -KDL::PI/2)));
-    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0,0, 0.0975, 0)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, 0, 0.0975, 0)));
 
     return chain;
 }
@@ -185,13 +186,13 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     //     printf("Joint: %d Min: %f Max: %f\n", i, min, max);
     // }
 
-    bounds.setLow(0, 0. - 0.4);
+    bounds.setLow(0, -0.4);
     bounds.setHigh(0, 0.8);
 
-    bounds.setLow(1, -0.8);
+    bounds.setLow(1, -0.6);
     bounds.setHigh(1, 0.2);
 
-    bounds.setLow(2, -0.5);
+    bounds.setLow(2, -0.3);
     bounds.setHigh(2, 0.8);
 
     space->as<ob::SE3StateSpace>()->setBounds(bounds);
@@ -204,12 +205,32 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
 
+    //Init collisions objects
 
-    // LETS CHECK IF WE HAVE THE SAME RESULT WITH FWDKIN AND JNTTOCART
+    fcl::CollisionObject teoAxialShoulderObject{teoAxialShoulder, tfLinkCenter};
+    fcl::CollisionObject teoFrontalElbowObject{teoFrontalElbow, tfLinkCenter};
+    fcl::CollisionObject teoAxialWristObject{teoFrontalWrist, tfLinkCenter};
 
-    
+    rightArmCollisionObjects.push_back(teoAxialShoulderObject);
+    rightArmCollisionObjects.push_back(teoFrontalElbowObject);
+    rightArmCollisionObjects.push_back(teoAxialWristObject);
 
-    
+    KDL::Frame frameAxialRightShoulderCenterLinkWrtJoint;
+    KDL::Vector posKdl = KDL::Vector(0, 0, -AXIAL_SHOULDER_LINK_LENGTH / 2.0);
+    frameAxialRightShoulderCenterLinkWrtJoint.p = posKdl;
+
+    KDL::Frame frameFrontalElbowCenterLinkWrtJoint;
+    posKdl = KDL::Vector(0, 0, -FRONTAL_ELBOW_LINK_LENGTH / 2.0);
+    frameFrontalElbowCenterLinkWrtJoint.p = posKdl;
+
+    KDL::Frame frameFrontalWristCenterLinkWrtJoint;
+    posKdl = KDL::Vector(-FRONTAL_WRIST_LINK_LENGTH / 2.0, 0, 0);
+    frameFrontalWristCenterLinkWrtJoint.p = posKdl;
+
+    rightArmCenterLinkWrtJoint.push_back(frameAxialRightShoulderCenterLinkWrtJoint);
+    rightArmCenterLinkWrtJoint.push_back(frameFrontalElbowCenterLinkWrtJoint);
+    rightArmCenterLinkWrtJoint.push_back(frameFrontalWristCenterLinkWrtJoint);
+
     std::vector<double> currentQ(numRightArmJoints);
     if (!rightArmIEncoders->getEncoders(currentQ.data()))
     {
@@ -217,45 +238,58 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         return false;
     }
 
-    // Check if we are in the starting state
-
-    std::vector<double> xStart;
-
-    if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
-    {
-        //yError() << "fwdKin failed";
-        return false;
-    }
-
-
-    KDL::Chain trunkAndRightArmChain = makeTeoFixedTrunkAndRightArmKinematicsFromDH();
+    // // Check if we are in the starting state
+    trunkAndRightArmChain = makeTeoFixedTrunkAndRightArmKinematicsFromDH();
 
     unsigned int nj = trunkAndRightArmChain.getNrOfJoints();
-    yInfo()<<"Number of joints: "<<nj;
-    KDL::JntArray jointpositions = KDL::JntArray(nj);
+    yInfo() << "Number of joints: " << nj;
+    unsigned int nl = trunkAndRightArmChain.getNrOfSegments();
+    yInfo() << "Number of segments: " << nl;
 
-    for(unsigned int i=0;i<6;i++){
-        jointpositions(i)=currentQ[i]* KDL::deg2rad;
-    }
-    for(unsigned int i=0;i<nj;i++){
-        yInfo()<<jointpositions(i);
-    }
-    
-    KDL::Frame frameCartPos;    
- 
-    // Calculate forward position kinematics
-    int kinematics_status;
-    KDL::ChainFkSolverPos_recursive fksolver(trunkAndRightArmChain);
-    kinematics_status = fksolver.JntToCart(jointpositions,frameCartPos);
-    yInfo()<<kinematics_status;
-    std::vector<double> test = frameToVector(frameCartPos);
+    //collide(jointpositions);
 
-    yInfo()<<"From cartesian solver: "<<xStart;
-    yInfo()<<"From fksolver: "<< test;
+    // for(unsigned int i=0;i<nj;i++){
+    //     yInfo()<<jointpositions(i);
+    // }
 
-    
+    // KDL::Frame frameAxialRightShoulderJoint; // --> joint 4
 
+    // // Calculate forward position kinematics
+    // int kinematics_status;
+    // KDL::ChainFkSolverPos_recursive fksolver(trunkAndRightArmChain);
+    // kinematics_status = fksolver.JntToCart(jointpositions,frameAxialRightShoulderJoint,4);
+    // KDL::Frame frameAxialRightShoulderCenterLinkWrtJoint;
+    // KDL::Vector posKdl = KDL::Vector(0, 0, -AXIAL_SHOULDER_LINK_LENGTH/2.0);
+    // frameAxialRightShoulderCenterLinkWrtJoint.p = posKdl;
 
+    // KDL::Frame frameAxialRightShoulderCenterLink = frameAxialRightShoulderJoint* frameAxialRightShoulderCenterLinkWrtJoint;
+    // fcl::Transform3f tfAxialShoulderCenter;
+    // // tfAxialShoulderCenter.translation() = Eigen::Map<const Eigen::Vector3d>(frameAxialRightShoulderCenterLink.p.data);
+    // // tfAxialShoulderCenter.linear() = Eigen::Map<const Eigen::Matrix3d>(frameAxialRightShoulderCenterLink.M.data);
+
+    // CollisionGeometryPtr_t teoAxialShoulder{new fcl::Cylinder{AXIAL_SHOULDER_LINK_RADIUS, AXIAL_SHOULDER_LINK_LENGTH}};
+    // fcl::CollisionObject teoAxialShoulderObject{teoAxialShoulder, tfAxialShoulderCenter};
+
+    // fcl::Vec3f translation(frameAxialRightShoulderCenterLink.p[0], frameAxialRightShoulderCenterLink.p[1],frameAxialRightShoulderCenterLink.p[2]);
+    // double x,y, z,w;
+    // frameAxialRightShoulderCenterLink.M.GetQuaternion(x,y,z,w);
+    // fcl::Quaternion3f rotation(w, x, y,z);
+    // teoAxialShoulderObject.setTransform(rotation, translation);
+
+    // fcl::CollisionRequest requestType(1, false, 1, false);
+    // fcl::CollisionResult collisionResult;
+    // fcl::collide(&teoAxialShoulderObject, &teoTopBoxObject, requestType, collisionResult);
+
+    // if (collisionResult.isCollision())
+    // {
+    //     yInfo("Collision between right axial shoulder and teo's body.");
+    //     return true;
+    // }
+    // yInfo("Not Collision between right axial shoulder and teo's body.");
+
+    // std::vector<double> test = frameToVector(frameAxialRightShoulderCenterLink);
+
+    // yInfo()<<"From fksolver: "<< test;
 
     // if(isValid(startState))
     //      yInfo()<<"Valid starting state";
@@ -323,8 +357,8 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
     // }
     // return false;
 
-    if (collide(state))
-        return false;
+    // if (collide(state))
+    //     return false;
 
     // cast the abstract state type to the type we expect
     const ob::SE3StateSpace::StateType *se3state = state->as<ob::SE3StateSpace::StateType>();
@@ -397,6 +431,13 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
 
             return false;
         }
+        KDL::JntArray jointpositions = KDL::JntArray(6);
+
+        for (unsigned int i = 0; i < 6; i++)
+        {
+            jointpositions(i) = desireQ[i] * KDL::deg2rad;
+        }
+        return collide(jointpositions);
     }
 
     return true;
@@ -408,11 +449,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     // pdef->clearStartStates();
     // pdef->addStartState(start);
 
-    auto plannerRRT = (new og::RRTstar(si));
-    plannerRRT->setRange(DEFAULT_RANGE_RRT);
-    plannerRRT->setPruneThreshold(DEFAULT_PRUNE_THRESHOLD);
+    auto plannerRRT = (new og::RRTstar (si));
+    plannerRRT->setRange(0.1);
+    plannerRRT->setPruneThreshold(0.4);
     plannerRRT->setTreePruning(true);
-    plannerRRT->setInformedSampling(true);
+    //plannerRRT->setInformedSampling(true);
 
     ob::PlannerPtr planner = ob::PlannerPtr(plannerRRT);
 
@@ -458,7 +499,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     planner->setup();
 
-    bool solutionFound = planner->solve(10.0);
+    bool solutionFound = planner->solve(5.0);
 
     if (solutionFound == true)
     {
@@ -717,7 +758,7 @@ bool TrajectoryGeneration::collide(const ob::State *stateEndEffector)
     endEffectorObject.setTransform(rotation, translation);
     fcl::CollisionRequest requestType(1, false, 1, false);
     fcl::CollisionResult collisionResult;
-    fcl::collide(&endEffectorObject, &teoBoxObject, requestType, collisionResult);
+    fcl::collide(&endEffectorObject, &teoTopBoxObject, requestType, collisionResult);
 
     if (collisionResult.isCollision())
     {
@@ -733,4 +774,56 @@ bool TrajectoryGeneration::collide(const ob::State *stateEndEffector)
     }
 
     return false;
+}
+
+bool TrajectoryGeneration::collide(KDL::JntArray jointpositions)
+{
+
+    for (int i = 0; i < 3; i++)
+    {
+
+        int kinematics_status;
+        KDL::ChainFkSolverPos_recursive fksolver(trunkAndRightArmChain);
+        KDL::Frame frameJoint; // --> joint 4
+        kinematics_status = fksolver.JntToCart(jointpositions, frameJoint, linksToCheckCollisions[i]);
+
+        KDL::Frame frameCenterLink = frameJoint * rightArmCenterLinkWrtJoint[i];
+        fcl::Transform3f tfAxialShoulderCenter;
+
+        fcl::Vec3f translation(frameCenterLink.p[0], frameCenterLink.p[1], frameCenterLink.p[2]);
+        double x, y, z, w;
+        frameCenterLink.M.GetQuaternion(x, y, z, w);
+        fcl::Quaternion3f rotation(w, x, y, z);
+        rightArmCollisionObjects[i].setTransform(rotation, translation);
+
+        fcl::CollisionRequest requestType(1, false, 1, false);
+        fcl::CollisionResult collisionResult;
+        fcl::collide(&rightArmCollisionObjects[i], &teoTopBoxObject, requestType, collisionResult);
+
+        if (collisionResult.isCollision())
+        {
+            yInfo() << "Collision between right" << linkNames[i] << " and teo's top body.";
+            return false;
+        }
+        yInfo() << "NOT Collision between right" << linkNames[i] << " and teo's top body.";
+
+        fcl::collide(&rightArmCollisionObjects[i], &teoBottomBoxObject, requestType, collisionResult);
+
+        if (collisionResult.isCollision())
+        {
+            yInfo() << "Collision between right" << linkNames[i] << " and teo's bottom body.";
+            return false;
+        }
+        yInfo() << "NOT Collision between right" << linkNames[i] << " and teo's bottom body.";
+
+        fcl::collide(&rightArmCollisionObjects[i], &tableBoxObject, requestType, collisionResult);
+
+        if (collisionResult.isCollision())
+        {
+            yInfo() << "Collision between right" << linkNames[i] << " and table.";
+            return false;
+        }
+        yInfo() << "NOT Collision between right" << linkNames[i] << " and table.";
+    }
+    return true;
 }
