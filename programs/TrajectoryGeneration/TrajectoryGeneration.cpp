@@ -13,7 +13,6 @@
 #include <yarp/os/LogStream.h>
 #include <KdlVectorConverter.hpp>
 
-
 using namespace roboticslab::KinRepresentation;
 using namespace roboticslab::KdlVectorConverter;
 using namespace teo;
@@ -55,6 +54,12 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         printf("\t--help (this help)\t--from [file.ini]\t--context [path]\n");
         printf("\t--robot: %s [%s]\n", robot.c_str(), DEFAULT_ROBOT);
         ::exit(0);
+    }
+
+    if (!outCartesianTrajectoryPort.open("/"+robot + "/cartesianTrajectory:o"))
+    {
+        yError("Bad outCartesianTrajectoryPort.open\n");
+        return false;
     }
 
     // ------ RIGHT ARM -------
@@ -511,6 +516,49 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         yInfo() << pth->getStateCount();
     }
 
+    // Send computed trajectory through the port for plotting
+
+//#ifdef SEND_TRAJECTORY_DATA
+    Bottle &out = outCartesianTrajectoryPort.prepare();
+    std::size_t iState = 0;
+    while (iState < pth->getStateCount())
+    {
+        ob::State *state = pth->getState(iState);
+
+        const ob::SE3StateSpace::StateType *se3state = state->as<ob::SE3StateSpace::StateType>();
+
+        // extract the first component of the state and cast it to what we expect
+        const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
+
+        // extract the second component of the state and cast it to what we expect
+        const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
+
+        KDL::Frame frame;
+
+        KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
+        KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
+        //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
+        double x, y, z, w;
+        rotKdl.GetQuaternion(x, y, z, w);
+        frame.M = rotKdl;
+        frame.p = posKdl;
+        std::vector<double> pose = frameToVector(frame);
+        
+        yarp::os::Bottle bPose;
+        
+        for (int i = 0; i < 6; i++)
+            bPose.addDouble(pose[i]);
+        
+        out.append(bPose);
+        yInfo()<<out.toString();
+        iState++;
+        yarp::os::Time::delay(0.1);
+    }
+    outCartesianTrajectoryPort.write(true);
+
+//#endif
+    followDiscretePath();
+
     return solutionFound;
 }
 
@@ -691,6 +739,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     {
         yInfo() << "Solution Found";
     }
+
     // // Set our starting state
     // for (int i = 0; i < numRightArmJoints; i++)
     //     start->as<ob::RealVectorStateSpace::StateType>()->values[i] = currentQ[i];
