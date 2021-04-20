@@ -186,10 +186,10 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     //     printf("Joint: %d Min: %f Max: %f\n", i, min, max);
     // }
 
-    bounds.setLow(0, -0.4);
+    bounds.setLow(0, -0.5);
     bounds.setHigh(0, 0.8);
 
-    bounds.setLow(1, -0.6);
+    bounds.setLow(1, -0.8);
     bounds.setHigh(1, 0.2);
 
     bounds.setLow(2, -0.3);
@@ -449,11 +449,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     // pdef->clearStartStates();
     // pdef->addStartState(start);
 
-    auto plannerRRT = (new og::RRTstar (si));
-    plannerRRT->setRange(0.1);
-    plannerRRT->setPruneThreshold(0.4);
+    auto plannerRRT = (new og::RRTstar(si));
+    plannerRRT->setRange(0.15);
+    plannerRRT->setPruneThreshold(0.1);
     plannerRRT->setTreePruning(true);
-    //plannerRRT->setInformedSampling(true);
+    plannerRRT->setInformedSampling(true);
 
     ob::PlannerPtr planner = ob::PlannerPtr(plannerRRT);
 
@@ -499,7 +499,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     planner->setup();
 
-    bool solutionFound = planner->solve(5.0);
+    bool solutionFound = planner->solve(10.0);
 
     if (solutionFound == true)
     {
