@@ -31,7 +31,7 @@
 #include <fcl/shape/geometric_shapes_utility.h>
 
 
-#define DEFAULT_ROBOT "teoSim" // teo or teoSim (default teo)
+#define DEFAULT_ROBOT "teo" // teo or teoSim (default teo)
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
 #define INPUT_READING_MS 10

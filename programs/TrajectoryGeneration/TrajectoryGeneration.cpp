@@ -455,7 +455,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     // pdef->addStartState(start);
 
     auto plannerRRT = (new og::RRTstar(si));
-    plannerRRT->setRange(0.15);
+    plannerRRT->setRange(0.05);
     plannerRRT->setPruneThreshold(0.1);
     plannerRRT->setTreePruning(true);
     plannerRRT->setInformedSampling(true);
@@ -520,6 +520,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
 //#ifdef SEND_TRAJECTORY_DATA
     Bottle &out = outCartesianTrajectoryPort.prepare();
+    out.clear();
     std::size_t iState = 0;
     while (iState < pth->getStateCount())
     {
@@ -544,12 +545,13 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         frame.p = posKdl;
         std::vector<double> pose = frameToVector(frame);
         
-        yarp::os::Bottle bPose;
+        Bottle bPose;
+        
         
         for (int i = 0; i < 6; i++)
             bPose.addDouble(pose[i]);
         
-        out.append(bPose);
+        out.addList() = bPose;
         yInfo()<<out.toString();
         iState++;
         yarp::os::Time::delay(0.1);
