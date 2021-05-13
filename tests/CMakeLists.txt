@@ -9,14 +9,14 @@ if(ENABLE_tests)
     add_subdirectory(${GTestSources_SOURCE_DIR} ${CMAKE_BINARY_DIR}/gtest)
     include_directories(${GTestSources_INCLUDE_DIR}})
 
-    if(ENABLE_ExampleLibrary)
-        add_executable(testExampleLibrary testExampleLibrary.cpp)
+    if(ENABLE_CheckSelfCollisionLibrary)
+        add_executable(testCheckSelfCollisionLibrary testCheckSelfCollisionLibrary.cpp)
 
-        target_link_libraries(testExampleLibrary ROBOTICSLAB::ColorDebug
-                                                 ExampleLibrary
+        target_link_libraries(testCheckSelfCollisionLibrary ROBOTICSLAB::ColorDebug
+                                                 CheckSelfCollisionLibrary
                                                  gtest_main)
 
-        gtest_add_tests(testExampleLibrary "" AUTO)
+        gtest_add_tests(testCheckSelfCollisionLibrary "" AUTO)
     endif()
 
 else()
