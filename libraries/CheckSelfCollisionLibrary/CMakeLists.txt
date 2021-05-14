@@ -7,6 +7,7 @@ if(ENABLE_CheckSelfCollisionLibrary)
 set(KEYWORD "CheckSelfCollisionLibrary")
 
 find_package(orocos_kdl 1.4 QUIET)
+find_package(fcl REQUIRED)
 
 # Configure library build target.
 add_library(${KEYWORD} SHARED CheckSelfCollisionLibrary.cpp
@@ -18,12 +19,14 @@ set_target_properties(${KEYWORD} PROPERTIES PUBLIC_HEADER "CheckSelfCollisionLib
 # Link external libraries.
 target_link_libraries(${KEYWORD} PUBLIC YARP::YARP_OS
                                  ${orocos_kdl_LIBRARIES}
+                                 fcl
                                  PRIVATE ROBOTICSLAB::ColorDebug)
 
 # Define include paths.
 target_include_directories(${KEYWORD} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-                                             ${orocos_kdl_INCLUDE_DIRS})
+                                             ${orocos_kdl_INCLUDE_DIRS}
+                                             ${FCL_INCLUDE_DIRS})
 
 # Create installation rule.
 install(TARGETS ${KEYWORD}
