@@ -3,10 +3,13 @@
 #ifndef __CHECK_SELF_COLLISION_HPP__
 #define __CHECK_SELF_COLLISION_HPP__
 
+#include <array>
+#include <vector>
+
 #include <kdl/chain.hpp>
 #include <kdl/jntarray.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
-#include <array>
+
 
 #include <fcl/collision.h>
 #include <fcl/collision_object.h>
@@ -25,8 +28,8 @@ namespace roboticslab
 class CheckSelfCollision
 {
 public:
-    CheckSelfCollision(const KDL::Chain & _chain, const KDL::JntArray & _qmin, const KDL::JntArray & _qmax, std::vector<fcl::CollisionObject> &_collisionObjects): 
-    chain(_chain), qmin(_qmin), qmax(_qmax), collisionObjects(_collisionObjects)
+    CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObject> &t_collisionObjects,std::vector<std::array <float,3>> &t_offset): 
+    chain(t_chain), qmin(t_qmin), qmax(t_qmax), collisionObjects(t_collisionObjects), offsetCenterCollisionObjects(t_offset)
     {
         if (chain.getNrOfJoints() <1)
             throw std::runtime_error("Empty chain");
@@ -46,6 +49,7 @@ public:
 
         KDL::Frame f =  chain.getSegment(0).getFrameToTip();
         for(int i=0; i< chain.getNrOfSegments(); i++){
+                            
             double x = chain.getSegment(i).getFrameToTip().p.x();
             double y = chain.getSegment(i).getFrameToTip().p.y();
             double z = chain.getSegment(i).getFrameToTip().p.z();
@@ -56,13 +60,25 @@ public:
             if (norm != 0){
                 KDL::Frame frameLink;
                 frameLink.p = KDL::Vector(x/2.0, y/2.0, z/2.0);
+                
                 centerLinksWrtJoints.push_back(std::make_pair(i, frameLink));
+                printf("i: %d, x: %f, y: %f, z: %f\n", i, x/2, y/2, z/2);
                 printf("norm: %f\n", norm);
             }
         }
 
         if(centerLinksWrtJoints.size()!= collisionObjects.size()){
             throw std::runtime_error("Error in the number of collision objects");
+        }
+
+        if(offsetCenterCollisionObjects.size() != collisionObjects.size()){
+            throw std::runtime_error("Error in the number of offset center collision objects");
+        }
+
+        for(int i=0; i<centerLinksWrtJoints.size(); i++){
+            centerLinksWrtJoints[i].second.p.data[0] += offsetCenterCollisionObjects[i][0];
+            centerLinksWrtJoints[i].second.p.data[1] += offsetCenterCollisionObjects[i][1];
+            centerLinksWrtJoints[i].second.p.data[2] += offsetCenterCollisionObjects[i][2];
         }
 
     }
@@ -75,6 +91,7 @@ public:
     KDL::JntArray qmin;
     KDL::JntArray qmax;
     std::vector<fcl::CollisionObject> collisionObjects;
+    std::vector<std::array<float,3>> offsetCenterCollisionObjects;
     std::vector<std::pair<int,KDL::Frame>> centerLinksWrtJoints;
     typedef std::shared_ptr <fcl::CollisionGeometry> CollisionGeometryPtr_t;
 
