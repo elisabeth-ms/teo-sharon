@@ -357,4 +357,63 @@ namespace roboticslab
 
     }
 
+ TEST_F(CheckSelfCollisionTest, CheckSelfCollision)
+    {
+        makeTeoTrunkRightArmChainAndLimits();
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Box{0.25, 0.25, 0.6}};
+        fcl::Transform3f tfTest{fcl::Vec3f{0.0, 0.0, 0.0}};
+        fcl::CollisionObject collisionObject1{teoRootTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoTrunk{new fcl::Box{0.3, 0.3, 0.46}};
+        fcl::CollisionObject collisionObject2{teoTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Box{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+        fcl::CollisionObject collisionObject3{teoAxialShoulder, tfTest};
+
+        CollisionGeometryPtr_t teoElbow{new fcl::Box{0.10, 0.10, 0.22}};
+        fcl::CollisionObject collisionObject4{teoElbow, tfTest};
+
+        CollisionGeometryPtr_t teoWrist{new fcl::Box{0.2, 0.20, 0.2}};
+        fcl::CollisionObject collisionObject5{teoWrist, tfTest};
+
+        int nOfCollisionObjects = 5;
+        collisionObjects.clear();
+        collisionObjects.reserve(nOfCollisionObjects);
+        collisionObjects.emplace_back(collisionObject1);
+        collisionObjects.emplace_back(collisionObject2);
+        collisionObjects.emplace_back(collisionObject3);
+        collisionObjects.emplace_back(collisionObject4);
+        collisionObjects.emplace_back(collisionObject5);
+
+        offsetCollisionObjects[0][2] = -0.2;
+
+        offsetCollisionObjects[1][1] = 0.0;
+        offsetCollisionObjects[1][2] = +0.1734;
+
+        offsetCollisionObjects[4][1] = 0.055;
+
+
+
+
+        checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+        KDL::JntArray q(8);
+        q(0) = 0;
+        q(1) = -8;
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_FALSE(checkSelfCollision->selfCollision());
+
+         q(0) = 0;
+        q(1) = 0;
+        q(2) = 0;
+        q(3) = 0;
+        q(4) = 80;
+        q(5) = -20;
+        q(6) = 0;
+        q(7) = 0;
+
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_TRUE(checkSelfCollision->selfCollision());
+
+
+    }
 } // namespace roboticslab

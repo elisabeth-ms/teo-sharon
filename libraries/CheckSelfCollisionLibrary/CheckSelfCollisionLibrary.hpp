@@ -85,8 +85,9 @@ public:
 
     bool jointsInsideBounds(const KDL::JntArray &q);
     bool updateCollisionObjectsTransform(const KDL::JntArray &q);
-    bool selfCollision(const KDL::JntArray &q);
+    bool selfCollision();
     bool twoLinksCollide(const KDL::JntArray &q, int link1, int link2);
+    KDL::JntArray jointsDeg2Rad(const KDL::JntArray &q);
     KDL::Chain chain;
     KDL::JntArray qmin;
     KDL::JntArray qmax;

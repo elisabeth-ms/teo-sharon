@@ -2,43 +2,55 @@
 
 #include "CheckSelfCollisionLibrary.hpp"
 
-
 namespace roboticslab
 {
 
-    bool CheckSelfCollision::jointsInsideBounds(const KDL::JntArray& q){
+    bool CheckSelfCollision::jointsInsideBounds(const KDL::JntArray &q)
+    {
 
-        if(q.rows()!= qmin.rows() || q.rows()!=qmax.rows()){
+        if (q.rows() != qmin.rows() || q.rows() != qmax.rows())
+        {
             throw std::runtime_error("q size is not equal to qmin and qmax size");
         }
         // printf("joints inside bounds");
         // for(int i=0; i<qmax.rows(); i++){
         //     printf("qmax(%d): %f\n", i,qmax(i));
         // }
-        for(int i = 0; i<q.rows(); i++){
+        for (int i = 0; i < q.rows(); i++)
+        {
             //printf("%f %f %f \n", q(i), qmin(i), qmax(i));
-            if(q(i)< qmin(i) || q(i)>qmax(i)){
+            if (q(i) < qmin(i) || q(i) > qmax(i))
+            {
                 return false;
             }
         }
         return true;
     }
 
-    bool CheckSelfCollision::updateCollisionObjectsTransform(const KDL::JntArray &q){
-
+    KDL::JntArray CheckSelfCollision::jointsDeg2Rad(const KDL::JntArray &q)
+    {
         KDL::JntArray qRad(q.rows());
+        for (int i = 0; i < q.rows(); i++)
+        {
+            qRad(i) = q(i) * KDL::deg2rad;
+            //printf("q(%d) = %f", i, q(i));
+        }
+        return qRad;
+    }
+
+    bool CheckSelfCollision::updateCollisionObjectsTransform(const KDL::JntArray &q)
+    {
 
         int kinematics_status;
         KDL::ChainFkSolverPos_recursive fksolver(chain);
-        for(int i=0; i<q.rows(); i++)
-        {   qRad(i) = q(i)*KDL::deg2rad;
-            //printf("q(%d) = %f", i, q(i));
-        }
+        KDL::JntArray qRad = jointsDeg2Rad(q);
         //printf("\n");
-        if (jointsInsideBounds(qRad)){
+        if (jointsInsideBounds(qRad))
+        {
             //printf("jointsInsideBounds\n");
-            for(int i=0; i<centerLinksWrtJoints.size(); i++){
-                KDL::Frame frameJoint; 
+            for (int i = 0; i < centerLinksWrtJoints.size(); i++)
+            {
+                KDL::Frame frameJoint;
                 kinematics_status = fksolver.JntToCart(qRad, frameJoint, centerLinksWrtJoints[i].first);
                 //printf("kinematic status %d\n", kinematics_status);
                 //printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
@@ -55,11 +67,11 @@ namespace roboticslab
             }
 
             return true;
-
         }
         return false;
     }
-    bool CheckSelfCollision::twoLinksCollide(const KDL::JntArray &q, int link1, int link2){
+    bool CheckSelfCollision::twoLinksCollide(const KDL::JntArray &q, int link1, int link2)
+    {
         fcl::CollisionRequest requestType(1, false, 1, false);
         fcl::CollisionResult collisionResult;
         fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
@@ -68,18 +80,38 @@ namespace roboticslab
         {
             return true;
         }
-        else{
+        else
+        {
             return false;
         }
-    
     }
 
+    bool CheckSelfCollision::selfCollision()
+    {
 
+        fcl::CollisionRequest requestType(1, false, 1, false);
+        fcl::CollisionResult collisionResult;
+        for (int link1 = 0; link1<collisionObjects.size(); link1++)
+        {
+            int link2 = link1 + 2;
+            while (link2 < collisionObjects.size())
+            {   
+                printf("%d %d\n", link1, link2);
+                fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
+                if (collisionResult.isCollision())
+                {
+                    return true;
+                }
+                link2++;
+            }
+        }
+        return false;
+    }
 
-/************************************************************************/
+    /************************************************************************/
 
-/************************************************************************/
+    /************************************************************************/
 
-/************************************************************************/
+    /************************************************************************/
 
 } // namespace roboticslab
