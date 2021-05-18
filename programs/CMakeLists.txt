@@ -4,3 +4,5 @@
 
 add_subdirectory(CropSalientObject)
 add_subdirectory(TrajectoryGeneration)
+add_subdirectory(SpawnDetectedObjects)
+add_subdirectory(MapHumanHandTrajectoryToRobotEndEffector)

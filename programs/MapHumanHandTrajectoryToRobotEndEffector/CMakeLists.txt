@@ -20,6 +20,7 @@ target_link_libraries(${KEYWORD}
                                  YARP::YARP_init
                                  YARP::YARP_dev
                                  CheckSelfCollisionLibrary
+                                 nlopt
                                  )
 
 endif(ENABLE_mapHumanHandTrajectoryToRobotEndEffector)
