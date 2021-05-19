@@ -21,6 +21,12 @@ target_link_libraries(${KEYWORD}
                                  YARP::YARP_dev
                                  CheckSelfCollisionLibrary
                                  nlopt
+                                 ${orocos_kdl_LIBRARIES}
                                  )
+
+target_include_directories(${KEYWORD} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                                             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+                                             ${orocos_kdl_INCLUDE_DIRS})
+
 
 endif(ENABLE_mapHumanHandTrajectoryToRobotEndEffector)
