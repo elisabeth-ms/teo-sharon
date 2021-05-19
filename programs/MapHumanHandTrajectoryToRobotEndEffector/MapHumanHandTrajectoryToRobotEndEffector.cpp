@@ -81,20 +81,24 @@ namespace sharon
     double optimizationFunction(const std::vector<double> &x, std::vector<double> &grad, void *data)
     {
         auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
-        std::cout << (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
+        //std::cout << (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
         double sum = 0;
         for (unsigned int i = 0; i < x.size(); i++)
         {
             sum += (x[i] - (*voidToVector)[i]) * (x[i] - (*voidToVector)[i]);
-            std::cout << sum << std::endl;
+            
         }
+        std::cout << sum << std::endl;
         return sum;
     }
 
+    //
     double quaternionConstraint(const std::vector<double> &x, std::vector<double> &grad, void *data)
     {
         return sqrt(x[3] * x[3] + x[4] * x[4] + x[5] * x[5] + x[6] * x[6]) - 1;
     }
+
+    
 
 }
 
@@ -112,7 +116,7 @@ int main()
     // x[1] += 0.05;
     std::vector<double> grad(desiredPoses);
 
-    unsigned int nOfVariables = 7;
+    unsigned int nOfVariables = desiredPoses.size();
     nlopt::opt opt(nlopt::LN_COBYLA, nOfVariables);
     opt.set_min_objective(sharon::optimizationFunction, parameters);
     std::vector<double> lb(nOfVariables);
@@ -120,22 +124,33 @@ int main()
 
     for (unsigned int i = 0; i < nOfVariables; i++)
     {
-        lb[i] = -1.0;
-        ub[i] = 1.0;
+        // Our vector x is constructed like [x0 y0 z0 qx0 qy0 qz0 qw0 ... xi yi zi qxi qyi qzi qwi ... xn yn zn qxn qyn qzn qwn]. Where each group of 7 elements
+        // represents a pose
+        if(i<(( (unsigned int) (i/7)+1)*7-4)) // Bounds for position elements [x y z]
+        {   
+            lb[i] = -1.3;
+            ub[i] = 1.3;
+        }
+        else{ // Bounds for quaternion elements [qx qy qz qw]
+            lb[i] = -1;
+            ub[i] = 1.0;
+        }
     }
 
     opt.set_lower_bounds(lb);
     opt.set_upper_bounds(ub);
 
-    opt.add_equality_constraint(sharon::quaternionConstraint, NULL, 1e-8);
+    opt.add_equality_constraint(sharon::quaternionConstraint, NULL, 1e-6);
 
-    opt.set_xtol_rel(1e-8);
+    opt.set_ftol_abs(1e-3);
+    opt.set_xtol_rel(1e-3);
+    opt.set_stopval(1e-5);
 
     double minf;
     try
     {
         nlopt::result result = opt.optimize(x, minf);
-        std::cout << "found minimum at f(" << x[0] << ", " << x[1] << ", " << x[2] << ", " << x[3] << ", " << x[4] << ", " << x[5] << ", " << x[6] << ")=" << minf << std::endl;
+        std::cout << "found minimum at f(x)=" << minf << std::endl;
     }
     catch (std::exception &e)
     {
