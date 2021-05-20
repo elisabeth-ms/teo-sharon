@@ -5,6 +5,12 @@
 #include <vector>
 #include <array>
 
+#include <yarp/os/all.h>
+#include <yarp/dev/all.h>
+#include <yarp/dev/IAnalogSensor.h>
+#include "ICartesianSolver.h"
+#include "KinematicRepresentation.hpp"
+
 namespace sharon{
     /**
      * @brief Get the Trajectory From Csv File object.
@@ -66,6 +72,12 @@ namespace sharon{
      * @param data 
      */
     void quaternionConstraint(unsigned m,double * result, unsigned n, const double *x, double * grad, void *data);
+
+
+    void validIkConstraint(unsigned m, double * result, unsigned n, const double * x, double * grad, void * data);
+
+
+    void writeCsv(std::string filename, const double * x, const unsigned int & numPoses);
 
 }// namespace sharon
 
