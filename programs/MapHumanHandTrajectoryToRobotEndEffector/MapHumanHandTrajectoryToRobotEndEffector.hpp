@@ -11,6 +11,8 @@
 #include "ICartesianSolver.h"
 #include "KinematicRepresentation.hpp"
 
+#include "CheckSelfCollisionLibrary.hpp"
+
 namespace sharon{
     /**
      * @brief Get the Trajectory From Csv File object.
@@ -74,10 +76,12 @@ namespace sharon{
     void quaternionConstraint(unsigned m,double * result, unsigned n, const double *x, double * grad, void *data);
 
 
-    void validIkConstraint(unsigned m, double * result, unsigned n, const double * x, double * grad, void * data);
+    void noSelfCollisionConstraint(unsigned m, double * result, unsigned n, const double * x, double * grad, void * data);
 
 
     void writeCsv(std::string filename, const double * x, const unsigned int & numPoses);
+    
+    void writeQCsv(std::string filename, const std::vector<std::array<double,8>>& qTraj);
 
 }// namespace sharon
 

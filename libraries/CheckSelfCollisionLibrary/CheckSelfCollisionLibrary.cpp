@@ -2,7 +2,7 @@
 
 #include "CheckSelfCollisionLibrary.hpp"
 
-namespace roboticslab
+namespace sharon
 {
 
     bool CheckSelfCollision::jointsInsideBounds(const KDL::JntArray &q)

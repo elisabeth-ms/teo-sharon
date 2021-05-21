@@ -17,7 +17,7 @@
 
 
 
-namespace roboticslab
+namespace sharon
 {
 
 /**
@@ -99,6 +99,6 @@ public:
 
 };
 
-} // namespace roboticslab
+} // namespace sharon
 
 #endif // __CHECK_SELF_COLLISION_HPP__
