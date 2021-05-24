@@ -37,8 +37,11 @@ namespace sharon{
      * @param discreteTrajectory Discrete trajectory constructed as a array with numPoses*7 elements. Each group of 7 elements in the vector represent one discrete pose. 
      * @param size size of the discrete trajectory arrray
      */
-    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const unsigned int &numPoses, double *discreteTrajectory, unsigned int &size);
+
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const unsigned int &numPoses, std::vector<double>& discreteTrajectory);
     
+
+    void getTrajectoryPoses(const std::vector<std::array<double,8>> &trajectoryData, const float & distBtwPoses, std::vector<double>& discreteTrajectory);
 
     /**
      * @brief Optimization function to minimize the distance between the pose of the desired trajectory and the final trajectory that satisfies the constraints.

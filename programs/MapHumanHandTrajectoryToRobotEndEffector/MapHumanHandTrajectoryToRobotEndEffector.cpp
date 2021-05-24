@@ -95,7 +95,6 @@ void createSelfCollisionObjects()
     collisionObjects.emplace_back(collisionObject5);
     collisionObjects.emplace_back(collisionObject6);
 
-
     offsetCollisionObjects.resize(nOfCollisionObjects);
     std::array<float, 3> offsetObject = {0, 0, 0};
     offsetCollisionObjects[0][2] = -0.2;
@@ -150,7 +149,7 @@ namespace sharon
         }
     }
 
-    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const unsigned int &numPoses, double *discreteTrajectory, unsigned int &size)
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const unsigned int &numPoses, std::vector<double> &discreteTrajectory)
     {
         //std::vector<double> desiredTrajectory;
 
@@ -165,7 +164,8 @@ namespace sharon
         {
             for (unsigned int i = 1; i < trajectoryData[iPose].size(); i++)
             {
-                discreteTrajectory[(i - 1) + 7 * count] = trajectoryData[iPose][i];
+                //discreteTrajectory[(i - 1) + 7 * count] = trajectoryData[iPose][i];
+                discreteTrajectory.push_back(trajectoryData[iPose][i]);
                 //desiredTrajectory.push_back(trajectoryData[iPose][i]);
             }
             count++;
@@ -174,7 +174,35 @@ namespace sharon
 
         for (unsigned int i = 1; i < trajectoryData[0].size(); i++)
         {
-            discreteTrajectory[(i - 1) + 7 * count] = trajectoryData.back()[i];
+            //discreteTrajectory[(i - 1) + 7 * count] = trajectoryData.back()[i];
+            discreteTrajectory.push_back(trajectoryData.back()[i]);
+        }
+    }
+
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory)
+    {
+        float dist = std::numeric_limits<float>::max();
+        for (unsigned int i = 0; i < trajectoryData.size(); i++)
+        {
+            if (i == 0 || i == (trajectoryData.size() - 1))
+            {
+                for (unsigned int j = 1; j < trajectoryData[i].size(); j++)
+                {
+                    discreteTrajectory.push_back(trajectoryData[i][j]);
+                }
+            }
+            else
+            {
+                dist = sqrt(pow((trajectoryData[i][1] - discreteTrajectory[discreteTrajectory.size() - 7]), 2) + pow((trajectoryData[i][2] - discreteTrajectory[discreteTrajectory.size() - 6]), 2) + pow((trajectoryData[i][3] - discreteTrajectory[discreteTrajectory.size() - 5]), 2));
+                std::cout << dist << std::endl;
+                if (dist >= distBtwPoses)
+                {
+                    for (unsigned int j = 1; j < trajectoryData[i].size(); j++)
+                    {
+                        discreteTrajectory.push_back(trajectoryData[i][j]);
+                    }
+                }
+            }
         }
     }
 
@@ -224,21 +252,22 @@ namespace sharon
             int foundIk = (*iksolver).CartToJnt(qInit, fGoal, q);
             if (foundIk == 0) //Ik found
             {
-                for(unsigned int i=0; i<q.rows(); i++)
-                    q(i) = q(i)*KDL::rad2deg;
+                for (unsigned int i = 0; i < q.rows(); i++)
+                    q(i) = q(i) * KDL::rad2deg;
                 checkSelfCollision->updateCollisionObjectsTransform(q);
                 if (checkSelfCollision->selfCollision() == false)
                 {
                     for (unsigned int joint = 0; joint < qInit.rows(); joint++)
                     {
-                        qInit(joint) = q(joint)*KDL::deg2rad;
+                        qInit(joint) = q(joint) * KDL::deg2rad;
                     }
                     result[i] = 0;
-                    std::cout << "q: " << q(0)<< " " << q(1) << " " << q(2) << " " << q(3)<< " " << q(4)<< " " << q(5)<< " " << q(6) << " " << q(7) << std::endl;
+                    std::cout << "q: " << q(0) << " " << q(1) << " " << q(2) << " " << q(3) << " " << q(4) << " " << q(5) << " " << q(6) << " " << q(7) << std::endl;
                 }
-                else{
+                else
+                {
                     result[i] = 1;
-                    std::cout<<"self collision"<<std::endl;
+                    std::cout << "self collision" << std::endl;
                 }
             }
             else //Ik not found
@@ -259,14 +288,15 @@ namespace sharon
         myFile.close();
     }
 
-    void writeQCsv(std::string filename, const std::vector<std::array<double,8>>& qTraj){
+    void writeQCsv(std::string filename, const std::vector<std::array<double, 8>> &qTraj)
+    {
         std::ofstream myFile(filename);
-        for(unsigned int i=0; i<qTraj.size(); i++){
-            myFile<<i<<","<<std::setprecision(10)<<qTraj[i][0]<<","<<qTraj[i][1]<<","<<qTraj[i][2]<<","<<qTraj[i][3]<<","<<qTraj[i][4]
-                    <<","<<qTraj[i][5]<<","<<qTraj[i][6]<<","<<qTraj[i][7]<<"\n";
+        for (unsigned int i = 0; i < qTraj.size(); i++)
+        {
+            myFile << i << "," << std::setprecision(10) << qTraj[i][0] << "," << qTraj[i][1] << "," << qTraj[i][2] << "," << qTraj[i][3] << "," << qTraj[i][4]
+                   << "," << qTraj[i][5] << "," << qTraj[i][6] << "," << qTraj[i][7] << "\n";
         }
         myFile.close();
-
     }
 
 }
@@ -277,20 +307,21 @@ int main()
     std::vector<std::array<double, 8>> desiredTrajectoryData = sharon::getTrajectoryFromCsvFile(csvFile);
     sharon::printTrajectoryData(desiredTrajectoryData);
 
-    unsigned int numPoses = 100;
-    unsigned int sizeDesiredDiscretePoses = numPoses * 7;
-    double desiredDiscretePoses[sizeDesiredDiscretePoses];
+    //unsigned int numPoses = 400;
+    std::vector<double> desiredDiscretePoses;
 
-    sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses, sizeDesiredDiscretePoses);
+    //sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses);
 
-    unsigned int n = sizeDesiredDiscretePoses;
+    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.01, desiredDiscretePoses);
+
+    unsigned int n = desiredDiscretePoses.size();
     double x[n];
-    std::vector<double> vectorX;
-    for (unsigned int i = 0; i < sizeDesiredDiscretePoses; i++)
+    for (unsigned int i = 0; i < n; i++)
     {
         x[i] = desiredDiscretePoses[i];
-        vectorX.push_back(x[i]);
     }
+    unsigned int numPoses = (int)(desiredDiscretePoses.size() / 7);
+    std::cout << "Num poses: " << numPoses << std::endl;
 
     KDL::Chain chain = makeTeoTrunkAndRightArmKinematicsFromDH();
     KDL::JntArray qmin(8), qmax(8);
@@ -303,7 +334,7 @@ int main()
     KDL::JntArray q(chain.getNrOfJoints());
     KDL::JntArray qInit(chain.getNrOfJoints());
 
-    qTrajectory.resize(numPoses * 8);
+    qTrajectory.resize((int)(desiredDiscretePoses.size() / 7) * 8);
 
     void *parameters = &qTrajectory;
 
@@ -351,7 +382,7 @@ int main()
     nlopt_add_equality_mconstraint(opt, m, sharon::quaternionConstraint, parameters, tolQuaternionConstraint);
     nlopt_add_equality_mconstraint(opt, numPoses, sharon::noSelfCollisionConstraint, NULL, tol);
     nlopt_set_xtol_rel(opt, 1e-5);
-    nlopt_set_maxtime(opt, 800);
+    nlopt_set_maxtime(opt, 200);
 
     double minf;
     try
@@ -361,7 +392,7 @@ int main()
         KDL::JntArray qInit(8); // TODO correct in order to gather the q init from outside and also the size of the joints array
         KDL::JntArray q(8);
         std::vector<std::array<double, 8>> qTraj;
-        std::array<double,8> qArray;
+        std::array<double, 8> qArray;
         for (unsigned int i = 0; i < numPoses; i++)
         {
             KDL::Frame fGoal;
@@ -378,7 +409,7 @@ int main()
                 for (unsigned int joint = 0; joint < qInit.rows(); joint++)
                 {
                     qInit(joint) = q(joint);
-                    qArray[joint] = q(joint)*KDL::rad2deg;
+                    qArray[joint] = q(joint) * KDL::rad2deg;
                 }
                 qTraj.push_back(qArray);
                 std::cout << "qTraj: " << qTrajectory[i * 8 + 0] << " " << qTrajectory[i * 8 + 1] << " " << qTrajectory[i * 8 + 2] << " " << qTrajectory[i * 8 + 3] << " " << qTrajectory[i * 8 + 4] << " " << qTrajectory[i * 8 + 5] << " " << qTrajectory[i * 8 + 6] << " " << qTrajectory[i * 8 + 7] << std::endl;
