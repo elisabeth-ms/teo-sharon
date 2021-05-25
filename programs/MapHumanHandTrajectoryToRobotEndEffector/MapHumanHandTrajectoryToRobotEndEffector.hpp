@@ -41,7 +41,7 @@ namespace sharon{
     void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const unsigned int &numPoses, std::vector<double>& discreteTrajectory);
     
 
-    void getTrajectoryPoses(const std::vector<std::array<double,8>> &trajectoryData, const float & distBtwPoses, std::vector<double>& discreteTrajectory);
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory, unsigned int & sizeDiscreteTrajectory);
 
     /**
      * @brief Optimization function to minimize the distance between the pose of the desired trajectory and the final trajectory that satisfies the constraints.

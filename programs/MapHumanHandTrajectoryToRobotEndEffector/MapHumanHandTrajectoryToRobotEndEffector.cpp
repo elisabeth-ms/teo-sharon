@@ -179,9 +179,10 @@ namespace sharon
         }
     }
 
-    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory)
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory, unsigned int & sizeDiscreteTrajectory)
     {
         float dist = std::numeric_limits<float>::max();
+        sizeDiscreteTrajectory = 0;
         for (unsigned int i = 0; i < trajectoryData.size(); i++)
         {
             if (i == 0 || i == (trajectoryData.size() - 1))
@@ -190,6 +191,7 @@ namespace sharon
                 {
                     discreteTrajectory.push_back(trajectoryData[i][j]);
                 }
+                sizeDiscreteTrajectory++;
             }
             else
             {
@@ -201,8 +203,10 @@ namespace sharon
                     {
                         discreteTrajectory.push_back(trajectoryData[i][j]);
                     }
+                    sizeDiscreteTrajectory++;
                 }
             }
+
         }
     }
 
@@ -262,12 +266,12 @@ namespace sharon
                         qInit(joint) = q(joint) * KDL::deg2rad;
                     }
                     result[i] = 0;
-                    std::cout << "q: " << q(0) << " " << q(1) << " " << q(2) << " " << q(3) << " " << q(4) << " " << q(5) << " " << q(6) << " " << q(7) << std::endl;
+                    //std::cout << "q: " << q(0) << " " << q(1) << " " << q(2) << " " << q(3) << " " << q(4) << " " << q(5) << " " << q(6) << " " << q(7) << std::endl;
                 }
                 else
                 {
                     result[i] = 1;
-                    std::cout << "self collision" << std::endl;
+                    //std::cout << "self collision" << std::endl;
                 }
             }
             else //Ik not found
@@ -303,24 +307,24 @@ namespace sharon
 
 int main()
 {
-    std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth1.csv";
+    std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth1-aproach.csv";
     std::vector<std::array<double, 8>> desiredTrajectoryData = sharon::getTrajectoryFromCsvFile(csvFile);
     sharon::printTrajectoryData(desiredTrajectoryData);
 
-    //unsigned int numPoses = 400;
+    unsigned int numPoses = 0;
     std::vector<double> desiredDiscretePoses;
 
     //sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses);
 
-    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.01, desiredDiscretePoses);
+    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.005, desiredDiscretePoses, numPoses);
 
     unsigned int n = desiredDiscretePoses.size();
     double x[n];
     for (unsigned int i = 0; i < n; i++)
     {
         x[i] = desiredDiscretePoses[i];
+
     }
-    unsigned int numPoses = (int)(desiredDiscretePoses.size() / 7);
     std::cout << "Num poses: " << numPoses << std::endl;
 
     KDL::Chain chain = makeTeoTrunkAndRightArmKinematicsFromDH();
@@ -329,7 +333,7 @@ int main()
 
     KDL::ChainFkSolverPos_recursive fksolver(chain);
     KDL::ChainIkSolverVel_pinv iksolverv(chain);
-    iksolver = new KDL::ChainIkSolverPos_NR_JL(chain, qmin, qmax, fksolver, iksolverv, 100, 1e-6);
+    iksolver = new KDL::ChainIkSolverPos_NR_JL(chain, qmin, qmax, fksolver, iksolverv, 200, 1e-6);
 
     KDL::JntArray q(chain.getNrOfJoints());
     KDL::JntArray qInit(chain.getNrOfJoints());
@@ -381,8 +385,8 @@ int main()
 
     nlopt_add_equality_mconstraint(opt, m, sharon::quaternionConstraint, parameters, tolQuaternionConstraint);
     nlopt_add_equality_mconstraint(opt, numPoses, sharon::noSelfCollisionConstraint, NULL, tol);
-    nlopt_set_xtol_rel(opt, 1e-5);
-    nlopt_set_maxtime(opt, 200);
+    nlopt_set_xtol_rel(opt, 1e-6);
+    nlopt_set_maxtime(opt, 500);
 
     double minf;
     try
@@ -412,9 +416,9 @@ int main()
                     qArray[joint] = q(joint) * KDL::rad2deg;
                 }
                 qTraj.push_back(qArray);
-                std::cout << "qTraj: " << qTrajectory[i * 8 + 0] << " " << qTrajectory[i * 8 + 1] << " " << qTrajectory[i * 8 + 2] << " " << qTrajectory[i * 8 + 3] << " " << qTrajectory[i * 8 + 4] << " " << qTrajectory[i * 8 + 5] << " " << qTrajectory[i * 8 + 6] << " " << qTrajectory[i * 8 + 7] << std::endl;
-                std::cout << "q: " << q(0) * KDL::rad2deg << " " << q(1) * KDL::rad2deg << " " << q(2) * KDL::rad2deg << " " << q(3) * KDL::rad2deg << " " << q(4) * KDL::rad2deg << " " << q(5) * KDL::rad2deg << " " << q(6) * KDL::rad2deg << " " << q(7) * KDL::rad2deg << std::endl;
-                std::cout << x[i * 7 + 0] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
+                // std::cout << "qTraj: " << qTrajectory[i * 8 + 0] << " " << qTrajectory[i * 8 + 1] << " " << qTrajectory[i * 8 + 2] << " " << qTrajectory[i * 8 + 3] << " " << qTrajectory[i * 8 + 4] << " " << qTrajectory[i * 8 + 5] << " " << qTrajectory[i * 8 + 6] << " " << qTrajectory[i * 8 + 7] << std::endl;
+                // std::cout << "q: " << q(0) * KDL::rad2deg << " " << q(1) * KDL::rad2deg << " " << q(2) * KDL::rad2deg << " " << q(3) * KDL::rad2deg << " " << q(4) * KDL::rad2deg << " " << q(5) * KDL::rad2deg << " " << q(6) * KDL::rad2deg << " " << q(7) * KDL::rad2deg << std::endl;
+                // std::cout << x[i * 7 + 0] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
             }
             std::cout << result << std::endl;
         }
