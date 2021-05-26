@@ -107,6 +107,29 @@ namespace sharon
         return false;
     }
 
+    double CheckSelfCollision::minDistance(){
+        fcl::DistanceRequestf request;
+        request.enable_nearest_points = true;
+        request.enable_signed_distance = true;
+        fcl::DistanceResultf distanceResult;
+        double minDistance = 1000;
+        for (int link1 = 0; link1<collisionObjects.size(); link1++)
+        {
+            int link2 = link1 + 2;
+            while (link2 < collisionObjects.size())
+            {   
+                fcl::distance(&collisionObjects[link1],&collisionObjects[link2], request, distanceResult);
+                if(distanceResult.min_distance<minDistance){
+                    minDistance = distanceResult.min_distance;
+                }
+                link2++;
+            }
+
+        }
+        return minDistance;
+
+    }
+
     double CheckSelfCollision::twoLinksDistance(const KDL::JntArray &q, int link1, int link2){
         fcl::DistanceRequestf request;
         request.enable_nearest_points = true;
@@ -118,6 +141,8 @@ namespace sharon
         // fcl::distance(&collisionObjects[link1], &collisionObjects[link2], requestType, distanceResult);
         return distanceResult.min_distance;
     }
+
+
 
     /************************************************************************/
 

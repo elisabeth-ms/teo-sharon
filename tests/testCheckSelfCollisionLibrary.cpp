@@ -480,6 +480,72 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
         ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 3));
         ASSERT_NEAR(checkSelfCollision->twoLinksDistance(q, 0, 3),-0.14919,0.0001);
 
+    }
+
+    TEST_F(CheckSelfCollisionTest, CheckSelfCollisionminDistance)
+    {
+        makeTeoTrunkRightArmChainAndLimits();
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+        fcl::Transform3f tfTest;
+        fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+        fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+        fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
+
+        CollisionGeometryPtr_t teoElbow{new fcl::Boxf{0.10, 0.10, 0.22}};
+        fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
+
+        CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
+        fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
+
+        int nOfCollisionObjects = 5;
+        collisionObjects.clear();
+        collisionObjects.reserve(nOfCollisionObjects);
+        collisionObjects.emplace_back(collisionObject1);
+        collisionObjects.emplace_back(collisionObject2);
+        collisionObjects.emplace_back(collisionObject3);
+        collisionObjects.emplace_back(collisionObject4);
+        collisionObjects.emplace_back(collisionObject5);
+
+        offsetCollisionObjects[0][2] = -0.2;
+
+        offsetCollisionObjects[1][1] = 0.0;
+        offsetCollisionObjects[1][2] = +0.1734;
+
+        offsetCollisionObjects[4][1] = 0.055;
+
+
+
+
+        checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+        KDL::JntArray q(8);
+        q(0) = 0;
+        q(1) = 0;
+        q(2) = -10;
+        q(3) = -30;
+        q(4) = 50;
+        q(5) = -80;
+        q(6) = -10;
+        q(7) = -90;
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_NEAR(checkSelfCollision->minDistance(),0.0381804,0.0001);
+
+        q(0) = 0;
+        q(1) = 0;
+        q(2) = 0;
+        q(3) = 40;
+        q(4) = 0;
+        q(5) = 0;
+        q(6) = 0;
+        q(7) = 0;
+
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 3));
+        ASSERT_NEAR(checkSelfCollision->minDistance(),-0.14919,0.0001);
+
 
 
 

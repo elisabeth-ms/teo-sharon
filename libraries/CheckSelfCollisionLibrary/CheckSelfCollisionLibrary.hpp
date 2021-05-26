@@ -86,7 +86,8 @@ public:
     bool selfCollision();
     bool twoLinksCollide(const KDL::JntArray &q, int link1, int link2);
     double twoLinksDistance(const KDL::JntArray &q, int link1, int link2);
-    
+    double minDistance();
+
     KDL::JntArray jointsDeg2Rad(const KDL::JntArray &q);
     KDL::Chain chain;
     KDL::JntArray qmin;
