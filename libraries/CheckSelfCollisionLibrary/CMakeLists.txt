@@ -5,10 +5,10 @@
 if(ENABLE_CheckSelfCollisionLibrary)
 
 set(KEYWORD "CheckSelfCollisionLibrary")
-
+set (CMAKE_CXX_STANDARD 11)
 find_package(orocos_kdl 1.4 QUIET)
-find_package(fcl REQUIRED)
-
+find_package(fcl 0.6.0 REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
 # Configure library build target.
 add_library(${KEYWORD} SHARED CheckSelfCollisionLibrary.cpp
                               CheckSelfCollisionLibrary.hpp)

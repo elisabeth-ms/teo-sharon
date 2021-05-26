@@ -56,10 +56,10 @@ namespace sharon
                 //printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
 
                 KDL::Frame frameCenterLink = frameJoint * centerLinksWrtJoints[i].second;
-                fcl::Vec3f translation(frameCenterLink.p[0], frameCenterLink.p[1], frameCenterLink.p[2]);
+                fcl::Vector3f translation(frameCenterLink.p[0], frameCenterLink.p[1], frameCenterLink.p[2]);
                 double x, y, z, w;
                 frameCenterLink.M.GetQuaternion(x, y, z, w);
-                fcl::Quaternion3f rotation(w, x, y, z);
+                fcl::Quaternionf rotation(w, x, y, z);
 
                 //printf("trans: %d %f %f %f \n", centerLinksWrtJoints[i].first, translation[0], translation[1], translation[2]);
                 //printf("rot: %f %f %f %f\n", x, y, z, w);
@@ -72,8 +72,8 @@ namespace sharon
     }
     bool CheckSelfCollision::twoLinksCollide(const KDL::JntArray &q, int link1, int link2)
     {
-        fcl::CollisionRequest requestType(1, false, 1, false);
-        fcl::CollisionResult collisionResult;
+        fcl::CollisionRequestf requestType;
+        fcl::CollisionResultf collisionResult;
         fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
         //printf("contacts: %d\n", (int) collisionResult.numContacts());
         if (collisionResult.isCollision())
@@ -89,14 +89,13 @@ namespace sharon
     bool CheckSelfCollision::selfCollision()
     {
 
-        fcl::CollisionRequest requestType(1, false, 1, false);
-        fcl::CollisionResult collisionResult;
+        fcl::CollisionRequestf requestType;
+        fcl::CollisionResultf collisionResult;
         for (int link1 = 0; link1<collisionObjects.size(); link1++)
         {
             int link2 = link1 + 2;
             while (link2 < collisionObjects.size())
             {   
-                printf("%d %d\n", link1, link2);
                 fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
                 if (collisionResult.isCollision())
                 {
@@ -106,6 +105,18 @@ namespace sharon
             }
         }
         return false;
+    }
+
+    double CheckSelfCollision::twoLinksDistance(const KDL::JntArray &q, int link1, int link2){
+        fcl::DistanceRequestf request;
+        request.enable_nearest_points = true;
+        request.enable_signed_distance = true;
+        fcl::DistanceResultf distanceResult;
+
+        fcl::distance(&collisionObjects[link1],&collisionObjects[link2], request, distanceResult);
+        // fcl::distance(collisionObjects[link1].computeAABB(), )
+        // fcl::distance(&collisionObjects[link1], &collisionObjects[link2], requestType, distanceResult);
+        return distanceResult.min_distance;
     }
 
     /************************************************************************/

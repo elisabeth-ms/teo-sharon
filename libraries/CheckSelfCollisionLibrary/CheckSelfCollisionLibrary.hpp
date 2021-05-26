@@ -10,13 +10,11 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
 
-
-#include <fcl/collision.h>
-#include <fcl/collision_object.h>
-#include <fcl/shape/geometric_shapes.h>
-
-
-
+#include <cmath>
+#include <fcl/narrowphase/collision.h>
+#include <fcl/narrowphase/collision_object.h>
+#include <fcl/geometry/shape/box.h>
+#include <fcl/narrowphase/distance.h>
 namespace sharon
 {
 
@@ -28,7 +26,7 @@ namespace sharon
 class CheckSelfCollision
 {
 public:
-    CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObject> &t_collisionObjects,std::vector<std::array <float,3>> &t_offset): 
+    CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObjectf> &t_collisionObjects, std::vector<std::array <float,3>> &t_offset): 
     chain(t_chain), qmin(t_qmin), qmax(t_qmax), collisionObjects(t_collisionObjects), offsetCenterCollisionObjects(t_offset)
     {
         if (chain.getNrOfJoints() <1)
@@ -87,14 +85,20 @@ public:
     bool updateCollisionObjectsTransform(const KDL::JntArray &q);
     bool selfCollision();
     bool twoLinksCollide(const KDL::JntArray &q, int link1, int link2);
+    double twoLinksDistance(const KDL::JntArray &q, int link1, int link2);
+    
     KDL::JntArray jointsDeg2Rad(const KDL::JntArray &q);
     KDL::Chain chain;
     KDL::JntArray qmin;
     KDL::JntArray qmax;
-    std::vector<fcl::CollisionObject> collisionObjects;
+    fcl::Transform3f tf1;
+    using CollisionGeometryPtr_t = std::shared_ptr<fcl::CollisionGeometryf>;
+    // CollisionGeometryPtr_t tree_obj_;
+    // fcl::CollisionObject(tree_obj_, tf1) test;
+
+    std::vector<fcl::CollisionObjectf> collisionObjects;
     std::vector<std::array<float,3>> offsetCenterCollisionObjects;
     std::vector<std::pair<int,KDL::Frame>> centerLinksWrtJoints;
-    typedef std::shared_ptr <fcl::CollisionGeometry> CollisionGeometryPtr_t;
 
 
 };

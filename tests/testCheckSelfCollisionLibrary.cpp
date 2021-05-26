@@ -4,7 +4,7 @@
 
 #include <ColorDebug.h>
 
-namespace roboticslab
+namespace sharon
 {
 
     /**
@@ -16,9 +16,9 @@ namespace roboticslab
         KDL::Chain chain;
         KDL::JntArray qmin;
         KDL::JntArray qmax;
-        std::vector<fcl::CollisionObject> collisionObjects;
+        std::vector<fcl::CollisionObjectf> collisionObjects;
         std::vector<std::array<float, 3>> offsetCollisionObjects;
-        typedef std::shared_ptr<fcl::CollisionGeometry> CollisionGeometryPtr_t;
+        typedef std::shared_ptr<fcl::CollisionGeometryf> CollisionGeometryPtr_t;
 
         virtual void SetUp()
         {
@@ -75,9 +75,9 @@ namespace roboticslab
         {
             chain = makeTeoTrunkAndRightArmKinematicsFromDH();
             makeQLimitsTeoTrunkAndRightArmKinematicsFromDH();
-            fcl::Transform3f tfTest{fcl::Vec3f{0.0, 0.0, 0.0}};
-            CollisionGeometryPtr_t collisionGeometry{new fcl::Box{0, 0, 0}};
-            fcl::CollisionObject collisionObject(collisionGeometry, tfTest);
+            fcl::Transform3f tfTest;
+            CollisionGeometryPtr_t collisionGeometry{new fcl::Boxf{0, 0, 0}};
+            fcl::CollisionObjectf collisionObject(collisionGeometry, tfTest);
             int nOfCollisionObjects = 5;
             collisionObjects.reserve(nOfCollisionObjects);
             offsetCollisionObjects.reserve(nOfCollisionObjects);
@@ -203,21 +203,21 @@ namespace roboticslab
     TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksCollide)
     {
         makeTeoTrunkRightArmChainAndLimits();
-        CollisionGeometryPtr_t teoRootTrunk{new fcl::Box{0.25, 0.25, 0.6}};
-        fcl::Transform3f tfTest{fcl::Vec3f{0.0, 0.0, 0.0}};
-        fcl::CollisionObject collisionObject1{teoRootTrunk, tfTest};
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+        fcl::Transform3f tfTest;
+        fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
-        CollisionGeometryPtr_t teoTrunk{new fcl::Box{0.3, 0.3, 0.46}};
-        fcl::CollisionObject collisionObject2{teoTrunk, tfTest};
+        CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+        fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
 
-        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Box{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
-        fcl::CollisionObject collisionObject3{teoAxialShoulder, tfTest};
+        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+        fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
 
-        CollisionGeometryPtr_t teoElbow{new fcl::Box{0.10, 0.10, 0.22}};
-        fcl::CollisionObject collisionObject4{teoElbow, tfTest};
+        CollisionGeometryPtr_t teoElbow{new fcl::Boxf{0.10, 0.10, 0.22}};
+        fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
 
-        CollisionGeometryPtr_t teoWrist{new fcl::Box{0.2, 0.20, 0.2}};
-        fcl::CollisionObject collisionObject5{teoWrist, tfTest};
+        CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
+        fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
         int nOfCollisionObjects = 5;
         collisionObjects.clear();
@@ -360,21 +360,21 @@ namespace roboticslab
  TEST_F(CheckSelfCollisionTest, CheckSelfCollision)
     {
         makeTeoTrunkRightArmChainAndLimits();
-        CollisionGeometryPtr_t teoRootTrunk{new fcl::Box{0.25, 0.25, 0.6}};
-        fcl::Transform3f tfTest{fcl::Vec3f{0.0, 0.0, 0.0}};
-        fcl::CollisionObject collisionObject1{teoRootTrunk, tfTest};
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+        fcl::Transform3f tfTest;
+        fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
-        CollisionGeometryPtr_t teoTrunk{new fcl::Box{0.3, 0.3, 0.46}};
-        fcl::CollisionObject collisionObject2{teoTrunk, tfTest};
+        CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+        fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
 
-        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Box{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
-        fcl::CollisionObject collisionObject3{teoAxialShoulder, tfTest};
+        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+        fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
 
-        CollisionGeometryPtr_t teoElbow{new fcl::Box{0.10, 0.10, 0.22}};
-        fcl::CollisionObject collisionObject4{teoElbow, tfTest};
+        CollisionGeometryPtr_t teoElbow{new fcl::Boxf{0.10, 0.10, 0.22}};
+        fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
 
-        CollisionGeometryPtr_t teoWrist{new fcl::Box{0.2, 0.20, 0.2}};
-        fcl::CollisionObject collisionObject5{teoWrist, tfTest};
+        CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
+        fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
         int nOfCollisionObjects = 5;
         collisionObjects.clear();
@@ -402,7 +402,7 @@ namespace roboticslab
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_FALSE(checkSelfCollision->selfCollision());
 
-         q(0) = 0;
+        q(0) = 0;
         q(1) = 0;
         q(2) = 0;
         q(3) = 0;
@@ -416,4 +416,74 @@ namespace roboticslab
 
 
     }
-} // namespace roboticslab
+TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
+    {
+        makeTeoTrunkRightArmChainAndLimits();
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+        fcl::Transform3f tfTest;
+        fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+        fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
+
+        CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+        fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
+
+        CollisionGeometryPtr_t teoElbow{new fcl::Boxf{0.10, 0.10, 0.22}};
+        fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
+
+        CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
+        fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
+
+        int nOfCollisionObjects = 5;
+        collisionObjects.clear();
+        collisionObjects.reserve(nOfCollisionObjects);
+        collisionObjects.emplace_back(collisionObject1);
+        collisionObjects.emplace_back(collisionObject2);
+        collisionObjects.emplace_back(collisionObject3);
+        collisionObjects.emplace_back(collisionObject4);
+        collisionObjects.emplace_back(collisionObject5);
+
+        offsetCollisionObjects[0][2] = -0.2;
+
+        offsetCollisionObjects[1][1] = 0.0;
+        offsetCollisionObjects[1][2] = +0.1734;
+
+        offsetCollisionObjects[4][1] = 0.055;
+
+
+
+
+        checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+        KDL::JntArray q(8);
+        q(0) = 0;
+        q(1) = 0;
+        q(2) = -10;
+        q(3) = -30;
+        q(4) = 50;
+        q(5) = -80;
+        q(6) = -10;
+        q(7) = -90;
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_NEAR(checkSelfCollision->twoLinksDistance(q, 1, 4),0.0381804,0.0001);
+
+        q(0) = 0;
+        q(1) = 0;
+        q(2) = 0;
+        q(3) = 40;
+        q(4) = 0;
+        q(5) = 0;
+        q(6) = 0;
+        q(7) = 0;
+
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 3));
+        ASSERT_NEAR(checkSelfCollision->twoLinksDistance(q, 0, 3),-0.14919,0.0001);
+
+
+
+
+
+
+    }
+} // namespace sharon
