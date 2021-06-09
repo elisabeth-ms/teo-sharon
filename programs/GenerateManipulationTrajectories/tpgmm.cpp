@@ -47,6 +47,8 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_internal.h>
 
+#include <kdl/frames.hpp>
+
 using namespace arma;
 
 
@@ -208,6 +210,49 @@ public:
 typedef std::vector<Demonstration> demonstration_list_t;
 
 
+std::vector<std::array<double, 8>> getTrajectoryFromCsvFile(const std::string &filename)
+    {
+        std::vector<std::array<double, 8>> result;
+        std::cout << filename << std::endl;
+
+        std::ifstream csvFile(filename);
+
+        if (!csvFile.is_open())
+            throw std::runtime_error("Could not open csv file");
+
+        double val;
+        std::string line;
+        while (std::getline(csvFile, line))
+        {
+            std::stringstream ss(line);
+            std::array<double, 8> pose;
+            unsigned int colIdx = 0;
+            while (ss >> val)
+            {
+                pose[colIdx] = val;
+                if (ss.peek() == ',')
+                {
+                    ss.ignore();
+                }
+
+                colIdx++;
+            }
+            result.push_back(pose);
+        }
+
+        csvFile.close();
+        return result;
+    }
+
+    void printTrajectoryData(const std::vector<std::array<double, 8>> &data)
+    {
+        for (unsigned int i = 0; i < data.size(); i++)
+        {
+            std::cout << "Frame: " << data[i][0] << " x: " << data[i][1] << " y: " << data[i][2] << " z: " << data[i][3] << " qx: " << data[i][4] << " qy: " << data[i][5] << " qz: " << data[i][6] << " qw: " << data[i][7] << std::endl;
+        }
+    }
+
+
 
 
 /******************************* MAIN FUNCTION *******************************/
@@ -231,6 +276,56 @@ int main(int argc, char **argv) {
 	demonstration_list_t demos;
 
     vector_list_t trajectory;
+
+    std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth1-optimized.csv";
+    std::vector<std::array<double, 8>> desiredTrajectoryData = getTrajectoryFromCsvFile(csvFile);
+    printTrajectoryData(desiredTrajectoryData);
+
+    // Lets try with only position
+
+    for(unsigned int i=0; i<desiredTrajectoryData.size(); i++){
+        vec position = {desiredTrajectoryData[i][1], desiredTrajectoryData[i][2], desiredTrajectoryData[i][3]};
+        std::cout << "Position: " << position[0] << " " << position[1] << " " << position[2] << std::endl;
+        trajectory.push_back(position);
+    }
+
+    // How to create the task frames?
+    // Need position vec and orientation as a matrix. 
+
+    coordinate_system_list_t coordinateSystems;
+
+    //Initial pose frame
+    KDL::Rotation rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[0][4], desiredTrajectoryData[0][5], desiredTrajectoryData[0][6], desiredTrajectoryData[0][7]);
+    arma::mat initialOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
+                                    {rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
+                                    {rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
+    arma::vec initialPosition = {desiredTrajectoryData[0][0], desiredTrajectoryData[0][1], desiredTrajectoryData[0][2]};
+
+    coordinate_system_t initialFrame(initialPosition, initialOrientation,model.parameters);
+
+
+    //Final pose frame 
+    rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[desiredTrajectoryData.size()-1][4], desiredTrajectoryData[desiredTrajectoryData.size()-1][5], desiredTrajectoryData[desiredTrajectoryData.size()-1][6], desiredTrajectoryData[desiredTrajectoryData.size()-1][7]);
+    arma::mat finalOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
+                                    {rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
+                                    {rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
+    arma::vec finalPosition = {desiredTrajectoryData[desiredTrajectoryData.size()-1][0], desiredTrajectoryData[desiredTrajectoryData.size()-1][1], desiredTrajectoryData[desiredTrajectoryData.size()-1][2]};
+
+    coordinate_system_t finalFrame(finalPosition, finalOrientation, model.parameters);
+
+    coordinateSystems.push_back(initialFrame);
+    coordinateSystems.push_back(finalFrame);
+
+    //Create demonstration
+
+    Demonstration demonstration(coordinateSystems, trajectory, model.parameters);
+    demos.push_back(demonstration);
+
+
+    // TODO! Create training function
+    learn(demos, model);
+
+
 
 	return 0;
 }

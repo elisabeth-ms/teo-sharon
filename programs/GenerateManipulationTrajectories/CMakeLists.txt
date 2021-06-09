@@ -9,6 +9,8 @@ set(KEYWORD "generateManipulationTrajectories")
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Armadillo 5.4 REQUIRED)
+find_package(orocos_kdl 1.4)
+
 
 set(GLFWLIB_SEARCH_PATH /usr/lib/x86_64-linux-gnu/ /usr/local/lib/)
 find_library(GLFW_LIB glfw PATHS ${GLFWLIB_SEARCH_PATH})
@@ -85,10 +87,12 @@ add_executable(tpgmm tpgmm.cpp)
 
 # Link external libraries.
 
-target_link_libraries(tpgmm ${LIBRARIES})
+target_link_libraries(tpgmm ${LIBRARIES} ${orocos_kdl_LIBRARIES}
+)
 
 target_include_directories(tpgmm PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+											 ${orocos_kdl_INCLUDE_DIRS}
                                             )
 
 
