@@ -1,7 +1,7 @@
 include(CMakeDependentOption)
 
 # options: cpp libraries
-option(ENABLE_ExampleLibrary "Choose if you want to compile ExampleLibrary" TRUE)
+option(ENABLE_CheckSelfCollisionLibrary "Choose if you want to compile CheckSelfCollisionLibrary" TRUE)
 
 # options: cpp programs
 option(ENABLE_cropSalientObject "Choose if you want to compile cropSalientObject" TRUE)
@@ -9,8 +9,11 @@ option(ENABLE_cropSalientObject "Choose if you want to compile cropSalientObject
 # options: cpp programs
 option(ENABLE_trajectoryGeneration "Choose if you want to compile trajectoryGeneration" TRUE)
 
+option(ENABLE_mapHumanHandTrajectoryToRobotEndEffector "Choose if you want to compile mapHumanHandTrajectoryToRobotEndEffector" TRUE)
 # options: force default
 option(ENABLE_exampleExtraOption "Enable/disable option exampleExtraOption" TRUE)
+
+option(ENABLE_generateManipulationTrajectories "Choose if you want to compile GenerateManipulationTrajectories" TRUE)
 
 # options: unit testing
 cmake_dependent_option(ENABLE_tests "Enable/disable unit tests" ON

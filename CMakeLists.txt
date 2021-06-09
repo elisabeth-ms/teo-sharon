@@ -28,7 +28,8 @@ find_package(GTestSources 1.6.0 QUIET)
 # Add WITH_PLUGINS if this projects exports YARP devices.
 yarp_configure_external_installation(teo-sharon)
 
-
+install(DIRECTORY models worlds
+        DESTINATION share/gazebo)
 
 
 # Retrieve current TEO_SHARON version.
