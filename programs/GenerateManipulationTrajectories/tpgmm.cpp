@@ -95,10 +95,15 @@ struct coordinate_system_t
 						const parameters_t &parameters)
 	{
 
-		this->position = zeros(3 + (parameters.nb_deriv - 1) * 3);
+		this->position = zeros(2 + (parameters.nb_deriv - 1) * 2);
 		this->position(span(0, 2)) = position(span(0, 2));
-		this->orientation = kron(eye(parameters.nb_deriv, parameters.nb_deriv),
+		std::cout<<"position"<<std::endl;
+		this->position.print();
+		this->orientation = kron(eye(parameters.nb_deriv-1, parameters.nb_deriv-1),
 								 orientation(span(0, 2), span(0, 2)));
+		std::cout<<"orientation"<<std::endl;
+		this->orientation.print();
+
 	}
 
 	vec position;
@@ -125,13 +130,14 @@ public:
 				  const parameters_t &parameters)
 		: coordinate_systems(coordinate_systems)
 	{
-		points_original = mat(3, points.size());
+		points_original = mat(4, points.size()); // Added one for time(4 dim)
 
 		for (size_t i = 0; i < points.size(); ++i)
 		{
 			points_original(0, i) = points[i](0);
 			points_original(1, i) = points[i](1);
 			points_original(2, i) = points[i](2);
+			points_original(3, i) = i;
 		}
 
 		update(parameters);
@@ -143,6 +149,7 @@ public:
 	//-------------------------------------------------------------------------
 	void update(const parameters_t &parameters)
 	{
+		std::cout<<"Updating..."<<std::endl;
 		// Resampling of the trajectory
 		arma::vec x = points_original.row(0).t();
 		arma::vec y = points_original.row(1).t();
@@ -159,28 +166,32 @@ public:
 		interp1(from_indices, y, to_indices, y2, "*linear");
 		interp1(from_indices, z, to_indices, z2, "*linear");
 
-		points = mat(3 * parameters.nb_deriv, parameters.nb_data);
+		points = mat(2 * parameters.nb_deriv, parameters.nb_data);
 		points(span(0), span::all) = x2.t();
 		points(span(1), span::all) = y2.t();
 		points(span(2), span::all) = z2.t();
 
-		// // Compute the derivatives
+		std::cout<<"Points "<<points.n_cols<<" "<<points.n_rows<<std::endl;
+		std::cout<<"Points"<<std::endl;
+		points.print();
+		// Compute the derivatives
 
-		// mat D = (diagmat(ones(1, parameters.nb_data - 1), -1) - eye(parameters.nb_data, parameters.nb_data)) / parameters.dt;
+		mat D = (diagmat(ones(1, parameters.nb_data - 1), -1) - eye(parameters.nb_data, parameters.nb_data)) / parameters.dt;
 
-		// D(parameters.nb_data - 1, parameters.nb_data - 1) = 0.0;
-
-		// points(span(2, 3), span::all) = points(span(0, 1), span::all) * pow(D, 1);
+		D(parameters.nb_data - 1, parameters.nb_data - 1) = 0.0;
+		points(span(3, 5), span::all) = points(span(0, 2), span::all) * pow(D, 1);
 
 		// Compute the points in each coordinate system
 		points_in_coordinate_systems.clear();
 
+		points = join_vert(points, linspace(0, points.n_cols-1, points.n_cols).t());
 		for (int m = 0; m < coordinate_systems.size(); ++m)
 		{
-			points_in_coordinate_systems.push_back(
-				pinv(coordinate_systems[m].orientation) *
-				(points - repmat(coordinate_systems[m].position, 1, parameters.nb_data)));
+			coordinate_systems[m].orientation.print();
+			points_in_coordinate_systems.push_back( join_vert( pinv(coordinate_systems[m].orientation) *
+					(points.rows(0, points.n_rows-2) - repmat(coordinate_systems[m].position, 1, parameters.nb_data)), points.row(points.n_rows-1)));
 		}
+		std::cout<<"Updated"<<std::endl;
 	}
 
 	//-------------------------------------------------------------------------
@@ -336,6 +347,8 @@ void init_tensorGMM_kbins(const demonstration_list_t &demos,
 
 	model.nb_var = demos[0].points_in_coordinate_systems[0].n_rows;
 
+	std::cout<<"Nb var: "<<model.nb_var<<std::endl;
+
 	// Initialize bins
 	uvec t_sep = linspace<uvec>(0, model.parameters.nb_data - 1,
 								model.parameters.nb_states + 1);
@@ -455,6 +468,79 @@ void printTrajectoryData(const std::vector<std::array<double, 8>> &data)
 	}
 }
 
+void computeGMR(model_t model, int nbGMRComponents, arma::cube &muGMR, arma::field<arma::cube> &sigmaGMR)
+{
+
+	if (model.mu.size() > 0)
+	{
+		mat inputs = linspace(0, 199, nbGMRComponents);
+		inputs = inputs.t();
+
+		mat H(model.parameters.nb_states, inputs.size());
+
+		//Init GMR mu and sigma
+		// arma::cube muGMR(3*model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
+		
+
+		for (unsigned int i = 0; i < model.parameters.nb_frames; i++)
+		{
+			sigmaGMR(i).set_size(2 * model.parameters.nb_deriv, 2 * model.parameters.nb_deriv, inputs.size());
+			sigmaGMR(i) = zeros(2 * model.parameters.nb_deriv, 2 * model.parameters.nb_deriv, inputs.size());
+		}
+
+		for (unsigned int m = 0; m < model.parameters.nb_frames; m++)
+		{
+			for (unsigned int i = 0; i < model.parameters.nb_states; i++)
+			{
+				H.row(i) = model.priors(i)*gaussPDF(inputs, model.mu[i][m].row(model.nb_var - 1),  model.sigma[i][m].row(model.nb_var - 1).col(model.nb_var - 1)).t();
+			}
+			H = H / repmat(sum(H + 1e-300), model.parameters.nb_states, 1);
+
+			mat muTmp(2 * model.parameters.nb_deriv, model.parameters.nb_states);
+
+			mat sigmaTmp;
+
+
+
+			for (int t = 0; t < inputs.size(); t++)
+			{
+
+				for (unsigned int i = 0; i < model.parameters.nb_states; i++)
+				{
+
+					muTmp.col(i) = model.mu[i][m].subvec(0, 2 * model.parameters.nb_deriv - 1) + 
+					 			   model.sigma[i][m].col(2 * model.parameters.nb_deriv).rows(0, 2* model.parameters.nb_deriv - 1) * inv(model.sigma[i][m].row(model.nb_var - 1).col(model.nb_var - 1)) * (inputs(t) - model.mu[i][m].row(model.nb_var - 1));
+
+					muGMR.slice(m).col(t) += H(i, t) * muTmp.col(i);
+
+				}
+				std::cout<<"muGMR done!"<<std::endl;
+
+
+				// Compute conditional covariances
+				for (int i = 0; i < model.parameters.nb_states; i++){
+					sigmaTmp = model.sigma[i][m].submat(0, 0, model.nb_var - 2, model.nb_var - 2) -
+							   model.sigma[i][m].col(2 * model.parameters.nb_deriv).rows(0, 2 * model.parameters.nb_deriv - 1) *
+							   inv(model.sigma[i][m].row(model.nb_var - 1).col(model.nb_var - 1)) *
+							   model.sigma[i][m].row(2 * model.parameters.nb_deriv).cols(0, 2 * model.parameters.nb_deriv - 1);
+					sigmaGMR(m).slice(t) += H(i, t) * (sigmaTmp + muTmp.col(i) * muTmp.col(i).t());
+				}
+				sigmaGMR(m).slice(t) += -muGMR.slice(m).col(t) * muGMR.slice(m).col(t).t() + eye(2 * model.parameters.nb_deriv, 2 * model.parameters.nb_deriv) * 1e-4;
+				std::cout<<"sigmaGMR done!"<<std::endl;
+
+			}
+		}
+
+		// transform mu/sigma GMR components into coordinate systems
+
+		cube muGMRt = zeros(3, input.size(), model.parameters.nb_frames);
+		field<cube> sigmaGMRt(model.parameters.nb_frames);
+
+
+
+	}
+}
+
 /******************************* MAIN FUNCTION *******************************/
 
 int main(int argc, char **argv)
@@ -466,14 +552,15 @@ int main(int argc, char **argv)
 	model_t model;
 
 	// Parameters
-	model.parameters.nb_states = 3;
+	model.parameters.nb_states = 5;
 	model.parameters.nb_frames = 2;
-	model.parameters.nb_deriv = 1;
+	model.parameters.nb_deriv = 3;
 	model.parameters.nb_data = 100;
 	model.parameters.dt = 0.1f;
 
 	// List of demonstrations and reproductions
 	demonstration_list_t demos;
+	coordinate_system_list_t coordinateSystems;
 
 	for (int nDemo = 1; nDemo < 5; nDemo++)
 	{
@@ -495,8 +582,6 @@ int main(int argc, char **argv)
 		// How to create the task frames?
 		// Need position vec and orientation as a matrix.
 
-		coordinate_system_list_t coordinateSystems;
-
 		//Initial pose frame
 		KDL::Rotation rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[0][4], desiredTrajectoryData[0][5], desiredTrajectoryData[0][6], desiredTrajectoryData[0][7]);
 		arma::mat initialOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
@@ -505,6 +590,7 @@ int main(int argc, char **argv)
 		arma::vec initialPosition = {desiredTrajectoryData[0][1], desiredTrajectoryData[0][2], desiredTrajectoryData[0][3]};
 
 		coordinate_system_t initialFrame(initialPosition, initialOrientation, model.parameters);
+
 
 		//Final pose frame
 		rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[desiredTrajectoryData.size() - 1][4], desiredTrajectoryData[desiredTrajectoryData.size() - 1][5], desiredTrajectoryData[desiredTrajectoryData.size() - 1][6], desiredTrajectoryData[desiredTrajectoryData.size() - 1][7]);
@@ -530,8 +616,38 @@ int main(int argc, char **argv)
 		std::cout << "Points in final pose task frame" << std::endl;
 		demonstration.points_in_coordinate_systems[1].print();
 	}
-	// TODO! Create training function
+
+	std::cout << "Number of demos: " << demos.size() << std::endl;
 	learn(demos, model);
+
+	std::cout << "Demos learned"<<std::endl;
+
+	// arma::vec mu = zeros(3, 1);
+	// arma::mat cov = zeros(3, 3);
+
+	// for (unsigned int f = 0; f < model.parameters.nb_frames; f++)
+	// {
+	// 	vec mutmp = coordinateSystems[f].orientation * model.mu[0][f] + coordinateSystems[f].position;
+	// 	arma::mat covtmp = coordinateSystems[f].orientation * model.sigma[0][f] * coordinateSystems[f].orientation.t();
+	// 	arma::mat icovtmp = arma::inv(covtmp);
+	// 	cov = cov + icovtmp;
+	// 	mu = mu + icovtmp * mutmp;
+	// }
+
+	// cov = arma::inv(cov);
+	// mu = cov * mu;
+	// std::cout << "Sigma:" << std::endl;
+	// cov.print();
+
+	// std::cout << "mu:" << std::endl;
+	// mu.print();
+
+	int nbGMRComponents = 5;
+	mat inputs = linspace(0, 199, nbGMRComponents);
+	inputs = inputs.t();
+	arma::cube muGMR(2*model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
+	arma::field<cube> sigmaGMR(model.parameters.nb_frames);
+	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR);
 
 	return 0;
 }
