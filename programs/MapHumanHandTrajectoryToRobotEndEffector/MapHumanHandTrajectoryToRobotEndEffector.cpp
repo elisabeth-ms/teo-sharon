@@ -16,9 +16,9 @@
 
 KDL::ChainIkSolverPos_NR_JL *iksolver;
 std::vector<double> qTrajectory;
-std::vector<fcl::CollisionObject> collisionObjects;
+std::vector<fcl::CollisionObjectf> collisionObjects;
 std::vector<std::array<float, 3>> offsetCollisionObjects;
-typedef std::shared_ptr<fcl::CollisionGeometry> CollisionGeometryPtr_t;
+typedef std::shared_ptr<fcl::CollisionGeometryf> CollisionGeometryPtr_t;
 sharon::CheckSelfCollision *checkSelfCollision;
 
 /*** TODO: Include this functions in a common library ***/
@@ -66,24 +66,24 @@ void makeQLimitsTeoTrunkAndRightArmKinematics(KDL::JntArray &qmin, KDL::JntArray
 void createSelfCollisionObjects()
 {
 
-    CollisionGeometryPtr_t teoRootTrunk{new fcl::Box{0.25, 0.25, 0.6}};
-    fcl::Transform3f tfTest{fcl::Vec3f{0.0, 0.0, 0.0}};
-    fcl::CollisionObject collisionObject1{teoRootTrunk, tfTest};
+    CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+    fcl::Transform3f tfTest;
+    fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
-    CollisionGeometryPtr_t teoTrunk{new fcl::Box{0.3, 0.3, 0.46}};
-    fcl::CollisionObject collisionObject2{teoTrunk, tfTest};
+    CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+    fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
 
-    CollisionGeometryPtr_t teoAxialShoulder{new fcl::Box{0.10, 0.10, 0.32901}}; //{new fcl::Box{0.15, 0.15, 0.32901}};
-    fcl::CollisionObject collisionObject3{teoAxialShoulder, tfTest};
+    CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10, 0.10, 0.32901}}; //{new fcl::Box{0.15, 0.15, 0.32901}};
+    fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
 
-    CollisionGeometryPtr_t teoElbow{new fcl::Box{0.10, 0.10, 0.22}};
-    fcl::CollisionObject collisionObject4{teoElbow, tfTest};
+    CollisionGeometryPtr_t teoElbow{new fcl::Boxf{0.10, 0.10, 0.22}};
+    fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
 
-    CollisionGeometryPtr_t teoWrist{new fcl::Box{0.2, 0.20, 0.2}};
-    fcl::CollisionObject collisionObject5{teoWrist, tfTest};
+    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
+    fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
-    CollisionGeometryPtr_t teoHand{new fcl::Box{0.01, 0.01, 0.01}};
-    fcl::CollisionObject collisionObject6{teoHand, tfTest};
+    CollisionGeometryPtr_t teoHand{new fcl::Boxf{0.01, 0.01, 0.01}};
+    fcl::CollisionObjectf collisionObject6{teoHand, tfTest};
 
     int nOfCollisionObjects = 6;
     collisionObjects.clear();
