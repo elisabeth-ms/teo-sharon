@@ -10,7 +10,8 @@ find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Armadillo 5.4 REQUIRED)
 find_package(orocos_kdl 1.4)
-
+find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+find_package(PythonLibs 3.0 REQUIRED)
 
 set(GLFWLIB_SEARCH_PATH /usr/lib/x86_64-linux-gnu/ /usr/local/lib/)
 find_library(GLFW_LIB glfw PATHS ${GLFWLIB_SEARCH_PATH})
@@ -43,6 +44,7 @@ include_directories(
 	${GLEW_INCLUDE_DIR}
 )
 
+include_directories(${PYTHON3_INCLUDE_DIRS} ${NumPy_INCLUDE_DIRS})
 
 # Declare the support files needed for OpenGL2 demos
 set(GL2_SUPPORT_SOURCES
@@ -87,7 +89,8 @@ add_executable(tpgmm tpgmm.cpp)
 
 # Link external libraries.
 
-target_link_libraries(tpgmm ${LIBRARIES} ${orocos_kdl_LIBRARIES}
+target_link_libraries(tpgmm ${LIBRARIES} ${orocos_kdl_LIBRARIES}   ${PYTHON_LIBRARIES}
+Python3::NumPy
 )
 
 target_include_directories(tpgmm PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
