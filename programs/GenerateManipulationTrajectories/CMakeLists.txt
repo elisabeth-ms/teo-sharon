@@ -10,12 +10,11 @@ find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Armadillo 5.4 REQUIRED)
 find_package(orocos_kdl 1.4)
-find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
-find_package(PythonLibs 3.0 REQUIRED)
 
 set(GLFWLIB_SEARCH_PATH /usr/lib/x86_64-linux-gnu/ /usr/local/lib/)
 find_library(GLFW_LIB glfw PATHS ${GLFWLIB_SEARCH_PATH})
 
+add_subdirectory(matplotplusplus)
 
 set(LIBRARIES
 	${OPENGL_LIBRARIES}
@@ -43,8 +42,6 @@ include_directories(
 	${ARMADILLO_INCLUDE_DIR}
 	${GLEW_INCLUDE_DIR}
 )
-
-include_directories(${PYTHON3_INCLUDE_DIRS} ${NumPy_INCLUDE_DIRS})
 
 # Declare the support files needed for OpenGL2 demos
 set(GL2_SUPPORT_SOURCES
@@ -85,14 +82,11 @@ set(GFX3_SUPPORT_SOURCES
 get_property(_exported_targets GLOBAL PROPERTY TEO_SHARON_TARGETS)
 
 # Configure executable build target.
-add_executable(tpgmm tpgmm.cpp)
+add_executable(tpgmm tpgmm.cpp 	${GFX2_SUPPORT_SOURCES})
 
 # Link external libraries.
 
-target_link_libraries(tpgmm ${LIBRARIES} ${orocos_kdl_LIBRARIES}   ${PYTHON_LIBRARIES}
-Python3::NumPy
-)
-
+target_link_libraries(tpgmm ${LIBRARIES} ${orocos_kdl_LIBRARIES} matplot)
 target_include_directories(tpgmm PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 											 ${orocos_kdl_INCLUDE_DIRS}

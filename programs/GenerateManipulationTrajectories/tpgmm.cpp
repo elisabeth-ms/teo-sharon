@@ -48,7 +48,7 @@
 
 #include <kdl/frames.hpp>
 
-#include "matplotlibcpp.h"
+#include <matplot/matplot.h>
 
 using namespace arma;
 
@@ -613,6 +613,115 @@ void computeGMR(model_t model, int nbGMRComponents, arma::cube &muGMR, arma::fie
 // 	}
 // }
 
+void plotDemos3D(demonstration_list_t demos, bool showGraphic){
+
+	std::vector<std::vector<double>> xDemos;
+	std::vector<std::vector<double>> yDemos;
+	std::vector<std::vector<double>> zDemos;
+	std::vector<std::vector<double>> tDemos;
+
+	for (unsigned int nDemo = 0; nDemo < demos.size(); nDemo++)
+	{
+		std::vector<double> sampleX(demos[nDemo].points.n_cols);
+		std::vector<double> sampleY;
+		std::vector<double> sampleZ;
+		std::vector<double> sampleT;
+
+		for (unsigned int i = 0; i < demos[nDemo].points.n_cols; i++)
+		{
+			sampleX.at(i) = (demos[nDemo].points(0, i));
+			sampleY.push_back(demos[nDemo].points(1, i));
+			sampleZ.push_back(demos[nDemo].points(2, i));
+			sampleT.push_back(demos[nDemo].points(6, i));
+		}
+		xDemos.push_back(sampleX);
+		yDemos.push_back(sampleY);
+		zDemos.push_back(sampleZ);
+		tDemos.push_back(sampleT);
+	}
+	matplot::plot3(xDemos, yDemos, zDemos, "--");
+
+	if (showGraphic){
+		matplot::show();
+	}
+	else{
+		matplot::hold(matplot::on);
+	}
+}
+
+void plotGMR3D(mat inputs, std::vector<mat> mu, std::vector<mat> sigma, int stepSigmaPlot, bool showGraphic){
+
+std::vector<double> tmean(inputs.size()), muX(inputs.size()), muY(inputs.size()), muZ(inputs.size());
+	for (unsigned int i = 0; i < tmean.size(); i++)
+	{
+		tmean.at(i) = inputs[i];
+		muX.at(i) = mu[i][0];
+		muY.at(i) = mu[i][1];
+		muZ.at(i) = mu[i][2];
+	}
+
+	matplot::plot3(muX, muY, muZ);
+
+	for (int iTrajectory = 0; iTrajectory < sigma.size(); iTrajectory=iTrajectory+stepSigmaPlot)
+	{
+		vec eigval;
+		mat eigvec;
+		eig_sym(eigval, eigvec, sigma[iTrajectory]);
+
+		float N = 1;
+		vec radii = {N * sqrt(eigval[0]), N * sqrt(eigval[1]), N * sqrt(eigval[2])};
+
+
+		vec u = linspace<vec>(0.0, 2.0 * 3.1415, 20);
+		vec v = linspace<vec>(0.0, 3.1415, 20);
+		mat x, y, z;
+
+		vec sinu = sin(u);
+		vec cosu = cos(u);
+		vec sinv = sin(v);
+		vec cosv = cos(v);
+		for (int i = 0; i < u.n_rows; i++)
+		{
+			x = join_rows(x, radii[0] * cosu[i] * sinv);
+			y = join_rows(y, radii[1] * sinu[i] * sinv);
+			z = join_rows(z, radii[2] * 1 * cosv);
+		}
+
+		std::cout<<eigvec<<std::endl;
+		eigvec.print();
+		mat points;
+		for (int i = 0; i < x.n_rows; i++)
+		{
+			for (int j = 0; j < x.n_cols; j++)
+			{
+				// std::cout<<"test prev"<<std::endl;
+				vec test = {x.at(i, j), y.at(i, j), z.at(i, j)};
+				vec rotatedTest = test;
+				rotatedTest[0] = arma::dot(test, eigvec.col(0).t());
+				rotatedTest[1] = arma::dot(test, eigvec.col(1).t());
+				rotatedTest[2] = arma::dot(test, eigvec.col(2).t());
+
+				points = join_rows(points, rotatedTest);
+			}
+		}
+		std::cout << "points " << points.n_cols << " " << points.n_rows << std::endl;
+		std::vector<double> pointsX, pointsY, pointsZ;
+		for (int i = 0; i < points.n_cols; i++)
+		{
+			pointsX.push_back(points.at(0, i) + mu[iTrajectory][0]);
+			pointsY.push_back(points.at(1, i) + mu[iTrajectory][1]);
+			pointsZ.push_back(points.at(2, i) + mu[iTrajectory][2]);
+		}
+		std::cout << pointsX.size() << std::endl;
+		matplot::scatter3(pointsX, pointsY, pointsZ);
+	}
+	if(showGraphic)
+		matplot::show();
+}
+
+
+
+
 /******************************* MAIN FUNCTION *******************************/
 
 int main(int argc, char **argv)
@@ -624,7 +733,7 @@ int main(int argc, char **argv)
 	model_t model;
 
 	// Parameters
-	model.parameters.nb_states = 10;
+	model.parameters.nb_states = 15;
 	model.parameters.nb_frames = 2;
 	model.parameters.nb_deriv = 3;
 	model.parameters.nb_data = 100;
@@ -634,11 +743,11 @@ int main(int argc, char **argv)
 	demonstration_list_t demos;
 	coordinate_system_list_t coordinateSystems;
 
-	for (int nDemo = 1; nDemo < 5; nDemo++)
+	for (int nDemo = 1; nDemo <= 10; nDemo++)
 	{
 		vector_list_t trajectory;
 		coordinateSystems.clear();
-		std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-reaching.csv";
+		std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-reaching.csv";
 
 		std::vector<std::array<double, 8>> desiredTrajectoryData = getTrajectoryFromCsvFile(csvFile);
 		// printTrajectoryData(desiredTrajectoryData);
@@ -714,7 +823,7 @@ int main(int argc, char **argv)
 	// std::cout << "mu:" << std::endl;
 	// mu.print();
 
-	int nbGMRComponents = 10;
+	int nbGMRComponents = 100;
 	mat inputs = linspace(0, 100, nbGMRComponents);
 	inputs = inputs.t();
 	arma::cube muGMR(2 * model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
@@ -752,59 +861,15 @@ int main(int argc, char **argv)
 	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList);
 
 	// Lets plot gmr and the demonstrations
-	std::vector<double> tmean(inputs.size()), muX(inputs.size()), muY(inputs.size()), muZ(inputs.size());
-	for (unsigned int i = 0; i < tmean.size(); i++)
-	{
-		tmean.at(i) = inputs[i];
-		muX.at(i) = muPList[i][0];
-		muY.at(i) = muPList[i][1];
-		muZ.at(i) = muPList[i][2];
-	}
 
-	matplotlibcpp::subplot(1, 3, 1);
-	matplotlibcpp::plot(tmean, muX);
+	plotDemos3D(demos, false);
 
-	std::vector<std::vector<double>> xDemos;
-	std::vector<std::vector<double>> yDemos;
-	std::vector<std::vector<double>> zDemos;
-	std::vector<std::vector<double>> tDemos;
+	std::cout<<"plotgmr3d"<<std::endl;
+	plotGMR3D(inputs, muPList, sigmaPList,15, true);
+	
 
-	for (unsigned int nDemo = 0; nDemo < demos.size(); nDemo++)
-	{
-		std::vector<double> sampleX(demos[nDemo].points.n_cols);
-		std::vector<double> sampleY;
-		std::vector<double> sampleZ;
-		std::vector<double> sampleT;
+	// std::cout<<muPList.size()<<std::endl;
 
-		for (unsigned int i = 0; i < demos[nDemo].points.n_cols; i++)
-		{
-			sampleX.at(i) = (demos[nDemo].points(0, i));
-			sampleY.push_back(demos[nDemo].points(1, i));
-			sampleZ.push_back(demos[nDemo].points(2, i));
-			sampleT.push_back(demos[nDemo].points(6, i));
-		}
-		xDemos.push_back(sampleX);
-		yDemos.push_back(sampleY);
-		zDemos.push_back(sampleZ);
-		tDemos.push_back(sampleT);
-		matplotlibcpp::plot(tDemos[nDemo], xDemos[nDemo], "--");
-	}
-
-	matplotlibcpp::subplot(1, 3, 2);
-	for (unsigned int nDemo = 0; nDemo < demos.size(); nDemo++)
-	{
-		matplotlibcpp::plot(tmean, muY);
-		matplotlibcpp::plot(tDemos[nDemo], yDemos[nDemo], "--");
-	}
-
-	matplotlibcpp::subplot(1, 3, 3);
-	for (unsigned int nDemo = 0; nDemo < demos.size(); nDemo++)
-	{
-		matplotlibcpp::plot(tmean, muZ);
-		matplotlibcpp::plot(tDemos[nDemo], zDemos[nDemo], "--");
-	}
-	matplotlibcpp::show();
-	demos[0].points.print();
 
 	return 0;
 }
