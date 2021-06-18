@@ -639,6 +639,7 @@ void plotDemos3D(demonstration_list_t demos, bool showGraphic){
 		zDemos.push_back(sampleZ);
 		tDemos.push_back(sampleT);
 	}
+	
 	matplot::plot3(xDemos, yDemos, zDemos, "--");
 
 	if (showGraphic){
@@ -649,7 +650,7 @@ void plotDemos3D(demonstration_list_t demos, bool showGraphic){
 	}
 }
 
-void plotGMR3D(mat inputs, std::vector<mat> mu, std::vector<mat> sigma, int stepSigmaPlot, bool showGraphic){
+void plotGMR3D(mat inputs, std::vector<mat> mu, std::vector<mat> sigma, int stepSigmaPlot, bool showGraphic, coordinate_system_list_t coordinateSystems){
 
 std::vector<double> tmean(inputs.size()), muX(inputs.size()), muY(inputs.size()), muZ(inputs.size());
 	for (unsigned int i = 0; i < tmean.size(); i++)
@@ -719,6 +720,90 @@ std::vector<double> tmean(inputs.size()), muX(inputs.size()), muY(inputs.size())
 		matplot::show();
 }
 
+void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu, std::vector<mat> sigma, bool showgraphic, coordinate_system_list_t coordinateSystems){
+
+	std::vector<double> tmean(inputs.size()), muX(inputs.size()), muY(inputs.size()), muZ(inputs.size());
+	std::vector<double> errX, errY, errZ;
+
+	for (unsigned int i = 0; i < tmean.size(); i++)
+	{
+		tmean.at(i) = inputs[i];
+		muX.at(i) = mu[i][0];
+		muY.at(i) = mu[i][1];
+		muZ.at(i) = mu[i][2];
+		errX.push_back(sqrt(sigma[i].at(0,0)));
+		errY.push_back(sqrt(sigma[i].at(1,1)));
+		errZ.push_back(sqrt(sigma[i].at(2,2)));
+	}
+
+	
+
+	auto f= matplot::figure(true);
+
+	std::vector<std::vector<double>> xDemos;
+	std::vector<std::vector<double>> yDemos;
+	std::vector<std::vector<double>> zDemos;
+	std::vector<std::vector<double>> tDemos;
+
+	for (unsigned int nDemo = 0; nDemo < demos.size(); nDemo++)
+	{
+		std::vector<double> sampleX(demos[nDemo].points.n_cols);
+		std::vector<double> sampleY;
+		std::vector<double> sampleZ;
+		std::vector<double> sampleT;
+
+		for (unsigned int i = 0; i < demos[nDemo].points.n_cols; i++)
+		{
+			sampleX.at(i) = (demos[nDemo].points(0, i));
+			sampleY.push_back(demos[nDemo].points(1, i));
+			sampleZ.push_back(demos[nDemo].points(2, i));
+			sampleT.push_back(demos[nDemo].points(6, i));
+		}
+		xDemos.push_back(sampleX);
+		yDemos.push_back(sampleY);
+		zDemos.push_back(sampleZ);
+		tDemos.push_back(sampleT);
+	}
+
+	
+
+	auto ax1 = matplot::subplot(1,3,0);
+	matplot::errorbar(tmean, muX, errX)->filled_curve(true);
+	matplot::hold(matplot::on);
+	for(int nDemo=0; nDemo<demos.size(); nDemo++)
+		matplot::plot(tDemos[nDemo], xDemos[nDemo], "--");
+
+	matplot::title(ax1, "TPGMR x");
+	matplot::xlabel(ax1,"t");
+	matplot::ylabel(ax1, "x");
+
+	auto ax2 = matplot::subplot(1,3,1);
+	matplot::errorbar(tmean, muY, errY)->filled_curve(true);
+	matplot::hold(matplot::on);
+	for(int nDemo=0; nDemo<demos.size(); nDemo++)
+		matplot::plot(tDemos[nDemo], yDemos[nDemo], "--");
+	matplot::title(ax2, "TPGMR y");
+	matplot::xlabel(ax2,"t");
+	matplot::ylabel(ax2, "y");
+
+
+	auto ax3 = matplot::subplot(1,3,2);
+	matplot::errorbar(tmean, muZ, errZ)->filled_curve(true);
+	matplot::hold(matplot::on);
+	for(int nDemo=0; nDemo<demos.size(); nDemo++)
+		matplot::plot(tDemos[nDemo], zDemos[nDemo], "--");
+	matplot::title(ax3, "TPGMR z");
+	matplot::xlabel(ax3,"t");
+	matplot::ylabel(ax3, "z");
+	
+
+	if(showgraphic){
+		matplot::show();
+	}
+
+
+
+}
 
 
 
@@ -865,8 +950,11 @@ int main(int argc, char **argv)
 	plotDemos3D(demos, false);
 
 	std::cout<<"plotgmr3d"<<std::endl;
-	plotGMR3D(inputs, muPList, sigmaPList,15, true);
+	plotGMR3D(inputs, muPList, sigmaPList,15, true, coordinateSystems);
 	
+	plotTimelineGMR(demos,inputs, muPList, sigmaPList, true,coordinateSystems);
+
+
 
 	// std::cout<<muPList.size()<<std::endl;
 
