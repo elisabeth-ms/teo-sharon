@@ -229,13 +229,20 @@ typedef std::vector<Demonstration> demonstration_list_t;
 //-----------------------------------------------------------------------------
 arma::vec gaussPDF(const mat &data, colvec mu, mat sigma)
 {
+	std::cout<<"GaussPDF"<<std::endl;
+	sigma.print();
 
+	arma::Mat<double> testSigma;
 	int nb_var = data.n_rows;
 	int nb_data = data.n_cols;
 
-	mat data2 = data.t() - repmat(mu.t(), nb_data, 1);
-	vec prob = sum((data2 * inv(sigma)) % data2, 1);
 
+	mat data2 = data.t() - repmat(mu.t(), nb_data, 1);
+	mat test = (data2 * inv(sigma))%data2;
+	test.print();
+	std::cout<<"Gauss pdf"<<std::endl;
+	vec prob = sum(test, 1);
+	std::cout<<"Prob"<<std::endl;
 	prob = exp(-0.5 * prob) / sqrt(pow((2 * datum::pi), nb_var) * det(sigma) + DBL_MIN);
 
 	return prob;
@@ -286,6 +293,7 @@ void train_EM_tensorGMM(const demonstration_list_t &demos,
 
 				// Matricization/flattening of tensor
 				mat data_mat(data(span::all, span(m), span::all));
+				model.sigma[i][m].print();
 
 				vec gamma0 = gaussPDF(data_mat, model.mu[i][m], model.sigma[i][m]);
 
@@ -424,7 +432,9 @@ void init_tensorGMM_kbins(const demonstration_list_t &demos,
 void learn(const demonstration_list_t &demos, model_t &model)
 {
 
+	std::cout<<"Init tensor GMM kbins"<<std::endl;
 	init_tensorGMM_kbins(demos, model);
+	std::cout<<"Train EM tensor GMM"<<std::endl;
 	train_EM_tensorGMM(demos, model);
 }
 
@@ -470,13 +480,12 @@ void printTrajectoryData(const std::vector<std::array<double, 8>> &data)
 	}
 }
 
-void computeGMR(model_t model, int nbGMRComponents, arma::cube &muGMR, arma::field<arma::cube> &sigmaGMR, const std::vector<gfx2::transforms_t> &transforms, std::vector<mat> &muPList, std::vector<mat> &sigmaPList)
+void computeGMR(model_t model, int nbGMRComponents, arma::cube &muGMR, arma::field<arma::cube> &sigmaGMR, const std::vector<gfx2::transforms_t> &transforms, std::vector<mat> &muPList, std::vector<mat> &sigmaPList, const mat & inputs)
 {
 
 	if (model.mu.size() > 0)
 	{
-		mat inputs = linspace(0, 100, nbGMRComponents);
-		inputs = inputs.t();
+
 
 		mat H(model.parameters.nb_states, inputs.size());
 
@@ -736,9 +745,23 @@ void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu
 		errZ.push_back(sqrt(sigma[i].at(2,2)));
 	}
 
+	std::vector<double> startX, startT, startY, startZ;
+	startX.push_back(coordinateSystems[0].position[0]);
+	startY.push_back(coordinateSystems[0].position[1]);
+	startZ.push_back(coordinateSystems[0].position[2]);
+	startT.push_back(inputs[0]);
+
+	startX.push_back(coordinateSystems[1].position[0]);
+	startY.push_back(coordinateSystems[1].position[1]);
+	startZ.push_back(coordinateSystems[1].position[2]);
+	startT.push_back(inputs[inputs.size()-1]);
+
+
 	
 
-	auto f= matplot::figure(true);
+	auto f= matplot::figure();
+	f->width(f->width() * 3);
+	f->height(f->height() * 2);
 
 	std::vector<std::vector<double>> xDemos;
 	std::vector<std::vector<double>> yDemos;
@@ -772,7 +795,7 @@ void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu
 	matplot::hold(matplot::on);
 	for(int nDemo=0; nDemo<demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], xDemos[nDemo], "--");
-
+	matplot::plot(startT, startX, "gx")->line_width(2).marker_size(10);
 	matplot::title(ax1, "TPGMR x");
 	matplot::xlabel(ax1,"t");
 	matplot::ylabel(ax1, "x");
@@ -782,6 +805,8 @@ void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu
 	matplot::hold(matplot::on);
 	for(int nDemo=0; nDemo<demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], yDemos[nDemo], "--");
+	
+	matplot::plot(startT, startY, "gx")->line_width(2).marker_size(10);
 	matplot::title(ax2, "TPGMR y");
 	matplot::xlabel(ax2,"t");
 	matplot::ylabel(ax2, "y");
@@ -792,6 +817,8 @@ void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu
 	matplot::hold(matplot::on);
 	for(int nDemo=0; nDemo<demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], zDemos[nDemo], "--");
+	
+	matplot::plot(startT, startZ, "gx")->line_width(2).marker_size(10);
 	matplot::title(ax3, "TPGMR z");
 	matplot::xlabel(ax3,"t");
 	matplot::ylabel(ax3, "z");
@@ -818,17 +845,17 @@ int main(int argc, char **argv)
 	model_t model;
 
 	// Parameters
-	model.parameters.nb_states = 15;
+	model.parameters.nb_states = 10;
 	model.parameters.nb_frames = 2;
 	model.parameters.nb_deriv = 3;
-	model.parameters.nb_data = 100;
-	model.parameters.dt = 0.1f;
+	model.parameters.nb_data = 150;
+	model.parameters.dt = 1.0f;
 
 	// List of demonstrations and reproductions
 	demonstration_list_t demos;
 	coordinate_system_list_t coordinateSystems;
 
-	for (int nDemo = 1; nDemo <= 10; nDemo++)
+	for (int nDemo = 1; nDemo <= 1; nDemo++)
 	{
 		vector_list_t trajectory;
 		coordinateSystems.clear();
@@ -908,8 +935,8 @@ int main(int argc, char **argv)
 	// std::cout << "mu:" << std::endl;
 	// mu.print();
 
-	int nbGMRComponents = 100;
-	mat inputs = linspace(0, 100, nbGMRComponents);
+	int nbGMRComponents = 20;
+	mat inputs = linspace(0, 150, nbGMRComponents);
 	inputs = inputs.t();
 	arma::cube muGMR(2 * model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
 	arma::field<cube> sigmaGMR(model.parameters.nb_frames);
@@ -921,15 +948,15 @@ int main(int argc, char **argv)
 	for (unsigned int nFrames = 0; nFrames < coordinateSystems.size(); nFrames++)
 	{
 		gfx2::transforms_t testTransform;
-		testTransform.position(0) = coordinateSystems[nFrames].position[0];
-		testTransform.position(1) = coordinateSystems[nFrames].position[1];
-		testTransform.position(2) = coordinateSystems[nFrames].position[2];
+		testTransform.position(0) = demos[0].coordinate_systems[nFrames].position[0];
+		testTransform.position(1) = demos[0].coordinate_systems[nFrames].position[1];
+		testTransform.position(2) = demos[0].coordinate_systems[nFrames].position[2];
 
 		for (unsigned int i = 0; i < 3; i++)
 		{
 			for (unsigned int j = 0; j < 3; j++)
 			{
-				testTransform.rotation(i, j) = coordinateSystems[nFrames].orientation(i, j);
+				testTransform.rotation(i, j) =  demos[0].coordinate_systems[nFrames].orientation(i, j);
 			}
 		}
 
@@ -943,16 +970,17 @@ int main(int argc, char **argv)
 
 	std::vector<mat> muPList;
 	std::vector<mat> sigmaPList;
-	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList);
+	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList, inputs);
 
 	// Lets plot gmr and the demonstrations
 
 	plotDemos3D(demos, false);
 
+
 	std::cout<<"plotgmr3d"<<std::endl;
-	plotGMR3D(inputs, muPList, sigmaPList,15, true, coordinateSystems);
+	plotGMR3D(inputs, muPList, sigmaPList,10, true, demos[0].coordinate_systems);
 	
-	plotTimelineGMR(demos,inputs, muPList, sigmaPList, true,coordinateSystems);
+	plotTimelineGMR(demos,inputs, muPList, sigmaPList, true,demos[0].coordinate_systems);
 
 
 
