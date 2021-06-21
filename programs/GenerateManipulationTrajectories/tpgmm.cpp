@@ -229,8 +229,6 @@ typedef std::vector<Demonstration> demonstration_list_t;
 //-----------------------------------------------------------------------------
 arma::vec gaussPDF(const mat &data, colvec mu, mat sigma)
 {
-	std::cout<<"GaussPDF"<<std::endl;
-	sigma.print();
 
 	arma::Mat<double> testSigma;
 	int nb_var = data.n_rows;
@@ -239,10 +237,7 @@ arma::vec gaussPDF(const mat &data, colvec mu, mat sigma)
 
 	mat data2 = data.t() - repmat(mu.t(), nb_data, 1);
 	mat test = (data2 * inv(sigma))%data2;
-	test.print();
-	std::cout<<"Gauss pdf"<<std::endl;
 	vec prob = sum(test, 1);
-	std::cout<<"Prob"<<std::endl;
 	prob = exp(-0.5 * prob) / sqrt(pow((2 * datum::pi), nb_var) * det(sigma) + DBL_MIN);
 
 	return prob;
@@ -762,6 +757,7 @@ void plotTimelineGMR(demonstration_list_t demos, mat inputs, std::vector<mat> mu
 	auto f= matplot::figure();
 	f->width(f->width() * 3);
 	f->height(f->height() * 2);
+	matplot::gca()->title_enhanced(true);
 
 	std::vector<std::vector<double>> xDemos;
 	std::vector<std::vector<double>> yDemos;
@@ -845,17 +841,18 @@ int main(int argc, char **argv)
 	model_t model;
 
 	// Parameters
-	model.parameters.nb_states = 10;
+	model.parameters.nb_states = 25;
 	model.parameters.nb_frames = 2;
 	model.parameters.nb_deriv = 3;
-	model.parameters.nb_data = 150;
+	model.parameters.nb_data = 300;
 	model.parameters.dt = 1.0f;
 
 	// List of demonstrations and reproductions
 	demonstration_list_t demos;
 	coordinate_system_list_t coordinateSystems;
 
-	for (int nDemo = 1; nDemo <= 1; nDemo++)
+	for(int indexSave = 1; indexSave<= 10; indexSave++){
+	for (int nDemo = 1; nDemo <= indexSave; nDemo++)
 	{
 		vector_list_t trajectory;
 		coordinateSystems.clear();
@@ -915,28 +912,9 @@ int main(int argc, char **argv)
 
 	std::cout << "Demos learned" << std::endl;
 
-	// arma::vec mu = zeros(3, 1);
-	// arma::mat cov = zeros(3, 3);
-
-	// for (unsigned int f = 0; f < model.parameters.nb_frames; f++)
-	// {
-	// 	vec mutmp = coordinateSystems[f].orientation * model.mu[0][f] + coordinateSystems[f].position;
-	// 	arma::mat covtmp = coordinateSystems[f].orientation * model.sigma[0][f] * coordinateSystems[f].orientation.t();
-	// 	arma::mat icovtmp = arma::inv(covtmp);
-	// 	cov = cov + icovtmp;
-	// 	mu = mu + icovtmp * mutmp;
-	// }
-
-	// cov = arma::inv(cov);
-	// mu = cov * mu;
-	// std::cout << "Sigma:" << std::endl;
-	// cov.print();
-
-	// std::cout << "mu:" << std::endl;
-	// mu.print();
 
 	int nbGMRComponents = 20;
-	mat inputs = linspace(0, 150, nbGMRComponents);
+	mat inputs = linspace(0, model.parameters.nb_data, nbGMRComponents);
 	inputs = inputs.t();
 	arma::cube muGMR(2 * model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
 	arma::field<cube> sigmaGMR(model.parameters.nb_frames);
@@ -978,12 +956,12 @@ int main(int argc, char **argv)
 
 
 	std::cout<<"plotgmr3d"<<std::endl;
-	plotGMR3D(inputs, muPList, sigmaPList,10, true, demos[0].coordinate_systems);
+	plotGMR3D(inputs, muPList, sigmaPList,2, false, demos[0].coordinate_systems);
 	
-	plotTimelineGMR(demos,inputs, muPList, sigmaPList, true,demos[0].coordinate_systems);
-
-
-
+	plotTimelineGMR(demos,inputs, muPList, sigmaPList, false,demos[0].coordinate_systems);
+	std::string fileName =  std::to_string(indexSave)+"Demo_GMM25States_GMR20Components.pdf";
+	matplot::save("/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/results/GMM25States_GMR20Components/"+fileName);
+	}
 	// std::cout<<muPList.size()<<std::endl;
 
 
