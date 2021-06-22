@@ -111,6 +111,7 @@ struct coordinate_system_t
 	mat orientation;
 };
 
+
 //-----------------------------------------------------------------------------
 // Represents a list of coordinate systems
 //-----------------------------------------------------------------------------
@@ -218,6 +219,132 @@ public:
 	arma::mat points;
 	matrix_list_t points_in_coordinate_systems;
 };
+
+
+//-----------------------------------------------------------------------------
+// Represents a task frame in joint space
+//-----------------------------------------------------------------------------
+struct task_frame_t
+{
+
+	task_frame_t(const arma::vec &q,
+						const parameters_t &parameters)
+	{
+
+		this->q = zeros(2 + (parameters.nb_deriv - 1) * 2);
+		q(span(0,7)).print();
+		this->q(span(0, 7)) = q(span(0, 7));
+		std::cout << "position" << std::endl;
+		this->q.print();
+
+	}
+	vec q;
+};
+
+
+//-----------------------------------------------------------------------------
+// Represents a list of task frames in joint space
+//-----------------------------------------------------------------------------
+typedef std::vector<task_frame_t> task_frame_list_t;
+
+
+//-----------------------------------------------------------------------------
+// Contains all the needed informations about a demonstration in joint space, like:
+//	 - its task reference frames in joint space
+//	 - the trajectory originally optimized from data recorded with the mocap in joint space
+//	 - the resampled trajectory in joint space
+//	 - the trajectory expressed in each task reference frame
+//-----------------------------------------------------------------------------
+class DemonstrationJointsSpace
+{
+public:
+	DemonstrationJointsSpace(task_frame_list_t task_frames,
+				  const std::vector<arma::vec> &points,
+				  const parameters_t &parameters)
+		: task_frames(task_frames)
+	{
+		points_original = mat(9, points.size()); // Added one for time(9 dim)
+
+		for (size_t i = 0; i < points.size(); ++i)
+		{			
+			for(size_t j = 0; j< points[0].size(); j++){
+				points_original(j, i) = points[i](j);
+			}
+			points_original(9, i) = i;
+			std::cout<<"Points dim: "<<points[0].size()<<std::endl;
+		}
+
+		update(parameters);
+	}
+
+	//-------------------------------------------------------------------------
+	// Resample the trajectory and recompute it in each reference frame
+	// according to the provided parameters
+	//-------------------------------------------------------------------------
+	void update(const parameters_t &parameters)
+	{
+		// std::cout << "Updating..." << std::endl;
+		// // Resampling of the trajectory
+		// arma::vec x = points_original.row(0).t();
+		// arma::vec y = points_original.row(1).t();
+		// arma::vec z = points_original.row(2).t();
+
+		// arma::vec x2(parameters.nb_data);
+		// arma::vec y2(parameters.nb_data);
+		// arma::vec z2(parameters.nb_data);
+
+		// arma::vec from_indices = arma::linspace<arma::vec>(0, points_original.n_cols - 1, points_original.n_cols);
+		// arma::vec to_indices = arma::linspace<arma::vec>(0, points_original.n_cols - 1, parameters.nb_data);
+
+		// interp1(from_indices, x, to_indices, x2, "*linear");
+		// interp1(from_indices, y, to_indices, y2, "*linear");
+		// interp1(from_indices, z, to_indices, z2, "*linear");
+
+		// points = mat(2 * parameters.nb_deriv, parameters.nb_data);
+		// points(span(0), span::all) = x2.t();
+		// points(span(1), span::all) = y2.t();
+		// points(span(2), span::all) = z2.t();
+
+		// std::cout << "Points " << points.n_cols << " " << points.n_rows << std::endl;
+		// std::cout << "Points" << std::endl;
+		// points.print();
+		// // Compute the derivatives
+
+		// mat D = (diagmat(ones(1, parameters.nb_data - 1), -1) - eye(parameters.nb_data, parameters.nb_data)) / parameters.dt;
+
+		// D(parameters.nb_data - 1, parameters.nb_data - 1) = 0.0;
+		// points(span(3, 5), span::all) = points(span(0, 2), span::all) * pow(D, 1);
+
+		// // Compute the points in each coordinate system
+		// points_in_coordinate_systems.clear();
+
+		// points = join_vert(points, linspace(0, points.n_cols - 1, points.n_cols).t());
+		// // Projected trajectories in each task frame
+		// for (int m = 0; m < coordinate_systems.size(); ++m)
+		// {
+		// 	coordinate_systems[m].orientation.print();
+		// 	points_in_coordinate_systems.push_back(join_vert(pinv(coordinate_systems[m].orientation) *
+		// 														 (points.rows(0, points.n_rows - 2) - repmat(coordinate_systems[m].position, 1, parameters.nb_data)),
+		// 													 points.row(points.n_rows - 1)));
+		// }
+		std::cout << "Updated" << std::endl;
+	}
+
+
+public:
+	task_frame_list_t task_frames;
+	arma::mat points_original;
+	arma::mat points;
+	matrix_list_t points_in_task_frames;
+};
+
+
+//-----------------------------------------------------------------------------
+// Represents a list of demonstrations
+//-----------------------------------------------------------------------------
+typedef std::vector<DemonstrationJointsSpace> demonstration_joint_space_list_t;
+
+
 
 //-----------------------------------------------------------------------------
 // Represents a list of demonstrations
@@ -434,9 +561,9 @@ void learn(const demonstration_list_t &demos, model_t &model)
 	train_EM_tensorGMM(demos, model);
 }
 
-std::vector<std::array<double, 8>> getTrajectoryFromCsvFile(const std::string &filename)
+std::vector<std::array<double, 9>> getTrajectoryFromCsvFile(const std::string &filename)
 {
-	std::vector<std::array<double, 8>> result;
+	std::vector<std::array<double, 9>> result;
 	std::cout << filename << std::endl;
 
 	std::ifstream csvFile(filename);
@@ -449,7 +576,7 @@ std::vector<std::array<double, 8>> getTrajectoryFromCsvFile(const std::string &f
 	while (std::getline(csvFile, line))
 	{
 		std::stringstream ss(line);
-		std::array<double, 8> pose;
+		std::array<double, 9> pose;
 		unsigned int colIdx = 0;
 		while (ss >> val)
 		{
@@ -462,17 +589,18 @@ std::vector<std::array<double, 8>> getTrajectoryFromCsvFile(const std::string &f
 			colIdx++;
 		}
 		result.push_back(pose);
+		std::cout<<pose[0]<<" "<<pose[1]<<" "<<pose[2]<<" "<<pose[3]<<" "<<pose[4]<<" "<<pose[5]<<" "<<pose[6]<<" "<<pose[7]<<" "<<pose[8]<<" "<<pose[9]<<std::endl;
 	}
 
 	csvFile.close();
 	return result;
 }
 
-void printTrajectoryData(const std::vector<std::array<double, 8>> &data)
+void printTrajectoryData(const std::vector<std::array<double, 9>> &data)
 {
 	for (unsigned int i = 0; i < data.size(); i++)
 	{
-		std::cout << "Frame: " << data[i][0] << " x: " << data[i][1] << " y: " << data[i][2] << " z: " << data[i][3] << " qx: " << data[i][4] << " qy: " << data[i][5] << " qz: " << data[i][6] << " qw: " << data[i][7] << std::endl;
+		std::cout << "Frame: " << data[i][0] << "q0: " << data[i][1] << " q1: " << data[i][2] << " q2: " << data[i][3] << " q3: " << data[i][4] << " q4: " << data[i][5] << " q5: " << data[i][6] << " q6: " << data[i][7] <<"q7: "<<data[i][8]<<std::endl;
 	}
 }
 
@@ -919,124 +1047,144 @@ int main(int argc, char **argv)
 	// Parameters
 	model.parameters.nb_states = 25;
 	model.parameters.nb_frames = 2;
-	model.parameters.nb_deriv = 3;
+	model.parameters.nb_deriv = 8;
 	model.parameters.nb_data = 300;
 	model.parameters.dt = 1.0f;
 
 	// List of demonstrations and reproductions
-	demonstration_list_t demos;
-	coordinate_system_list_t coordinateSystems;
+	// demonstration_list_t demos;
+	// coordinate_system_list_t coordinateSystems;
+
+	demonstration_joint_space_list_t demos;
+	task_frame_list_t taskFrames;
 
 	//for(int indexSave = 1; indexSave<= 10; indexSave++){
-	for (int nDemo = 1; nDemo <= 10; nDemo++)
+	for (int nDemo = 1; nDemo <= 1; nDemo++)
 	{
 		vector_list_t trajectory;
-		coordinateSystems.clear();
-		std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-reaching.csv";
+		taskFrames.clear();
+		std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-joint.csv";
 
-		std::vector<std::array<double, 8>> desiredTrajectoryData = getTrajectoryFromCsvFile(csvFile);
+		std::vector<std::array<double, 9>> desiredTrajectoryData = getTrajectoryFromCsvFile(csvFile);
 		// printTrajectoryData(desiredTrajectoryData);
 
 		// Lets try with only position
 
 		for (unsigned int i = 0; i < desiredTrajectoryData.size(); i++)
 		{
-			vec position = {desiredTrajectoryData[i][1], desiredTrajectoryData[i][2], desiredTrajectoryData[i][3]};
+			vec q = {desiredTrajectoryData[i][1], desiredTrajectoryData[i][2], desiredTrajectoryData[i][3],  desiredTrajectoryData[i][4],  desiredTrajectoryData[i][5],  desiredTrajectoryData[i][6],  desiredTrajectoryData[i][7],  desiredTrajectoryData[i][8]};
 			// std::cout << "Position: " << position[0] << " " << position[1] << " " << position[2] << std::endl;
-			trajectory.push_back(position);
+			trajectory.push_back(q);
 		}
 
 		// How to create the task frames?
 		// Need position vec and orientation as a matrix.
 
 		//Initial pose frame
-		KDL::Rotation rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[0][4], desiredTrajectoryData[0][5], desiredTrajectoryData[0][6], desiredTrajectoryData[0][7]);
-		arma::mat initialOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
-										{rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
-										{rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
-		arma::vec initialPosition = {desiredTrajectoryData[0][1], desiredTrajectoryData[0][2], desiredTrajectoryData[0][3]};
+		// KDL::Rotation rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[0][4], desiredTrajectoryData[0][5], desiredTrajectoryData[0][6], desiredTrajectoryData[0][7]);
+		// arma::mat initialOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
+		// 								{rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
+		// 								{rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
+		
+		arma::vec qInit = {desiredTrajectoryData[0][1], desiredTrajectoryData[0][2], desiredTrajectoryData[0][3], desiredTrajectoryData[0][4], desiredTrajectoryData[0][5], desiredTrajectoryData[0][6], desiredTrajectoryData[0][7], desiredTrajectoryData[0][8]};
 
-		coordinate_system_t initialFrame(initialPosition, initialOrientation, model.parameters);
+		// coordinate_system_t initialFrame(initialPosition, initialOrientation, model.parameters);
+		task_frame_t initialFrame(qInit, model.parameters);
 
-		//Final pose frame
-		rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[desiredTrajectoryData.size() - 1][4], desiredTrajectoryData[desiredTrajectoryData.size() - 1][5], desiredTrajectoryData[desiredTrajectoryData.size() - 1][6], desiredTrajectoryData[desiredTrajectoryData.size() - 1][7]);
-		arma::mat finalOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
-									  {rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
-									  {rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
-		arma::vec finalPosition = {desiredTrajectoryData[desiredTrajectoryData.size() - 1][1], desiredTrajectoryData[desiredTrajectoryData.size() - 1][2], desiredTrajectoryData[desiredTrajectoryData.size() - 1][3]};
+		arma::vec qFinal = {desiredTrajectoryData[desiredTrajectoryData.size()-1][1], desiredTrajectoryData[desiredTrajectoryData.size()-1][2], desiredTrajectoryData[desiredTrajectoryData.size()-1][3], desiredTrajectoryData[desiredTrajectoryData.size()-1][4], desiredTrajectoryData[desiredTrajectoryData.size()-1][5], desiredTrajectoryData[desiredTrajectoryData.size()-1][6], desiredTrajectoryData[desiredTrajectoryData.size()-1][7], desiredTrajectoryData[desiredTrajectoryData.size()-1][8]};
 
-		coordinate_system_t finalFrame(finalPosition, finalOrientation, model.parameters);
+		task_frame_t finalFrame(qFinal, model.parameters);
 
-		coordinateSystems.push_back(initialFrame);
-		coordinateSystems.push_back(finalFrame);
+		taskFrames.push_back(initialFrame);
+		taskFrames.push_back(finalFrame);	
 
-		//Create demonstration
+		DemonstrationJointsSpace demonstration(taskFrames, trajectory, model.parameters);
 
-		Demonstration demonstration(coordinateSystems, trajectory, model.parameters);
 		demos.push_back(demonstration);
-
-		//Check the transformation in the task frames.
-		std::cout << "Points in initial pose task frame" << std::endl;
-		demonstration.points_in_coordinate_systems[0].print();
-
-		std::cout << "Points in final pose task frame" << std::endl;
-		demonstration.points_in_coordinate_systems[1].print();
 	}
 
-	std::cout << "Number of demos: " << demos.size() << std::endl;
-	learn(demos, model);
 
-	std::cout << "Demos learned" << std::endl;
 
-	int nbGMRComponents = 20;
-	mat inputs = linspace(0, model.parameters.nb_data, nbGMRComponents);
-	inputs = inputs.t();
-	arma::cube muGMR(2 * model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
-	arma::field<cube> sigmaGMR(model.parameters.nb_frames);
 
-	// Check with the initial and final
+	// 	//Final pose frame
+	// 	rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[desiredTrajectoryData.size() - 1][4], desiredTrajectoryData[desiredTrajectoryData.size() - 1][5], desiredTrajectoryData[desiredTrajectoryData.size() - 1][6], desiredTrajectoryData[desiredTrajectoryData.size() - 1][7]);
+	// 	arma::mat finalOrientation = {{rotKdl.data[0], rotKdl.data[1], rotKdl.data[2]},
+	// 								  {rotKdl.data[3], rotKdl.data[4], rotKdl.data[5]},
+	// 								  {rotKdl.data[6], rotKdl.data[7], rotKdl.data[8]}};
+	// 	arma::vec finalPosition = {desiredTrajectoryData[desiredTrajectoryData.size() - 1][1], desiredTrajectoryData[desiredTrajectoryData.size() - 1][2], desiredTrajectoryData[desiredTrajectoryData.size() - 1][3]};
 
-	std::vector<gfx2::transforms_t> transforms;
+	// 	coordinate_system_t finalFrame(finalPosition, finalOrientation, model.parameters);
 
-	for (unsigned int nFrames = 0; nFrames < coordinateSystems.size(); nFrames++)
-	{
-		gfx2::transforms_t testTransform;
-		testTransform.position(0) = demos[0].coordinate_systems[nFrames].position[0];
-		testTransform.position(1) = demos[0].coordinate_systems[nFrames].position[1];
-		testTransform.position(2) = demos[0].coordinate_systems[nFrames].position[2];
+	// 	coordinateSystems.push_back(initialFrame);
+	// 	coordinateSystems.push_back(finalFrame);
 
-		for (unsigned int i = 0; i < 3; i++)
-		{
-			for (unsigned int j = 0; j < 3; j++)
-			{
-				testTransform.rotation(i, j) = demos[0].coordinate_systems[nFrames].orientation(i, j);
-			}
-		}
+	// 	//Create demonstration
 
-		std::cout << "Frame " << nFrames << " ---------------------------------" << std::endl;
-		std::cout << "Position: " << std::endl;
-		testTransform.position.print();
-		std::cout << "Rotation: " << std::endl;
-		testTransform.rotation.print();
-		transforms.push_back(testTransform);
-	}
+	// 	Demonstration demonstration(coordinateSystems, trajectory, model.parameters);
+	// 	demos.push_back(demonstration);
 
-	std::vector<mat> muPList;
-	std::vector<mat> sigmaPList;
-	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList, inputs);
+	// 	//Check the transformation in the task frames.
+	// 	std::cout << "Points in initial pose task frame" << std::endl;
+	// 	demonstration.points_in_coordinate_systems[0].print();
 
-	// Lets plot gmr and the demonstrations
+	// 	std::cout << "Points in final pose task frame" << std::endl;
+	// 	demonstration.points_in_coordinate_systems[1].print();
+	// }
 
-	plotDemos3D(demos, false);
+	// std::cout << "Number of demos: " << demos.size() << std::endl;
+	// learn(demos, model);
 
-	std::cout << "plotgmr3d" << std::endl;
-	plotGMR3D(inputs, muPList, sigmaPList, 2, false, demos[0].coordinate_systems);
+	// std::cout << "Demos learned" << std::endl;
 
-	plotTimelineGMR(demos, inputs, muPList, sigmaPList, false, demos[0].coordinate_systems);
+	// int nbGMRComponents = 20;
+	// mat inputs = linspace(0, model.parameters.nb_data, nbGMRComponents);
+	// inputs = inputs.t();
+	// arma::cube muGMR(2 * model.parameters.nb_deriv, inputs.size(), model.parameters.nb_frames);
+	// arma::field<cube> sigmaGMR(model.parameters.nb_frames);
 
-	plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 0);
+	// // Check with the initial and final
 
-	plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 1);
+	// std::vector<gfx2::transforms_t> transforms;
+
+	// for (unsigned int nFrames = 0; nFrames < coordinateSystems.size(); nFrames++)
+	// {
+	// 	gfx2::transforms_t testTransform;
+	// 	testTransform.position(0) = demos[0].coordinate_systems[nFrames].position[0];
+	// 	testTransform.position(1) = demos[0].coordinate_systems[nFrames].position[1];
+	// 	testTransform.position(2) = demos[0].coordinate_systems[nFrames].position[2];
+
+	// 	for (unsigned int i = 0; i < 3; i++)
+	// 	{
+	// 		for (unsigned int j = 0; j < 3; j++)
+	// 		{
+	// 			testTransform.rotation(i, j) = demos[0].coordinate_systems[nFrames].orientation(i, j);
+	// 		}
+	// 	}
+
+	// 	std::cout << "Frame " << nFrames << " ---------------------------------" << std::endl;
+	// 	std::cout << "Position: " << std::endl;
+	// 	testTransform.position.print();
+	// 	std::cout << "Rotation: " << std::endl;
+	// 	testTransform.rotation.print();
+	// 	transforms.push_back(testTransform);
+	// }
+
+	// std::vector<mat> muPList;
+	// std::vector<mat> sigmaPList;
+	// computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList, inputs);
+
+	// // Lets plot gmr and the demonstrations
+
+	// plotDemos3D(demos, false);
+
+	// std::cout << "plotgmr3d" << std::endl;
+	// plotGMR3D(inputs, muPList, sigmaPList, 2, false, demos[0].coordinate_systems);
+
+	// plotTimelineGMR(demos, inputs, muPList, sigmaPList, false, demos[0].coordinate_systems);
+
+	// plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 0);
+
+	// plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 1);
 
 	//std::string fileName =  std::to_string(indexSave)+"Demo_GMM25States_GMR20Components.pdf";
 	//matplot::save("/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/results/GMM25States_GMR20Components/"+fileName);
