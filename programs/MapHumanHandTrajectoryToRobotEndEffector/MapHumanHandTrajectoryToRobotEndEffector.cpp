@@ -179,7 +179,7 @@ namespace sharon
         }
     }
 
-    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory, unsigned int & sizeDiscreteTrajectory)
+    void getTrajectoryPoses(const std::vector<std::array<double, 8>> &trajectoryData, const float &distBtwPoses, std::vector<double> &discreteTrajectory, unsigned int &sizeDiscreteTrajectory)
     {
         float dist = std::numeric_limits<float>::max();
         sizeDiscreteTrajectory = 0;
@@ -206,20 +206,68 @@ namespace sharon
                     sizeDiscreteTrajectory++;
                 }
             }
-
         }
     }
 
     double optimizationFunction(unsigned n, const double *x, double *grad, void *data)
     {
         auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
-        std::cout << (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
-        std::cout << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4] << " " << x[5] << " " << x[6] << std::endl;
+        std::cout<<"pose mocap: "<< (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
+        std::cout<<"x: "<<x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4] << " " << x[5] << " " << x[6] << std::endl;
         double sum = 0;
-        for (unsigned int i = 0; i < n; i++)
+
+
+        //auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
+        KDL::JntArray qInit(8); // TODO correct in order to gather the q init from outside and also the size of the joints array
+        KDL::JntArray q(8);
+
+        std::cout<<"n: "<<n/7<<std::endl;
+        for (unsigned int i = 0; i < (n/7); i++) // this loops over the discrete poses
         {
-            sum += (x[i] - (*voidToVector)[i]) * (x[i] - (*voidToVector)[i]);
+            for(unsigned int j =0; j < 7; j++) // This loops over each discrete pose
+            {
+                sum += (x[i*7+j] - (*voidToVector)[i*7+j]) * (x[i*7+j] - (*voidToVector)[i*7+j]);
+            }
+
+            // int foundIk = (*iksolver).CartToJnt(qInit, fGoal, q);
+            // if (foundIk == 0) //Ik found
+            // {
+            //     for (unsigned int i = 0; i < q.rows(); i++)
+            //         q(i) = q(i) * KDL::rad2deg;
+            // }
+            KDL::Frame fGoal;
+            double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
+            KDL::Rotation rotKdl = KDL::Rotation::Quaternion(x[i * 7 + 3] / norm, x[i * 7 + 4] / norm, x[i * 7 + 5] / norm, x[i * 7 + 6] / norm);
+            KDL::Vector posKdl = KDL::Vector(x[i * 7 + 0], x[i * 7 + 1], x[i * 7 + 2] - 0.894);
+            rotKdl = rotKdl * KDL::Rotation::RotX(-KDL::PI / 2.0);
+            rotKdl = rotKdl * KDL::Rotation::RotZ(-KDL::PI / 2.0 - KDL::PI / 4.0);
+            fGoal.M = rotKdl;
+            fGoal.p = posKdl;
+
+            int foundIk = (*iksolver).CartToJnt(qInit, fGoal, q);
+            if (foundIk == 0) //Ik found
+            {
+                for(unsigned int j =0; j < 8; j++) // This loops over the joints
+                {
+                    sum += 10.0*(qInit(j)-q(j))*(qInit(j)-q(j));
+                }
+                qInit = q;
+            }
+            else{
+                sum+= 10*10*10;
+            }
         }
+
+
+        // KDL::Frame fGoal;
+        // double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
+        // KDL::Rotation rotKdl = KDL::Rotation::Quaternion(x[i * 7 + 3] / norm, x[i * 7 + 4] / norm, x[i * 7 + 5] / norm, x[i * 7 + 6] / norm);
+        // KDL::Vector posKdl = KDL::Vector(x[i * 7 + 0], x[i * 7 + 1], x[i * 7 + 2] - 0.894);
+        // rotKdl = rotKdl * KDL::Rotation::RotX(-KDL::PI / 2.0);
+        // rotKdl = rotKdl * KDL::Rotation::RotZ(-KDL::PI / 2.0 - KDL::PI / 4.0);
+        // fGoal.M = rotKdl;
+        // fGoal.p = posKdl;
+
         std::cout << sum << std::endl;
         return sum;
     }
@@ -233,7 +281,6 @@ namespace sharon
             // std::cout<<"constraint: "<<result[iq]<<std::endl;
         }
         auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
-        (*voidToVector)[0] = 1.0;
     }
 
     void noSelfCollisionConstraint(unsigned m, double *result, unsigned n, const double *x, double *grad, void *data)
@@ -316,14 +363,15 @@ int main()
 
     //sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses);
 
-    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.005, desiredDiscretePoses, numPoses);
+    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.1, desiredDiscretePoses, numPoses);
 
     unsigned int n = desiredDiscretePoses.size();
+
+    std::cout<<"n trajPoses: "<<n<<std::endl;
     double x[n];
     for (unsigned int i = 0; i < n; i++)
     {
         x[i] = desiredDiscretePoses[i];
-
     }
     std::cout << "Num poses: " << numPoses << std::endl;
 
@@ -339,8 +387,9 @@ int main()
     KDL::JntArray qInit(chain.getNrOfJoints());
 
     qTrajectory.resize((int)(desiredDiscretePoses.size() / 7) * 8);
+    
 
-    void *parameters = &qTrajectory;
+    void *parameters = &desiredDiscretePoses;
 
     createSelfCollisionObjects();
 
@@ -358,8 +407,8 @@ int main()
         // represents a pose
         if (i < (((unsigned int)(i / 7) + 1) * 7 - 4)) // Bounds for position elements [x y z]
         {
-            lb[i] = -1.3;
-            ub[i] = 1.3;
+            lb[i] = -1.4;
+            ub[i] = 1.4;
         }
         else
         { // Bounds for quaternion elements [qx qy qz qw]

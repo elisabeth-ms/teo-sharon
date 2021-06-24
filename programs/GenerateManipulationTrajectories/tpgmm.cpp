@@ -331,14 +331,16 @@ public:
 		points_in_task_frames.clear();
 
 		points = join_vert(points, linspace(0, points.n_cols - 1, points.n_cols).t());
-		// std::cout << "Points " << points.n_cols << " " << points.n_rows << std::endl;
-		// std::cout << "Points" << std::endl;
-		// points.print();
+		std::cout << "Points " << points.n_cols << " " << points.n_rows << std::endl;
+		std::cout << "Points" << std::endl;
+		points.row(1).print();
 		// Projected trajectories in each task frame
 		for (int m = 0; m < task_frames.size(); ++m)
 		{
 			points_in_task_frames.push_back(join_vert(points.rows(0, points.n_rows - 2) - repmat(task_frames[m].q, 1, parameters.nb_data), points.row(points.n_rows - 1)));
 		}
+		points_in_task_frames[0].row(1).print();
+		(points.row(1) - task_frames[0].q[1]).print();
 		// points_in_task_frames[0].print();
 		// 	points_in_coordinate_systems.push_back(join_vert(pinv(coordinate_systems[m].orientation) *
 		// 														 (points.rows(0, points.n_rows - 2) - repmat(coordinate_systems[m].position, 1, parameters.nb_data)),
@@ -799,7 +801,7 @@ std::vector<std::array<double, 9>> getTrajectoryFromCsvFile(const std::string &f
 			colIdx++;
 		}
 		result.push_back(pose);
-		// std::cout << pose[0] << " " << pose[1] << " " << pose[2] << " " << pose[3] << " " << pose[4] << " " << pose[5] << " " << pose[6] << " " << pose[7] << " " << pose[8] << " " << pose[9] << std::endl;
+		std::cout << pose[2]<<std::endl;
 	}
 
 	csvFile.close();
@@ -1488,17 +1490,18 @@ void plotTimelineLocalTrajectoryGMR(demonstration_list_t demos, mat inputs, cons
 		matplot::show();
 	}
 }
-void plotQLimits(const std::vector<double> &tmean, const std::array<double, 8> &qmin, const std::array<double, 8> &qmax, const unsigned int &jointNumber)
+void plotQLimits(const std::vector<double> &tmean, const std::array<double, 8> &qmin, const std::array<double, 8> &qmax, const unsigned int &jointNumber, double centerQ)
 {
 	std::vector<double> tLimits, qminLimits, qmaxLimits;
 	tLimits.push_back(tmean[0]);
 	tLimits.push_back(tmean[tmean.size() - 1]);
 
-	qminLimits.push_back(qmin[jointNumber]);
-	qminLimits.push_back(qmin[jointNumber]);
 
-	qmaxLimits.push_back(qmax[jointNumber]);
-	qmaxLimits.push_back(qmax[jointNumber]);
+	qminLimits.push_back(qmin[jointNumber]-centerQ);
+	qminLimits.push_back(qmin[jointNumber]-centerQ);
+
+	qmaxLimits.push_back(qmax[jointNumber]-centerQ);
+	qmaxLimits.push_back(qmax[jointNumber]-centerQ);
 
 	matplot::plot(tLimits, qminLimits, "r")->line_width(2);
 	matplot::plot(tLimits, qmaxLimits, "r")->line_width(2);
@@ -1577,7 +1580,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q0Demos[nDemo], "--");
 
-	plotQLimits(tmean, qmin, qmax, 0);
+	plotQLimits(tmean, qmin, qmax, 0,  muGMR.slice(taskFrame).at(0,0));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(0)");
 
@@ -1588,7 +1591,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q1Demos[nDemo], "--");
 
-	plotQLimits(tmean, qmin, qmax, 1);
+	plotQLimits(tmean, qmin, qmax,1, muGMR.slice(taskFrame).at(0,1));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(1)");
 
@@ -1598,7 +1601,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q2Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 2);
+	plotQLimits(tmean, qmin, qmax, 2,  muGMR.slice(taskFrame).at(0,2));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(2)");
 
@@ -1608,7 +1611,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q3Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 3);
+	plotQLimits(tmean, qmin, qmax, 3,  muGMR.slice(taskFrame).at(0,3));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(3)");
 
@@ -1618,7 +1621,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q4Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 4);
+	plotQLimits(tmean, qmin, qmax, 4,  muGMR.slice(taskFrame).at(0,4));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(4)");
 
@@ -1628,7 +1631,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q5Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 5);
+	plotQLimits(tmean, qmin, qmax, 5,  muGMR.slice(taskFrame).at(0,5));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(5)");
 
@@ -1638,7 +1641,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q6Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 6);
+	plotQLimits(tmean, qmin, qmax, 6,  muGMR.slice(taskFrame).at(0,6));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(6)");
 
@@ -1648,7 +1651,7 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	matplot::hold(matplot::on);
 	for (int nDemo = 0; nDemo < demos.size(); nDemo++)
 		matplot::plot(tDemos[nDemo], q7Demos[nDemo], "--");
-	plotQLimits(tmean, qmin, qmax, 7);
+	plotQLimits(tmean, qmin, qmax, 7,  muGMR.slice(taskFrame).at(0,7));
 	matplot::xlabel(ax1, "t");
 	matplot::ylabel(ax1, "q(7)");
 
@@ -1656,10 +1659,6 @@ void plotTimelineLocalTrajectoryGMR(demonstration_joint_space_list_t demos, mat 
 	{
 		matplot::show();
 	}
-}
-
-void makeQLimitsTeoTrunkAndRightArmKinematics(std::array<double, 8> &qmin, std::array<double, 8> &qmax)
-{
 }
 
 /******************************* MAIN FUNCTION *******************************/
@@ -1673,10 +1672,10 @@ int main(int argc, char **argv)
 	model_t model;
 
 	// Parameters
-	model.parameters.nb_states = 6;
+	model.parameters.nb_states = 2;
 	model.parameters.nb_frames = 2;
 	model.parameters.nb_deriv = 8;
-	model.parameters.nb_data = 100;
+	model.parameters.nb_data = 150;
 	model.parameters.dt = 1.0f;
 
 	// List of demonstrations and reproductions
@@ -1687,7 +1686,7 @@ int main(int argc, char **argv)
 	task_frame_list_t taskFrames;
 
 	//for(int indexSave = 1; indexSave<= 10; indexSave++){
-	for (int nDemo = 1; nDemo <= 2; nDemo++)
+	for (int nDemo = 1; nDemo <= 5; nDemo++)
 	{
 		vector_list_t trajectory;
 		taskFrames.clear();
@@ -1701,7 +1700,6 @@ int main(int argc, char **argv)
 		for (unsigned int i = 0; i < desiredTrajectoryData.size(); i++)
 		{
 			vec q = {desiredTrajectoryData[i][1], desiredTrajectoryData[i][2], desiredTrajectoryData[i][3], desiredTrajectoryData[i][4], desiredTrajectoryData[i][5], desiredTrajectoryData[i][6], desiredTrajectoryData[i][7], desiredTrajectoryData[i][8]};
-			// std::cout << "Position: " << position[0] << " " << position[1] << " " << position[2] << std::endl;
 			trajectory.push_back(q);
 		}
 
@@ -1762,8 +1760,7 @@ int main(int argc, char **argv)
 
 	computeGMR(model, nbGMRComponents, muGMR, sigmaGMR, transforms, muPList, sigmaPList, inputs);
 	std::cout << "GMR done!" << std::endl;
-	muPList[0].print();
-	// plotTimelineGMR(demos, inputs, muPList, sigmaPList, true, demos[0].task_frames);
+
 
 	std::array<double, 8> qmin, qmax;
 	// Min joints limits
@@ -1786,7 +1783,7 @@ int main(int argc, char **argv)
 	qmax[6] = 99.6;
 	qmax[7] = 44.7;
 
-	plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 1, qmin, qmax);
+	plotTimelineLocalTrajectoryGMR(demos, inputs, muGMR, sigmaGMR, true, 0, qmin, qmax);
 
 	// 	//Final pose frame
 	// 	rotKdl = KDL::Rotation::Quaternion(desiredTrajectoryData[desiredTrajectoryData.size() - 1][4], desiredTrajectoryData[desiredTrajectoryData.size() - 1][5], desiredTrajectoryData[desiredTrajectoryData.size() - 1][6], desiredTrajectoryData[desiredTrajectoryData.size() - 1][7]);
