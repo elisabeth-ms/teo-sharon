@@ -212,29 +212,23 @@ namespace sharon
     double optimizationFunction(unsigned n, const double *x, double *grad, void *data)
     {
         auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
-        std::cout<<"pose mocap: "<< (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
-        std::cout<<"x: "<<x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4] << " " << x[5] << " " << x[6] << std::endl;
+        std::cout << "pose mocap: " << (*voidToVector)[0] << " " << (*voidToVector)[1] << " " << (*voidToVector)[2] << " " << (*voidToVector)[3] << " " << (*voidToVector)[4] << " " << (*voidToVector)[5] << " " << (*voidToVector)[6] << std::endl;
+        std::cout << "x: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4] << " " << x[5] << " " << x[6] << std::endl;
         double sum = 0;
-
 
         //auto *voidToVector = reinterpret_cast<std::vector<double> *>(data);
         KDL::JntArray qInit(8); // TODO correct in order to gather the q init from outside and also the size of the joints array
         KDL::JntArray q(8);
 
-        std::cout<<"n: "<<n/7<<std::endl;
-        for (unsigned int i = 0; i < (n/7); i++) // this loops over the discrete poses
+        std::cout << "n: " << n / 7 << std::endl;
+        for (unsigned int i = 0; i < (n / 7); i++) // this loops over the discrete poses
         {
-            for(unsigned int j =0; j < 7; j++) // This loops over each discrete pose
+            for (unsigned int j = 0; j < 7; j++) // This loops over each discrete pose
             {
-                sum += (x[i*7+j] - (*voidToVector)[i*7+j]) * (x[i*7+j] - (*voidToVector)[i*7+j]);
+                sum += 10.0 * (x[i * 7 + j] - (*voidToVector)[i * 7 + j]) * (x[i * 7 + j] - (*voidToVector)[i * 7 + j]);
             }
+            std::cout << "x[" << i << "]: " << x[i * 7] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << " " << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
 
-            // int foundIk = (*iksolver).CartToJnt(qInit, fGoal, q);
-            // if (foundIk == 0) //Ik found
-            // {
-            //     for (unsigned int i = 0; i < q.rows(); i++)
-            //         q(i) = q(i) * KDL::rad2deg;
-            // }
             KDL::Frame fGoal;
             double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
             KDL::Rotation rotKdl = KDL::Rotation::Quaternion(x[i * 7 + 3] / norm, x[i * 7 + 4] / norm, x[i * 7 + 5] / norm, x[i * 7 + 6] / norm);
@@ -247,17 +241,19 @@ namespace sharon
             int foundIk = (*iksolver).CartToJnt(qInit, fGoal, q);
             if (foundIk == 0) //Ik found
             {
-                for(unsigned int j =0; j < 8; j++) // This loops over the joints
+                for (unsigned int j = 0; j < 8; j++) // This loops over the joints
                 {
-                    sum += 10.0*(qInit(j)-q(j))*(qInit(j)-q(j));
+                    sum += 10.0 * (qInit(j) - q(j)) * (qInit(j) - q(j));
                 }
                 qInit = q;
+                std::cout << "qInit: " << qInit(0) << " " << qInit(1) << " " << qInit(2) << " " << qInit(3) << " " << qInit(4) << " " << qInit(5) << " " << qInit(6) << " " << qInit(7) << std::endl;
+                std::cout << "q: " << q(0) << " " << q(1) << " " << q(2) << " " << q(3) << " " << q(4) << " " << q(5) << " " << q(6) << " " << q(7) << std::endl;
             }
-            else{
-                sum+= 10*10*10;
+            else
+            {
+                sum += 500 * 10 * 10;
             }
         }
-
 
         // KDL::Frame fGoal;
         // double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
@@ -350,135 +346,158 @@ namespace sharon
         myFile.close();
     }
 
+    void writeResults(std::string filename, const std::vector<int>results, int solverMaxIter, double boundsDiscretePoses, double maxTime){
+        std::ofstream myFile(filename);
+        myFile<<"Number of poses: "<<results.size()<<"\n";
+        myFile<<"Ik solver max iter: "<<solverMaxIter<<"\n";
+        myFile<<"Bounds range: "<<boundsDiscretePoses<<"\n";
+        myFile<<"Max time: "<<maxTime<<"\n";
+        myFile<<"Results ik: "<<"\n";
+        for ( unsigned int i = 0; i< results.size(); i++){
+            myFile << i << ","<<results[i]<<"\n";
+        }
+        myFile.close();
+    }
+
+
 }
 
 int main()
 {
-    std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth1-aproach.csv";
-    std::vector<std::array<double, 8>> desiredTrajectoryData = sharon::getTrajectoryFromCsvFile(csvFile);
-    sharon::printTrajectoryData(desiredTrajectoryData);
-
-    unsigned int numPoses = 0;
-    std::vector<double> desiredDiscretePoses;
-
-    //sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses);
-
-    sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.1, desiredDiscretePoses, numPoses);
-
-    unsigned int n = desiredDiscretePoses.size();
-
-    std::cout<<"n trajPoses: "<<n<<std::endl;
-    double x[n];
-    for (unsigned int i = 0; i < n; i++)
+    for (int nDemo = 1; nDemo <= 10; nDemo++)
     {
-        x[i] = desiredDiscretePoses[i];
-    }
-    std::cout << "Num poses: " << numPoses << std::endl;
+        std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth"+ std::to_string(nDemo) +"-reaching.csv";
+        std::vector<std::array<double, 8>> desiredTrajectoryData = sharon::getTrajectoryFromCsvFile(csvFile);
+        sharon::printTrajectoryData(desiredTrajectoryData);
 
-    KDL::Chain chain = makeTeoTrunkAndRightArmKinematicsFromDH();
-    KDL::JntArray qmin(8), qmax(8);
-    makeQLimitsTeoTrunkAndRightArmKinematics(qmin, qmax);
+        unsigned int numPoses = 0;
+        std::vector<double> desiredDiscretePoses;
 
-    KDL::ChainFkSolverPos_recursive fksolver(chain);
-    KDL::ChainIkSolverVel_pinv iksolverv(chain);
-    iksolver = new KDL::ChainIkSolverPos_NR_JL(chain, qmin, qmax, fksolver, iksolverv, 200, 1e-6);
+        //sharon::getTrajectoryPoses(desiredTrajectoryData, numPoses, desiredDiscretePoses);
 
-    KDL::JntArray q(chain.getNrOfJoints());
-    KDL::JntArray qInit(chain.getNrOfJoints());
+        sharon::getTrajectoryPoses(desiredTrajectoryData, (float)0.01, desiredDiscretePoses, numPoses);
 
-    qTrajectory.resize((int)(desiredDiscretePoses.size() / 7) * 8);
-    
+        unsigned int n = desiredDiscretePoses.size();
 
-    void *parameters = &desiredDiscretePoses;
-
-    createSelfCollisionObjects();
-
-    checkSelfCollision = new sharon::CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
-
-    nlopt_opt opt;
-    opt = nlopt_create(NLOPT_LN_COBYLA, n);
-    nlopt_set_min_objective(opt, sharon::optimizationFunction, parameters);
-    double lb[n];
-    double ub[n];
-
-    for (unsigned int i = 0; i < n; i++)
-    {
-        // Our vector x is constructed like [x0 y0 z0 qx0 qy0 qz0 qw0 ... xi yi zi qxi qyi qzi qwi ... xn yn zn qxn qyn qzn qwn]. Where each group of 7 elements
-        // represents a pose
-        if (i < (((unsigned int)(i / 7) + 1) * 7 - 4)) // Bounds for position elements [x y z]
+        std::cout << "n trajPoses: " << n << std::endl;
+        double x[n];
+        for (unsigned int i = 0; i < n; i++)
         {
-            lb[i] = -1.4;
-            ub[i] = 1.4;
+            x[i] = desiredDiscretePoses[i];
         }
-        else
-        { // Bounds for quaternion elements [qx qy qz qw]
-            lb[i] = -1;
-            ub[i] = 1.0;
-        }
-    }
+        std::cout << "Num poses: " << numPoses << std::endl;
 
-    nlopt_set_lower_bounds(opt, lb);
-    nlopt_set_upper_bounds(opt, ub);
+        KDL::Chain chain = makeTeoTrunkAndRightArmKinematicsFromDH();
+        KDL::JntArray qmin(8), qmax(8);
+        makeQLimitsTeoTrunkAndRightArmKinematics(qmin, qmax);
 
-    // //     std::vector<double> tolQuaternionConstraint;
-    // //     tolQuaternionConstraint.push_back(1e-6);
+        KDL::ChainFkSolverPos_recursive fksolver(chain);
+        KDL::ChainIkSolverVel_pinv iksolverv(chain);
+        int solverMaxIter = 1000;
+        iksolver = new KDL::ChainIkSolverPos_NR_JL(chain, qmin, qmax, fksolver, iksolverv, solverMaxIter, 1e-6);
 
-    unsigned int m = numPoses * 3;
-    double tolQuaternionConstraint[m];
-    for (unsigned int i = 0; i < m; i++)
-        tolQuaternionConstraint[i] = 1e-4;
+        KDL::JntArray q(chain.getNrOfJoints());
+        KDL::JntArray qInit(chain.getNrOfJoints());
 
-    double tol[numPoses];
-    for (unsigned int i = 0; i < numPoses; i++)
-        tol[i] = 1e-6;
+        qTrajectory.resize((int)(desiredDiscretePoses.size() / 7) * 8);
 
-    nlopt_add_equality_mconstraint(opt, m, sharon::quaternionConstraint, parameters, tolQuaternionConstraint);
-    nlopt_add_equality_mconstraint(opt, numPoses, sharon::noSelfCollisionConstraint, NULL, tol);
-    nlopt_set_xtol_rel(opt, 1e-6);
-    nlopt_set_maxtime(opt, 500);
+        void *parameters = &desiredDiscretePoses;
 
-    double minf;
-    try
-    {
-        nlopt_result result = nlopt_optimize(opt, x, &minf);
-        std::cout << "found minimum at f(x)=" << minf << std::endl;
-        KDL::JntArray qInit(8); // TODO correct in order to gather the q init from outside and also the size of the joints array
-        KDL::JntArray q(8);
-        std::vector<std::array<double, 8>> qTraj;
-        std::array<double, 8> qArray;
-        for (unsigned int i = 0; i < numPoses; i++)
+        createSelfCollisionObjects();
+
+        checkSelfCollision = new sharon::CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+
+        nlopt_opt opt;
+        opt = nlopt_create(NLOPT_LN_COBYLA, n);
+        nlopt_set_min_objective(opt, sharon::optimizationFunction, parameters);
+        double lb[n];
+        double ub[n];
+        double boundsDiscretePoses = 0.2;
+
+        for (unsigned int i = 0; i < n; i++)
         {
-            KDL::Frame fGoal;
-            double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
-            KDL::Rotation rotKdl = KDL::Rotation::Quaternion(x[i * 7 + 3] / norm, x[i * 7 + 4] / norm, x[i * 7 + 5] / norm, x[i * 7 + 6] / norm);
-            KDL::Vector posKdl = KDL::Vector(x[i * 7 + 0], x[i * 7 + 1], x[i * 7 + 2] - 0.894);
-            rotKdl = rotKdl * KDL::Rotation::RotX(-KDL::PI / 2.0);
-            rotKdl = rotKdl * KDL::Rotation::RotZ(-KDL::PI / 2.0 - KDL::PI / 4.0);
-            fGoal.M = rotKdl;
-            fGoal.p = posKdl;
-            bool result = (*iksolver).CartToJnt(qInit, fGoal, q);
-            if (result >= 0)
+            // Our vector x is constructed like [x0 y0 z0 qx0 qy0 qz0 qw0 ... xi yi zi qxi qyi qzi qwi ... xn yn zn qxn qyn qzn qwn]. Where each group of 7 elements
+            // represents a pose
+            if (i < (((unsigned int)(i / 7) + 1) * 7 - 4)) // Bounds for position elements [x y z]
             {
-                for (unsigned int joint = 0; joint < qInit.rows(); joint++)
-                {
-                    qInit(joint) = q(joint);
-                    qArray[joint] = q(joint) * KDL::rad2deg;
-                }
-                qTraj.push_back(qArray);
-                // std::cout << "qTraj: " << qTrajectory[i * 8 + 0] << " " << qTrajectory[i * 8 + 1] << " " << qTrajectory[i * 8 + 2] << " " << qTrajectory[i * 8 + 3] << " " << qTrajectory[i * 8 + 4] << " " << qTrajectory[i * 8 + 5] << " " << qTrajectory[i * 8 + 6] << " " << qTrajectory[i * 8 + 7] << std::endl;
-                // std::cout << "q: " << q(0) * KDL::rad2deg << " " << q(1) * KDL::rad2deg << " " << q(2) * KDL::rad2deg << " " << q(3) * KDL::rad2deg << " " << q(4) * KDL::rad2deg << " " << q(5) * KDL::rad2deg << " " << q(6) * KDL::rad2deg << " " << q(7) * KDL::rad2deg << std::endl;
-                // std::cout << x[i * 7 + 0] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
+                lb[i] = desiredDiscretePoses[i] - boundsDiscretePoses;
+                ub[i] = desiredDiscretePoses[i] + boundsDiscretePoses;
             }
-            std::cout << result << std::endl;
+            else
+            { // Bounds for quaternion elements [qx qy qz qw]
+                lb[i] = -1.0;
+                ub[i] = 1.0;
+            }
         }
-        std::string csvFileWrite = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth1-optimized.csv";
-        std::string csvQFileWrite = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/graspcup1/test-right-arm-motion-smooth1-joint.csv";
-        sharon::writeCsv(csvFileWrite, x, numPoses);
-        sharon::writeQCsv(csvQFileWrite, qTraj);
-    }
-    catch (std::exception &e)
-    {
-        std::cout << "nlopt failed: " << e.what() << std::endl;
+
+        nlopt_set_lower_bounds(opt, lb);
+        nlopt_set_upper_bounds(opt, ub);
+
+        // //     std::vector<double> tolQuaternionConstraint;
+        // //     tolQuaternionConstraint.push_back(1e-6);
+
+        unsigned int m = numPoses * 3;
+        double tolQuaternionConstraint[m];
+        for (unsigned int i = 0; i < m; i++)
+            tolQuaternionConstraint[i] = 1e-4;
+
+        double tol[numPoses];
+        for (unsigned int i = 0; i < numPoses; i++)
+            tol[i] = 1e-6;
+
+        nlopt_add_equality_mconstraint(opt, m, sharon::quaternionConstraint, parameters, tolQuaternionConstraint);
+        // nlopt_add_equality_mconstraint(opt, numPoses, sharon::noSelfCollisionConstraint, NULL, tol);
+        nlopt_set_xtol_rel(opt, 1e-6);
+        double maxTime = 2000;
+        nlopt_set_maxtime(opt, maxTime);
+
+        double minf;
+        try
+        {
+            nlopt_result result = nlopt_optimize(opt, x, &minf);
+            std::cout << "found minimum at f(x)=" << minf << std::endl;
+            KDL::JntArray qInit(8); // TODO correct in order to gather the q init from outside and also the size of the joints array
+            KDL::JntArray q(8);
+            std::vector<std::array<double, 8>> qTraj;
+            std::array<double, 8> qArray;
+            std::vector<int>results;
+            for (unsigned int i = 0; i < numPoses; i++)
+            {
+                KDL::Frame fGoal;
+                double norm = sqrt(x[(i * 7) + 3] * x[i * 7 + 3] + x[i * 7 + 4] * x[i * 7 + 4] + x[i * 7 + 5] * x[i * 7 + 5] + x[i * 7 + 6] * x[i * 7 + 6]);
+                KDL::Rotation rotKdl = KDL::Rotation::Quaternion(x[i * 7 + 3] / norm, x[i * 7 + 4] / norm, x[i * 7 + 5] / norm, x[i * 7 + 6] / norm);
+                KDL::Vector posKdl = KDL::Vector(x[i * 7 + 0], x[i * 7 + 1], x[i * 7 + 2] - 0.894);
+                rotKdl = rotKdl * KDL::Rotation::RotX(-KDL::PI / 2.0);
+                rotKdl = rotKdl * KDL::Rotation::RotZ(-KDL::PI / 2.0 - KDL::PI / 4.0);
+                fGoal.M = rotKdl;
+                fGoal.p = posKdl;
+                bool result = (*iksolver).CartToJnt(qInit, fGoal, q);
+                if (result >= 0)
+                {
+                    for (unsigned int joint = 0; joint < qInit.rows(); joint++)
+                    {
+                        qInit(joint) = q(joint);
+                        qArray[joint] = q(joint) * KDL::rad2deg;
+                    }
+                    qTraj.push_back(qArray);
+                    // std::cout << "qTraj: " << qTrajectory[i * 8 + 0] << " " << qTrajectory[i * 8 + 1] << " " << qTrajectory[i * 8 + 2] << " " << qTrajectory[i * 8 + 3] << " " << qTrajectory[i * 8 + 4] << " " << qTrajectory[i * 8 + 5] << " " << qTrajectory[i * 8 + 6] << " " << qTrajectory[i * 8 + 7] << std::endl;
+                    // std::cout << "q: " << q(0) * KDL::rad2deg << " " << q(1) * KDL::rad2deg << " " << q(2) * KDL::rad2deg << " " << q(3) * KDL::rad2deg << " " << q(4) * KDL::rad2deg << " " << q(5) * KDL::rad2deg << " " << q(6) * KDL::rad2deg << " " << q(7) * KDL::rad2deg << std::endl;
+                    // std::cout << x[i * 7 + 0] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
+                }
+                std::cout << "i: " << i << " sol: " << result << std::endl;
+                results.push_back(result);
+            }
+            std::string csvFileWrite = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-optimized.csv";
+            std::string csvQFileWrite = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-joint.csv";
+            std::string csvResultsWrite = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth" + std::to_string(nDemo) + "-results.csv";
+            sharon::writeCsv(csvFileWrite, x, numPoses);
+            sharon::writeQCsv(csvQFileWrite, qTraj);
+            sharon::writeResults(csvResultsWrite, results, solverMaxIter, boundsDiscretePoses, maxTime);
+        }
+        catch (std::exception &e)
+        {
+            std::cout << "nlopt failed: " << e.what() << std::endl;
+        }
     }
 
     return 0;
