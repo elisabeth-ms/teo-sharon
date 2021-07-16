@@ -88,22 +88,24 @@ namespace sharon
 
     bool CheckSelfCollision::selfCollision()
     {
-
+        printf("SelfCollision()\n");
         fcl::CollisionRequestf requestType;
         fcl::CollisionResultf collisionResult;
         for (int link1 = 0; link1<collisionObjects.size(); link1++)
         {
             int link2 = link1 + 2;
             while (link2 < collisionObjects.size())
-            {   
+            {   printf("Lets check links %d and %d\n", link1, link2);
                 fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
                 if (collisionResult.isCollision())
                 {
+                    printf("collsion betwenn links %d and %d\n", link1, link2);
                     return true;
                 }
                 link2++;
             }
         }
+        printf("SelfCollision() not collide\n");
         return false;
     }
 

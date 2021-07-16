@@ -34,7 +34,7 @@ int main(int argc, char ** argv)
     //rf.setDefaultContext("kinematics");
     rf.configure(argc, argv);
 
-    teo::TrajectoryGeneration mod;
+    sharon::TrajectoryGeneration mod;
 
     if (rf.check("help"))
     {

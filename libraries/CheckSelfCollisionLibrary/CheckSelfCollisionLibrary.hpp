@@ -29,6 +29,7 @@ public:
     CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObjectf> &t_collisionObjects, std::vector<std::array <float,3>> &t_offset): 
     chain(t_chain), qmin(t_qmin), qmax(t_qmax), collisionObjects(t_collisionObjects), offsetCenterCollisionObjects(t_offset)
     {
+        printf("eo\n");
         if (chain.getNrOfJoints() <1)
             throw std::runtime_error("Empty chain");
         printf("No empty chain!\n");
@@ -47,7 +48,7 @@ public:
 
         KDL::Frame f =  chain.getSegment(0).getFrameToTip();
         for(int i=0; i< chain.getNrOfSegments(); i++){
-                            
+                
             double x = chain.getSegment(i).getFrameToTip().p.x();
             double y = chain.getSegment(i).getFrameToTip().p.y();
             double z = chain.getSegment(i).getFrameToTip().p.z();
@@ -62,10 +63,12 @@ public:
                 centerLinksWrtJoints.push_back(std::make_pair(i, frameLink));
                 printf("i: %d, x: %f, y: %f, z: %f\n", i, x/2, y/2, z/2);
                 printf("norm: %f\n", norm);
+
             }
         }
 
         if(centerLinksWrtJoints.size()!= collisionObjects.size()){
+            printf("%d %d", centerLinksWrtJoints.size(), collisionObjects.size());
             throw std::runtime_error("Error in the number of collision objects");
         }
 
