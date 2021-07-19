@@ -122,8 +122,11 @@ namespace sharon
             /** Solver device **/
             yarp::dev::PolyDriver rightArmSolverDevice;
             ICartesianSolver *rightArmICartesianSolver;
-         
-          
+            yarp::os::Property rightArmSolverOptions;
+
+            /** Joints limits **/
+            yarp::os::Bottle qrMin;
+            yarp::os::Bottle qrMax;
 
             /****** FUNCTIONS ******/            
 
@@ -149,7 +152,7 @@ namespace sharon
             
             bool isValid(const ob::State *state);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
-            // bool followDiscretePath();
+            bool followDiscretePath();
 
             ob::StateSpacePtr space;
 

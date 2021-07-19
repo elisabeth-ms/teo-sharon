@@ -128,6 +128,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     // }
     // ----- Configuring KDL Solver for trunk and right arm -----
 
+
     if (!rightArmDevice.view(rightArmIControlLimits))
     {
         yError() << "Could not view iControlLimits in rightArmDevice";
@@ -136,9 +137,10 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     //  Getting the limits of each joint
     printf("---- Joint limits of right-arm ----\n");
-    yarp::os::Bottle qrMin, qrMax;
+
     qmin.resize(numRightArmJoints);
     qmax.resize(numRightArmJoints);
+
     for (unsigned int joint = 0; joint < numRightArmJoints; joint++)
     {
         double min, max;
@@ -150,16 +152,14 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         qmax(joint) = max;
     }
 
-    yarp::os::Property rightArmSolverOptions;
+
     std::string rightKinPath = rf.findFileByName("teo-trunk-rightArm-fetch.ini");
-    ;
     rightArmSolverOptions.fromConfigFile(rightKinPath);
     rightArmSolverOptions.put("device", "KdlSolver");
     rightArmSolverOptions.put("mins", yarp::os::Value::makeList(qrMin.toString().c_str()));
     rightArmSolverOptions.put("maxs", yarp::os::Value::makeList(qrMax.toString().c_str()));
     rightArmSolverOptions.put("ik", "nrjl"); // to use screw theory IK
     rightArmSolverDevice.open(rightArmSolverOptions);
-
     if (!rightArmSolverDevice.isValid())
     {
         yError() << "KDLSolver solver device for trunkAndRightArm is not valid";
@@ -245,14 +245,14 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     // ob::RealVectorBounds bounds{numRightArmJoints};
     ob::RealVectorBounds bounds{3};
 
-    bounds.setLow(0, -0.5);
-    bounds.setHigh(0, 0.8);
+    bounds.setLow(0, -0.0);
+    bounds.setHigh(0, 0.6);
 
     bounds.setLow(1, -0.8);
     bounds.setHigh(1, 0.2);
 
-    bounds.setLow(2, -0.3);
-    bounds.setHigh(2, 0.8);
+    bounds.setLow(2, -0.1);
+    bounds.setHigh(2, 0.4);
 
     space->as<ob::SE3StateSpace>()->setBounds(bounds);
     
@@ -265,23 +265,23 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
 
-    std::vector<double> currentQ(numRightArmJoints);
-    if (!rightArmIEncoders->getEncoders(currentQ.data()))
-    {
-        yError() << "Failed getEncoders() of right-arm";
-        return false;
-    }
+    // std::vector<double> currentQ(numRightArmJoints);
+    // if (!rightArmIEncoders->getEncoders(currentQ.data()))
+    // {
+    //     yError() << "Failed getEncoders() of right-arm";
+    //     return false;
+    // }
     
 
-    KDL::JntArray qGoal = KDL::JntArray(numRightArmJoints);
-    qGoal(0) = 0;
-    qGoal(1) = -8;
+    // KDL::JntArray qGoal = KDL::JntArray(numRightArmJoints);
+    // qGoal(0) = 0;
+    // qGoal(1) = -8;
 
-    checkSelfCollision->updateCollisionObjectsTransform(qGoal);
-    if (checkSelfCollision->selfCollision()){
-        yInfo()<<"Goal self collide";
-    }
-    yInfo()<<"Goal doesn't collide";
+    // checkSelfCollision->updateCollisionObjectsTransform(qGoal);
+    // if (checkSelfCollision->selfCollision()){
+    //     yInfo()<<"Goal self collide";
+    // }
+    // yInfo()<<"Goal doesn't collide";
 
     rpcServer.setReader(*this);
 
@@ -485,7 +485,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     planner->setup();
 
-    bool solutionFound = planner->solve(10.0);
+    bool solutionFound = planner->solve(1.0);
 
     if (solutionFound == true)
     {
@@ -589,89 +589,89 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     return solutionFound;
 }
 
-// bool TrajectoryGeneration::followDiscretePath()
-// {
-//     std::size_t j = 0;
-//     while (j < pth->getStateCount())
-//     {
-//         yInfo() << "Follow path " << j;
-//         ob::State *s1 = pth->getState(j);
+bool TrajectoryGeneration::followDiscretePath()
+{
+    std::size_t j = 0;
+    while (j < pth->getStateCount())
+    {
+        yInfo() << "Follow path " << j;
+        ob::State *s1 = pth->getState(j);
 
-//         const ob::SE3StateSpace::StateType *se3state = s1->as<ob::SE3StateSpace::StateType>();
+        const ob::SE3StateSpace::StateType *se3state = s1->as<ob::SE3StateSpace::StateType>();
 
-//         // extract the first component of the state and cast it to what we expect
-//         const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
+        // extract the first component of the state and cast it to what we expect
+        const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
 
-//         // extract the second component of the state and cast it to what we expect
-//         const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
+        // extract the second component of the state and cast it to what we expect
+        const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
 
-//         KDL::Frame frame;
+        KDL::Frame frame;
 
-//         KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
-//         KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
-//         //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
-//         double x, y, z, w;
-//         rotKdl.GetQuaternion(x, y, z, w);
-//         yInfo() << "Quaternion" << x << " " << y << " "
-//                 << " " << z << " " << w;
-//         frame.M = rotKdl;
-//         frame.p = posKdl;
-//         std::vector<double> testAxisAngle = frameToVector(frame);
-//         yInfo() << testAxisAngle;
+        KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
+        KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
+        //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
+        double x, y, z, w;
+        rotKdl.GetQuaternion(x, y, z, w);
+        yInfo() << "Quaternion" << x << " " << y << " "
+                << " " << z << " " << w;
+        frame.M = rotKdl;
+        frame.p = posKdl;
+        std::vector<double> testAxisAngle = frameToVector(frame);
+        yInfo() << testAxisAngle;
 
-//         std::vector<double> currentQ(numRightArmJoints);
-//         if (!rightArmIEncoders->getEncoders(currentQ.data()))
-//         {
-//             yError() << "Failed getEncoders() of right-arm";
-//             return false;
-//         }
-//         std::vector<double> xStart;
+        std::vector<double> currentQ(numRightArmJoints);
+        if (!rightArmIEncoders->getEncoders(currentQ.data()))
+        {
+            yError() << "Failed getEncoders() of right-arm";
+            return false;
+        }
+        std::vector<double> xStart;
 
-//         if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
-//         {
-//             yError() << "fwdKin failed";
-//             return false;
-//         }
-//         yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
+        if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+        {
+            yError() << "fwdKin failed";
+            return false;
+        }
+        yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
 
-//         bool computeInvKin = true;
+        bool computeInvKin = true;
 
-//         double diffSumSquare = 0;
-//         for (int i = 0; i < 6; i++)
-//         {
-//             diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
-//         }
+        double diffSumSquare = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
+        }
 
-//         yInfo() << "diffSumSquare: " << diffSumSquare;
+        yInfo() << "diffSumSquare: " << diffSumSquare;
 
-//         if (diffSumSquare < DEFAULT_MAX_DIFF_INV)
-//         {
-//             yInfo() << "Start state-> we do not calculate the inverse kinematics";
-//             computeInvKin = false;
-//         }
+        if (diffSumSquare < DEFAULT_MAX_DIFF_INV)
+        {
+            yInfo() << "Start state-> we do not calculate the inverse kinematics";
+            computeInvKin = false;
+        }
 
-//         std::vector<double> desireQ(numRightArmJoints);
+        std::vector<double> desireQ(numRightArmJoints);
 
-//         if (computeInvKin)
-//         {
-//             if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
-//             {
-//                 yError() << "invKin() failed";
-//             }
-//             yInfo() << "Move to desireQ: " << desireQ;
+        if (computeInvKin)
+        {
+            if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
+            {
+                yError() << "invKin() failed";
+            }
+            yInfo() << "Move to desireQ: " << desireQ;
 
-//             for (int joint = 0; joint < numRightArmJoints; joint++)
-//             {
-//                 rightArmIPositionControl->positionMove(joint, desireQ[joint]);
-//             }
-//             // rightArmIPositionDirect->setPositions(desireQ.data());
-//             yInfo("Moving to next state in the path");
-//         }
+            for (int joint = 0; joint < numRightArmJoints; joint++)
+            {
+                rightArmIPositionControl->positionMove(joint, desireQ[joint]);
+            }
+            // rightArmIPositionDirect->setPositions(desireQ.data());
+            yInfo("Moving to next state in the path");
+        }
 
-//         yarp::os::Time::delay(0.4);
-//         j++;
-//     }
-// }
+        yarp::os::Time::delay(0.4);
+        j++;
+    }
+}
 
 
 
@@ -687,6 +687,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
     yInfo() << "command:" << command.toString();
 
+
     std::vector<double> currentQ(numRightArmJoints);
     if (!rightArmIEncoders->getEncoders(currentQ.data()))
     {
@@ -694,6 +695,39 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     }
 
     yInfo() << "currentQ: " << currentQ;
+
+
+    rightArmSolverOptions.unput("mins");
+    rightArmSolverOptions.unput("maxs");
+    yarp::os::Bottle qMin, qMax;
+    qMin.addDouble(currentQ[0]-2.5);
+    qMin.addDouble(currentQ[1]-2.5);
+    qMax.addDouble(currentQ[0]+0.5);
+    qMax.addDouble(currentQ[1]+0.5);
+    for(int i=2; i<currentQ.size(); i++){
+        qMin.addDouble(qrMin.get(i).asDouble());
+        qMax.addDouble(qrMax.get(i).asDouble());
+    }
+    rightArmSolverOptions.put("mins", yarp::os::Value::makeList(qMin.toString().c_str()));
+    rightArmSolverOptions.put("maxs", yarp::os::Value::makeList(qMax.toString().c_str()));
+    rightArmSolverDevice.close();
+
+    rightArmSolverDevice.open(rightArmSolverOptions);
+    if (!rightArmSolverDevice.isValid())
+    {
+        yError() << "KDLSolver solver device for trunkAndRightArm is not valid";
+        return false;
+    }
+
+
+    if (!rightArmSolverDevice.view(rightArmICartesianSolver))
+    {
+        yError() << "Could not view iCartesianSolver in KDLSolver";
+        return false;
+    }
+     
+
+
     std::vector<double> xStart;
 
     if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
@@ -705,7 +739,6 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     }
     yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
 
-    
     pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
 
     KDL::Frame frame = vectorToFrame(xStart);
@@ -721,80 +754,90 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     pdef->clearStartStates();
     pdef->addStartState(start);
 
-    std::vector<double> xGoal(6);
-    for (int i = 0; i < 6; i++)
-        xGoal[i] = command.get(i).asDouble();
-    // // std::vector<double> qGoal(numRightArmJoints);
-    // // qGoal[0] = command.get(0).asDouble();//-50;
-    // // qGoal[1] = command.get(1).asDouble();//10;
-    // // qGoal[2] = command.get(2).asDouble();//40;
-    // // qGoal[3] = command.get(3).asDouble();//-50;
-    // // qGoal[4] = command.get(4).asDouble();//70;
-    // // qGoal[5] = command.get(5).asDouble();//-20;
-    // // yInfo()<<qGoal;
-    // // if (!rightArmICartesianSolver->fwdKin(qGoal, xGoal))
-    // // {
-    // //     yError() << "fwdKin failed";
-    // //     reply.addString("Invalid goal state");
-    // //     return reply.write(*writer);
-    // // }
-    // yInfo() << "Goal:" << xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
+    if (command.get(0).toString() == "Check goal"){
+        yInfo()<<"Check goal";
+        Bottle * bGoal = command.get(1).asList();
+        std::vector<double> xGoal(6);
+        for (int i = 0; i < 6; i++)
+            xGoal[i] = bGoal->get(i).asDouble();
+        yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
-    // // std::vector<double> desireQ(numRightArmJoints);
+        frame = vectorToFrame(xGoal);
+        frame.M.GetQuaternion(qx, qy, qz, qw);
+        ob::ScopedState<ob::SE3StateSpace> goal(space);
 
-    // // if (!rightArmICartesianSolver->invKin(xGoal, currentQ, desireQ))
-    // // {
-    // //     yError() << "invKin() failed";
+        goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
+        goal->rotation().x = qx;
+        goal->rotation().y = qy;
+        goal->rotation().z = qz;
+        goal->rotation().w = qw;
 
-    // //     return false;
-    // // }
-    // // yInfo()<<"desired goal q: "<< desireQ;
-    frame = vectorToFrame(xGoal);
-    frame.M.GetQuaternion(qx, qy, qz, qw);
-    ob::ScopedState<ob::SE3StateSpace> goal(space);
+        pdef->clearGoal();
 
-    goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
-    goal->rotation().x = qx;
-    goal->rotation().y = qy;
-    goal->rotation().z = qz;
-    goal->rotation().w = qw;
+        pdef->setGoalState(goal);
 
-    pdef->clearGoal();
-
-    pdef->setGoalState(goal);
-    std::vector<std::vector<double>>jointsTrajectory;
-    bool validStartState, validGoalState;
-    bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
-
-    if (solutionFound)
-    {
-        // followDiscretePath();
-        yInfo() << "Solution Found";
-        reply.addString("Solution Found");
-        Bottle bJointsTrajectory;
-        for(int i=0; i<jointsTrajectory.size(); i++){
-            Bottle bJointsPosition;
-            for(int j = 0; j<numRightArmJoints; j++){
-                bJointsPosition.addDouble(jointsTrajectory[i][j]);
-            }
-            bJointsTrajectory.addList() = bJointsPosition;
+        ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+        if(isValid(goalState)){
+            yInfo() << "Valid";
+            reply.addString("Valid");
         }
-        reply.addList() =bJointsTrajectory;
+        else{
+            yInfo() << "Not Valid";
+            reply.addString("Not Valid");
+        }
     }
-    else{
-        if(!validStartState)
-        {
-            yInfo() <<"Start state NOT valid";
-            reply.addString("Start state NOT valid");
+    else if (command.get(0).toString() == "Compute trajectory"){
+        Bottle * bGoal = command.get(1).asList();
+        std::vector<double> xGoal(6);
+        for (int i = 0; i < 6; i++)
+            xGoal[i] = bGoal->get(i).asDouble();
+        frame = vectorToFrame(xGoal);
+        frame.M.GetQuaternion(qx, qy, qz, qw);
+        ob::ScopedState<ob::SE3StateSpace> goal(space);
 
+        goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
+        goal->rotation().x = qx;
+        goal->rotation().y = qy;
+        goal->rotation().z = qz;
+        goal->rotation().w = qw;
+
+        pdef->clearGoal();
+
+        pdef->setGoalState(goal);
+        std::vector<std::vector<double>>jointsTrajectory;
+        bool validStartState, validGoalState;
+        bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+
+        if (solutionFound)
+        {
+            // followDiscretePath();
+            yInfo() << "Solution Found";
+            reply.addString("Solution Found");
+            Bottle bJointsTrajectory;
+            for(int i=0; i<jointsTrajectory.size(); i++){
+                Bottle bJointsPosition;
+                for(int j = 0; j<numRightArmJoints; j++){
+                    bJointsPosition.addDouble(jointsTrajectory[i][j]);
+                }
+                bJointsTrajectory.addList() = bJointsPosition;
+            }
+            reply.addList() =bJointsTrajectory;
         }
-        if(!validGoalState){
-            yInfo() <<"Goal state NOT valid";
-            reply.addString("Goal state NOT valid"); 
-        }
-        if(validStartState && validGoalState){
-            yInfo() << "Solution NOT found";
-            reply.addString("Solution NOT found");
+        else{
+            if(!validStartState)
+            {
+                yInfo() <<"Start state NOT valid";
+                reply.addString("Start state NOT valid");
+
+            }
+            if(!validGoalState){
+                yInfo() <<"Goal state NOT valid";
+                reply.addString("Goal state NOT valid"); 
+            }
+            if(validStartState && validGoalState){
+                yInfo() << "Solution NOT found";
+                reply.addString("Solution NOT found");
+            }
         }
     }
     return reply.write(*writer);
