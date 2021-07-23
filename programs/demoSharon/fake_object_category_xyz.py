@@ -1,5 +1,6 @@
 import yarp
 import sys
+import random
 
 if __name__ == "__main__":
     print("main")
@@ -19,7 +20,8 @@ if __name__ == "__main__":
             dictObject = objectData.addDict()
             category = 'milk'
             dictObject.put('category',category)
-            location = [0.4737, -0.35951, 0.13221]
+            
+            location = [random.uniform(0.2, 0.5), random.uniform(-0.4, 0), random.uniform(0.09,0.15)]
             dictObject.put("x", location[0])
             dictObject.put("y", location[1])
             dictObject.put("z", location[2])
