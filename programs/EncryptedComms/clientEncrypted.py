@@ -109,7 +109,7 @@ if __name__ == '__main__':
         cp.create_cipher_encrypt_decrypt()
         image_data = None
 
-        cp.connect('127.0.0.1', 55555)
+        cp.connect('163.117.150.74', 55555)
 
         
         while frame_number<int(number_frames):
