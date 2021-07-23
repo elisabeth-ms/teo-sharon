@@ -89,7 +89,7 @@ bool CropSalientObject::configure(yarp::os::ResourceFinder & rf)
         return false;
     }
 
-    yarp::os::Network::connect("/server/imageName", portPrefix + "/imageName:i");
+    yarp::os::Network::connect("/xtion/imageName", portPrefix + "/imageName:i");
 
     if(cropSelector != 0)
     {

@@ -10,7 +10,7 @@
 #define DEFAULT_RGBD_DEVICE "RGBDSensorClient"
 //#define DEFAULT_RGBD_DEVICE "fakeDepthCameraFromRGBDDataDriver"
 #define DEFAULT_RGBD_LOCAL "/rgbdDetection"
-#define DEFAULT_RGBD_REMOTE "/server"
+#define DEFAULT_RGBD_REMOTE "/xtion"
 #define DEFAULT_WATCHDOG    10       // [s]
 
 namespace sharon

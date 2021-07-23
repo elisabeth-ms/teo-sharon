@@ -1,7 +1,10 @@
 // -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
 #include "SegmentorThread.hpp"
+#include <opencv2/saliency.hpp>
 
+using namespace saliency;
+using namespace std;
 bool less_by_x(const cv::Point& lhs, const cv::Point& rhs)
 {
   return lhs.x < rhs.x;
@@ -130,7 +133,7 @@ bool SegmentorThread::init(yarp::os::ResourceFinder &rf)
 
 bool SegmentorThread::createLabelsFile(string strFileName, vector<float> boundingBox, int label, yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth){
     yInfo()<<strFileName;
-    std::string labelsDirectory =  "/home/elisabeth/data/dataset/labels/";
+    std::string labelsDirectory =  "/home/elisabeth/data/testCrop/labels/";
     string strFileNoExt = strFileName.substr(1,strFileName.length()-6);
     std::string strLabelFile;
     strLabelFile.insert(0,labelsDirectory);
@@ -140,7 +143,7 @@ bool SegmentorThread::createLabelsFile(string strFileName, vector<float> boundin
     std::ofstream labelFile (strLabelFile);
     labelFile<<label<<" "<<boundingBox[0]<<" "<<boundingBox[1]<<" "<<boundingBox[2]<<" "<<boundingBox[3]<<std::endl;
 
-    std::string rgbDirectory =  "/home/elisabeth/data/dataset/images/";
+    std::string rgbDirectory =  "/home/elisabeth/data/testCrop/images/";
     std::string strFileRgb;
     strFileRgb.insert(0,rgbDirectory);
     strFileRgb.append(strFileNoExt);
@@ -159,7 +162,7 @@ bool SegmentorThread::createLabelsFile(string strFileName, vector<float> boundin
     yarp::sig::file::write(rgb,strFileRgb,yarp::sig::file::FORMAT_PPM);
 
     std::string strFloatFileName;
-    std::string depthDirectory = "/home/elisabeth/data/dataset/depth/";
+    std::string depthDirectory = "/home/elisabeth/data/testCrop/depth/";
     strFloatFileName.insert(0,depthDirectory);
     strFloatFileName.append(strFileNoExt);
     strFloatFileName.append(".float");
@@ -201,7 +204,7 @@ void SegmentorThread::run()
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb> rgbImage = yarp::cv::fromCvMat<yarp::sig::PixelRgb>(copyOrigCvMat);
 
-    float maxDistance = 1.0;
+    float maxDistance = 1.1;
     depthFilter(inCvMat,depthFrame, maxDistance);
 
 
@@ -221,8 +224,8 @@ void SegmentorThread::run()
         }
     }
     yInfo()<<"Mat Max: "<<maxZ<<" Min: "<<minZ;
-//    imshow("test",inCvMat);
-//    waitKey(0);
+    imshow("test",inCvMat);
+    waitKey(0);
 
     vector<float> boundingBox;
 
@@ -242,7 +245,8 @@ void SegmentorThread::run()
     int bx=0, by=0;
     //boundingBox = cropSalientObject(origCvMat,inCvMat,depthImage,croppedImage, croppedDepthImage, bx, by);
 
-    boundingBox = findGlass(origCvMat,inCvMat,depthImage);
+    // boundingBox = findGlass(origCvMat,inCvMat,depthImage);
+    boundingBox = findCereal(origCvMat,inCvMat,depthImage);
 
     Mat cloneMatCroppedImage;
     Mat test;
@@ -274,7 +278,7 @@ void SegmentorThread::run()
 bool SegmentorThread::storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb,yarp::sig::ImageOf<yarp::sig::PixelRgb> cropRgb,yarp::sig::ImageOf<yarp::sig::PixelFloat> depth,yarp::sig::ImageOf<yarp::sig::PixelFloat> cropDepth, string strRgbFileName){
     //TODO! yarp write
     yInfo()<<strRgbFileName;
-    std::string rgbDirectory =  "/home/elisabeth/data/test/rgb/";
+    std::string rgbDirectory =  "/home/elisabeth/data/testCrop/rgb/";
     string strFileRgbNoExt = strRgbFileName.substr(1,strRgbFileName.length()-6);
 
     std::string strFileRgb;
@@ -293,7 +297,7 @@ bool SegmentorThread::storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb
 
     yarp::sig::file::write(rgb,strFileRgb,yarp::sig::file::FORMAT_PPM);
 
-    std::string cropRgbDirectory = "/home/elisabeth/data/test/crop-rgb/";
+    std::string cropRgbDirectory = "/home/elisabeth/data/testCrop/crop-rgb/";
     std::string strCropRgbFile;
     strCropRgbFile.insert(0,cropRgbDirectory);
     strCropRgbFile.append(strFileRgbNoExt);
@@ -301,7 +305,7 @@ bool SegmentorThread::storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb
     yarp::sig::file::write(cropRgb,strCropRgbFile,yarp::sig::file::FORMAT_PPM);
 
     std::string strFloatFileName;
-    std::string depthDirectory = "/home/elisabeth/data/test/depth/";
+    std::string depthDirectory = "/home/elisabeth/data/testCrop/depth/";
     strFloatFileName.insert(0,depthDirectory);
     strFloatFileName.append(strFileRgbNoExt);
     strFloatFileName.append(".float");
@@ -309,7 +313,7 @@ bool SegmentorThread::storeRgbDepthImages(yarp::sig::ImageOf<yarp::sig::PixelRgb
 
 
     std::string strCropFloatFileName;
-    std::string cropDepthDirectory = "/home/elisabeth/data/test/crop-depth/";
+    std::string cropDepthDirectory = "/home/elisabeth/data/testCrop/crop-depth/";
     strCropFloatFileName.insert(0,cropDepthDirectory);
     strCropFloatFileName.append(strFileRgbNoExt);
     strCropFloatFileName.append(".float");
@@ -1198,6 +1202,54 @@ vector<float> SegmentorThread::findGlass(const Mat& origImage,const Mat& image, 
     rectangle(origImage, roiBoundingBox, 0, 2);
     imshow("bounding box", origImage);
 //    waitKey(0);
+
+    return boundingBox;
+
+
+
+
+
+}
+
+vector<float> SegmentorThread::findCereal(const Mat& origImage,const Mat& image, const Mat &depthImage){
+    Mat bgr[3];   //destination array
+    split(image,bgr);
+    Mat dstImage, mask;
+    cv::subtract(bgr[2],bgr[1],dstImage,mask);
+
+    imshow("Channel 1", bgr[0]);
+    imshow("Depth", depthImage);
+    Mat prueba;
+
+    cv::threshold(bgr[0], prueba,120, 255, THRESH_BINARY_INV);
+    imshow("Threshold", prueba);
+
+    dstImage = prueba.clone();
+
+    Mat kernel = getStructuringElement(MORPH_RECT, Size(5, 5));
+    erode(dstImage, dstImage, kernel);
+    dilate(dstImage,dstImage,kernel);
+    imshow("final", dstImage);
+    waitKey(0);
+
+    //instantiates the specific Saliency
+    Ptr<Saliency> saliencyAlgorithm = StaticSaliencySpectralResidual::create();
+    Mat binaryMap;
+    Mat saliencyMap;
+    if( saliencyAlgorithm->computeSaliency( bgr[0], saliencyMap ) )
+    {
+      StaticSaliencySpectralResidual spec;
+      spec.computeBinaryMap( saliencyMap, binaryMap );
+
+      imshow( "Saliency Map", saliencyMap );
+      imshow( "Original Image", image );
+      imshow( "Binary Map", binaryMap );
+      waitKey( 0 );
+    }
+
+
+    vector<float> boundingBox;
+
 
     return boundingBox;
 

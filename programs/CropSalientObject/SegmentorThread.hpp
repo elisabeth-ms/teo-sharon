@@ -68,6 +68,7 @@ public:
     vector<float> getBoundingBox(int origImageWidth, int origImageHeitgh, int bxRoi, int byRoi, const Mat& maskDepth);
     bool createLabelsFile(string strFileName, vector<float> boundingBox, int label, yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth);
     vector<float> findGlass(const Mat& origImage,const Mat& image, const Mat &depthImage);
+    vector<float> findCereal(const Mat& origImage,const Mat& image, const Mat &depthImage);
 
 private:
     void run() override; // The periodical function
