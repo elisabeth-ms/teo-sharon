@@ -43,10 +43,10 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.glassesImagePort = yarp.BufferedPortImageRgb()
         self.glassesResolution = (1088,1080)
         self.glassesImageArray =  np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)
-        self.minConfidenceDetection = 0.9
+        self.minConfidenceDetection = 0.7
         self.cropsResolution = (200,200)
         
-        self.glassesFixationPort = yarp.Port()
+        self.glassesDataPort = yarp.Port()
         
         self.tripletModel = None
         self.embeddingModel = None
@@ -55,7 +55,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.fixationObjectPort = yarp.Port()
         self.fixationObjectImagePort = yarp.BufferedPortImageRgb()
         self.detections = yarp.Bottle()
-        self.bottleFixationPoint = yarp.Bottle()
+        self.bottleData = yarp.Bottle()
    
 
 
@@ -64,20 +64,20 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.xtionImagePort.open("/matching/xtion/rgbImage:i")
         self.xtionObjectDetectionsPort.open("/matching/opencvDnnObjectDetection2D/xtion/detections:i")
         self.glassesImagePort.open("/matching/glassesServer/images:i")
-        self.glassesFixationPort.open("/matching/glassesServer/fixationPoint:i")
+        self.glassesDataPort.open("/matching/glassesServer/data:i")
         self.fixationObjectPort.open("/matching/fixationObject:o")
         self.fixationObjectImagePort.open("/matching/rgbImage:o")
         #connect up the output port to our input port
         yarp.Network.connect("/xtion/rgbImage:o", "/matching/xtion/rgbImage:i")
         yarp.Network.connect("/opencvDnnObjectDetection2D/xtion/detections:o", "/matching/opencvDnnObjectDetection2D/xtion/detections:i")
         yarp.Network.connect("/glassesServer/images:o", "/matching/glassesServer/images:i")
-        yarp.Network.connect("/glassesServer/fixationPoint:o", "/matching/glassesServer/fixationPoint:i")
+        yarp.Network.connect("/glassesServer/data:o", "/matching/glassesServer/data:i")
 
         gpus = tf.config.list_physical_devices('GPU')
 
         self.embeddingModel, self.tripletModel = self.getModel()
 
-        checkpoint_path = '/home/elisabeth/repos/teo-sharon/models/training4_130TrainedLayers_128output/cp-0005.ckpt'
+        checkpoint_path = '/home/elisabeth/repos/teo-sharon/tfmodels/training4_130TrainedLayers_128output/cp-0005.ckpt'
  
         self.tripletModel.load_weights(checkpoint_path)
     
@@ -149,8 +149,8 @@ class MatchingGlassesTeoImages(yarp.RFModule):
 
         return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages
     
-    def getGlassesCropImageCenterFixation(self,bottleFixationPoint):
-        fixationPoint = (bottleFixationPoint.get(0).asList().get(0).asFloat32(), bottleFixationPoint.get(0).asList().get(1).asFloat32())
+    def getGlassesCropImageCenterFixation(self,bottleData):
+        fixationPoint = (bottleData.get(1).asList().get(0).asFloat32(), bottleData.get(1).asList().get(1).asFloat32())
         tlx = int(fixationPoint[0] - self.cropsResolution[0]/2)
         brx = int(fixationPoint[0] + self.cropsResolution[0]/2)
         if tlx<=0:
@@ -272,12 +272,13 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         if detections:
             self.detections = detections
         
-        bottleFixationPoint = yarp.Bottle()
-        self.glassesFixationPort.read(bottleFixationPoint)
+        bottleData = yarp.Bottle()
+        self.glassesDataPort.read(bottleData)
         
-        if bottleFixationPoint:
-            self.bottleFixationPoint = bottleFixationPoint
-        fixationPoint = (self.bottleFixationPoint.get(0).asList().get(0).asFloat32(), self.bottleFixationPoint.get(0).asList().get(1).asFloat32())
+        if bottleData:
+            self.bottleData = bottleData
+
+        fixationPoint = (self.bottleData.get(1).asList().get(0).asFloat32(), self.bottleData.get(1).asList().get(1).asFloat32())
         print(fixationPoint)
         
         print(np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)))
@@ -287,7 +288,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
             print("We have data from both cameras and detections")
             
-            glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleFixationPoint)
+            glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
             
             detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages = self.createLabeledCropsFromDetections(self.detections)
             
@@ -305,7 +306,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                 if distance < minDistance:
                     minDistance = distance
                     iMin = i
-                  
+            
             if iMin>=0:
                 print(minDistance)
                 fixationObject = yarp.Bottle()

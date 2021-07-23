@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from PIL import Image 
 
-path = r"/home/elisabeth/data/siamese_dataset/glasses/"
-pathImages = path+"glass/"
-
-imageName = pathImages + "glass_image_"
+path = r"/home/elisabeth/data/siamese_dataset/glasses_objects_database/"
+label = "fork"
+pathImages = path+label+"/"
+imageName = pathImages + label+"_image_"
 
 continueImages = True
 def nextImage(evt=None):
@@ -51,19 +51,32 @@ if __name__ == "__main__":
         img = None
         x,y=0,0
         fig, ax = plt.subplots()
-        i=0    
+        i=0
+        crop_width = 200
+        crop_height = 200
+        index = 0
         while i < (len(frames)):
                 print(directoryObject+frames[i])
-                im=mpimg.imread(directoryObject+frames[i])
-                prev_x, prev_y = x, y
-                x = fixations[i][0]
-                y = fixations[i][1]
-                if img is None:
-                    temporaryPoint, =ax.plot(x, y,marker='o', color="white")
-                    img = ax.imshow(im)
-                else:
-                    temporaryPoint.set_data(x,y)
-                    img.set_data(im)
-                plt.pause(.01)
-                plt.draw()
+                imPIL = Image.open(directoryObject+frames[i])
+                total_width, total_height = imPIL.size
+                left = fixations[i][0] - crop_width/2.0
+                right = fixations[i][0] + crop_width/2.0
+                top = fixations[i][1] - crop_height/2.0
+                bottom = fixations[i][1] + crop_height/2.0
+                area = (left, top, right, bottom)
+
+                im1 = imPIL.crop(area)
+                im1.save(imageName+str(index) + ".jpg", "JPEG")
+                index = index+1
+                # prev_x, prev_y = x, y
+                # x = fixations[i][0]
+                # y = fixations[i][1]
+                # if img is None:
+                #     temporaryPoint, =ax.plot(x, y,marker='o', color="white")
+                #     img = ax.imshow(im)
+                # else:
+                #     temporaryPoint.set_data(x,y)
+                #     img.set_data(im)
+                # plt.pause(.01)
+                # plt.draw()
                 i+=1
