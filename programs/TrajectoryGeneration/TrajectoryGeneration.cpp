@@ -111,13 +111,13 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         yInfo() << "Acquired rightArmIPositionControl interface";
 
     // connecting our device with "PositionDirect" interface
-    if (!rightArmDevice.view(rightArmIPositionDirect))
-    {
-        yError() << "Problems acquiring rightArmIPositionDirect interface";
-        return false;
-    }
-    else
-        yInfo() << "Acquired rightArmIPositionDirect interface";
+    // if (!rightArmDevice.view(rightArmIPositionDirect))
+    // {
+    //     yError() << "Problems acquiring rightArmIPositionDirect interface";
+    //     return false;
+    // }
+    // else
+    //     yInfo() << "Acquired rightArmIPositionDirect interface";
 
     // std::vector<int> modes(numRightArmJoints, VOCAB_CM_POSITION_DIRECT);
 
@@ -252,7 +252,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     bounds.setHigh(1, 0.2);
 
     bounds.setLow(2, -0.1);
-    bounds.setHigh(2, 0.4);
+    bounds.setHigh(2, 0.6);
 
     space->as<ob::SE3StateSpace>()->setBounds(bounds);
     
@@ -485,7 +485,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 
     planner->setup();
 
-    bool solutionFound = planner->solve(1.0);
+    bool solutionFound = planner->solve(2.0);
 
     if (solutionFound == true)
     {
@@ -589,89 +589,89 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     return solutionFound;
 }
 
-bool TrajectoryGeneration::followDiscretePath()
-{
-    std::size_t j = 0;
-    while (j < pth->getStateCount())
-    {
-        yInfo() << "Follow path " << j;
-        ob::State *s1 = pth->getState(j);
+// bool TrajectoryGeneration::followDiscretePath()
+// {
+//     std::size_t j = 0;
+//     while (j < pth->getStateCount())
+//     {
+//         yInfo() << "Follow path " << j;
+//         ob::State *s1 = pth->getState(j);
 
-        const ob::SE3StateSpace::StateType *se3state = s1->as<ob::SE3StateSpace::StateType>();
+//         const ob::SE3StateSpace::StateType *se3state = s1->as<ob::SE3StateSpace::StateType>();
 
-        // extract the first component of the state and cast it to what we expect
-        const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
+//         // extract the first component of the state and cast it to what we expect
+//         const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
 
-        // extract the second component of the state and cast it to what we expect
-        const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
+//         // extract the second component of the state and cast it to what we expect
+//         const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
 
-        KDL::Frame frame;
+//         KDL::Frame frame;
 
-        KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
-        KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
-        //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
-        double x, y, z, w;
-        rotKdl.GetQuaternion(x, y, z, w);
-        yInfo() << "Quaternion" << x << " " << y << " "
-                << " " << z << " " << w;
-        frame.M = rotKdl;
-        frame.p = posKdl;
-        std::vector<double> testAxisAngle = frameToVector(frame);
-        yInfo() << testAxisAngle;
+//         KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
+//         KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
+//         //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
+//         double x, y, z, w;
+//         rotKdl.GetQuaternion(x, y, z, w);
+//         yInfo() << "Quaternion" << x << " " << y << " "
+//                 << " " << z << " " << w;
+//         frame.M = rotKdl;
+//         frame.p = posKdl;
+//         std::vector<double> testAxisAngle = frameToVector(frame);
+//         yInfo() << testAxisAngle;
 
-        std::vector<double> currentQ(numRightArmJoints);
-        if (!rightArmIEncoders->getEncoders(currentQ.data()))
-        {
-            yError() << "Failed getEncoders() of right-arm";
-            return false;
-        }
-        std::vector<double> xStart;
+//         std::vector<double> currentQ(numRightArmJoints);
+//         if (!rightArmIEncoders->getEncoders(currentQ.data()))
+//         {
+//             yError() << "Failed getEncoders() of right-arm";
+//             return false;
+//         }
+//         std::vector<double> xStart;
 
-        if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
-        {
-            yError() << "fwdKin failed";
-            return false;
-        }
-        yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
+//         if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+//         {
+//             yError() << "fwdKin failed";
+//             return false;
+//         }
+//         yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
 
-        bool computeInvKin = true;
+//         bool computeInvKin = true;
 
-        double diffSumSquare = 0;
-        for (int i = 0; i < 6; i++)
-        {
-            diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
-        }
+//         double diffSumSquare = 0;
+//         for (int i = 0; i < 6; i++)
+//         {
+//             diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
+//         }
 
-        yInfo() << "diffSumSquare: " << diffSumSquare;
+//         yInfo() << "diffSumSquare: " << diffSumSquare;
 
-        if (diffSumSquare < DEFAULT_MAX_DIFF_INV)
-        {
-            yInfo() << "Start state-> we do not calculate the inverse kinematics";
-            computeInvKin = false;
-        }
+//         if (diffSumSquare < DEFAULT_MAX_DIFF_INV)
+//         {
+//             yInfo() << "Start state-> we do not calculate the inverse kinematics";
+//             computeInvKin = false;
+//         }
 
-        std::vector<double> desireQ(numRightArmJoints);
+//         std::vector<double> desireQ(numRightArmJoints);
 
-        if (computeInvKin)
-        {
-            if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
-            {
-                yError() << "invKin() failed";
-            }
-            yInfo() << "Move to desireQ: " << desireQ;
+//         if (computeInvKin)
+//         {
+//             if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
+//             {
+//                 yError() << "invKin() failed";
+//             }
+//             yInfo() << "Move to desireQ: " << desireQ;
 
-            for (int joint = 0; joint < numRightArmJoints; joint++)
-            {
-                rightArmIPositionControl->positionMove(joint, desireQ[joint]);
-            }
-            // rightArmIPositionDirect->setPositions(desireQ.data());
-            yInfo("Moving to next state in the path");
-        }
+//             for (int joint = 0; joint < numRightArmJoints; joint++)
+//             {
+//                 rightArmIPositionControl->positionMove(joint, desireQ[joint]);
+//             }
+//             // rightArmIPositionDirect->setPositions(desireQ.data());
+//             yInfo("Moving to next state in the path");
+//         }
 
-        yarp::os::Time::delay(0.4);
-        j++;
-    }
-}
+//         yarp::os::Time::delay(0.4);
+//         j++;
+//     }
+// }
 
 
 
