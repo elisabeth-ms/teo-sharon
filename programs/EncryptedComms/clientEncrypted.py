@@ -21,7 +21,6 @@ import base64
 def get_frames_fixations_from_pkl(fixationsFileStr):
     with open(fixationsFileStr, 'rb') as f:
         data = pickle.load(f)
-    print(data)
     frames = data['frames']
     fixations = data['fixations']
     return frames, fixations
@@ -108,20 +107,21 @@ if __name__ == '__main__':
         cp = ClientProtocol()
         cp.create_cipher_encrypt_decrypt()
         image_data = None
+        remote_ip = '163.117.150.74'
 
-        cp.connect('163.117.150.74', 55555)
-
+        cp.connect(remote_ip, 55555)
         
         while frame_number<int(number_frames):
-            with open(path_images+"/"+frames[frame_number], 'rb') as fp:
-                image_data = fp.read()
-                print(len(image_data))
-                # print(image_data)
-                print("Lets send the new image")
-                probability_vector = np.array([0.1,0.2,0.5,0.8,0.8])
-                cp.send_data(image_data, fixations[frame_number], probability_vector)
-                print("Image sent")
-            frame_number=frame_number+1
-            time.sleep(0.05)
+            try:
+                with open(path_images+"/"+frames[frame_number], 'rb') as fp:
+                    image_data = fp.read()
+                    print("Lets send the new image")
+                    probability_vector = np.array([0.1,0.2,0.5,0.8,0.8])
+                    cp.send_data(image_data, fixations[frame_number], probability_vector)
+                    print("Image, fixation point and probability vector sent")
+                frame_number=frame_number+1
+                time.sleep(0.02)
+            except KeyboardInterrupt:
+                break
         cp.close()
         sys.exit()
