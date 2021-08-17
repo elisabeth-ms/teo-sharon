@@ -1,0 +1,42 @@
+<application>
+	<name>demoSharonSim</name>
+	<module>
+		<name>remotecontrolboardremapper</name>
+		<parameters>--name /teoSim/trunkAndRightArm --robot remotecontrolboardremapper --localPortPrefix /local/tra --axesNames "(AxialWaist FrontalWaist FrontalRightShoulder SagittalRightShoulder AxialRightShoulder FrontalRightElbow AxialRightWrist FrontalRightWrist)"  --remoteControlBoards "(/teoSim/trunk /teoSim/rightArm)" --solver KdlTreeSolver --ik nrjl --from teo-trunk-rightArm-fetch.ini --eps 0.001 --maxIter 1000
+		</parameters>
+		<node>localhost</node>
+    <deployer>yarpdev</deployer>
+	</module>
+
+	<module>
+		<name>remotecontrolboardremapper</name>
+		<parameters>--name /teoSim/trunkAndLeftArm --robot remotecontrolboardremapper --localPortPrefix /local/tla --axesNames "(AxialWaist FrontalWaist FrontalLeftShoulder SagittalLeftShoulder AxialLeftShoulder FrontalLeftElbow AxialLeftWrist FrontalLeftWrist)"  --remoteControlBoards "(/teoSim/trunk /teoSim/leftArm)" --solver KdlTreeSolver --ik nrjl --from teo-trunk-leftArm-fetch.ini --eps 0.001 --maxIter 1000
+		</parameters>
+		<node>localhost</node>
+    <deployer>yarpdev</deployer>
+	</module>
+	
+	<module>
+		<name>RealToSimControlboard</name>
+		<parameters>--context RealToSimControlboard --from lacqueyFetch.ini --name /teoSim/rightHand --remotePrefix /teoSim/rightLacqueyFetch
+		</parameters>
+    <node>localhost</node>
+    <deployer>yarpdev</deployer>
+	</module>
+	
+	<module>
+		<name>RealToSimControlboard</name>
+		<parameters>--context RealToSimControlboard --from lacqueyFetch.ini --name /teoSim/leftHand --remotePrefix /teoSim/leftLacqueyFetch</parameters>
+		<node>localhost</node>
+		<deployer>yarpdev</deployer>
+	</module>
+
+	<module>
+		<name>trajectoryGeneration</name>
+		<parameters> --from /usr/local/share/teo-configuration-files/contexts/kinematics/teo-trunk-rightArm-fetch.ini
+		</parameters>
+		<node>localhost</node>
+	</module>
+	
+
+</application>

@@ -17,6 +17,12 @@ class DemoSharon(yarp.RFModule):
         self.rightArmIEncoders = None
         self.numRightArmJoints = 0
         self.rightArmIPositionControl = None
+        # Right hand device
+        self.rightHandOptions = yarp.Property()
+        self.rightHandDevice = None
+        self.rightHandIEncoders = None
+        self.numRightHandJoints = 0
+        self.rightHandIPositionControl = None
 
         # Left Arm device
         self.leftArmOptions = yarp.Property()
@@ -34,11 +40,14 @@ class DemoSharon(yarp.RFModule):
 
         # Trajectory Generation client
         self.rpcClientTrajectoryGeneration = yarp.RpcClient()
-
+        
+        # Underactuated Hand rpc client
+        self.rpcClientRightHand = yarp.RpcClient()
+        
         # State
         self.state = 0
         self.firstInState = True  # For printing messages just once
-        self.jointsPositionError = 0.8
+        self.jointsPositionError = 3.0
 
         # Init Joints position for grasping
         self.initTrunkJointsPosition = [0, 10]
@@ -55,12 +64,16 @@ class DemoSharon(yarp.RFModule):
         self.rightArm = True
         self.orientationTCP = []
         self.jointsTrajectory = []
+        self.aux = []
         self.numPointTrajectory = 0
         self.d = 0
         self.reachingDistance = 0
 
         self.trunkRightArmSolverOptions = yarp.Property()
         self.trunkRightArmSolverDevice = None
+        
+        self.rightArmJointsInPosition = [False, False, False, False, False, False]
+        self.leftArmJointsInPosition = [False, False, False, False, False, False]
 
     def configure(self, rf):
         print("Configuring...")
@@ -78,7 +91,18 @@ class DemoSharon(yarp.RFModule):
         if not self.rightArmDevice.isValid():
             print('Cannot open rightArm device!')
             raise SystemExit
-
+        
+        # Open rightHand device
+        self.rightHandOptions.put('device', 'remote_controlboard')
+        self.rightHandOptions.put('remote', robot+'/rightHand')
+        self.rightHandOptions.put('local', robot+'/rightHand')
+        
+        self.rightHandDevice = yarp.PolyDriver(self.rightHandOptions)
+        self.rightHandDevice.open(self.rightHandOptions)
+        if not self.rightHandDevice.isValid():
+            print('Cannot open rightHand device!')
+            raise SystemExit
+        
         # Open leftArm device
         self.leftArmOptions.put('device', 'remote_controlboard')
         self.leftArmOptions.put('remote', robot+'/leftArm')
@@ -112,6 +136,18 @@ class DemoSharon(yarp.RFModule):
 
         self.numRightArmJoints = self.rightArmIEncoders.getAxes()
 
+        # Interface with the emulated right Hand encoders
+        
+        self.rightHandIEncoders = self.rightHandDevice.viewIEncoders()
+        if self.rightHandIEncoders == []:
+            print("Right Hand Encoder interface NOT available.")
+            raise SystemExit
+        else:
+            print("Right Hand Encoder interface available.")
+        
+        self.numRightHandJoints = self.rightHandIEncoders.getAxes()
+
+        
         # Right arm position control interface
         self.rightArmIPositionControl = self.rightArmDevice.viewIPositionControl()
 
@@ -120,6 +156,15 @@ class DemoSharon(yarp.RFModule):
             raise SystemExit
         else:
             print("Right arm position control interface available.")
+
+        # Right hand position control interface
+        self.rightHandIPositionControl = self.rightHandDevice.viewIPositionControl()
+
+        if self.rightHandIPositionControl == []:
+            print("Right hand position control interface NOT available")
+            raise SystemExit
+        else:
+            print("Right hand position control interface available.")
 
         # Interface with left arm encoders
         self.leftArmIEncoders = self.leftArmDevice.viewIEncoders()
@@ -194,6 +239,9 @@ class DemoSharon(yarp.RFModule):
         self.rpcClientTrajectoryGeneration.open('/trajectoryGeneration/rpc:c')
         yarp.Network.connect("/trajectoryGeneration/rpc:c",
                              "/trajectoryGeneration/rpc:s")
+        
+        self.rpcClientRightHand.open('/teoSim/rightHand/rpc:o')
+        yarp.Network.connect('/teoSim/rightHand/rpc:o', '/teoSim/rightHand/rpc:i')
 
         print("demo_sharon Module initialized...")
         return True
@@ -227,16 +275,45 @@ class DemoSharon(yarp.RFModule):
                     print("State 0: Continue the Trunk joints motion towards the init position.")
                     self.firstInState = False
         if self.state == 1:  # Put the right arm joints in the init state
+            print("Another")
+            if self.firstInState:
+                print("State 1: Continue the Right arm joints motion towards the init position.")
+                self.firstInState = False
+                self.rightHandIPositionControl.positionMove(0, 1200)
+                self.aux = [0, -50, 40, 0, 0, 0]
+            # Move right arm joints 1 2
+            if(not self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[1]):
+                if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+                    print("State 1: Moving right arm joints 1 and 2")
+                else:
+                    self.aux = [-50, -50, 40, 0, 0, 0]                    
+                    self.rightArmJointsInPosition[1] = True
+                    self.rightArmJointsInPosition[2] = True
+                    
+            # Move right arm joint 0   
+            if(not self.rightArmJointsInPosition[0] and self.rightArmJointsInPosition[1]):
+                if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+                    print("State 1: Moving right arm joint 0")
+                else:
+                    self.rightArmJointsInPosition[0] = True
+                    aux = [-50, -50, 40, 70, 0, 0]
+       
+            if(self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[3]):
+                if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+                    print("State 1: Moving right arm joint 3")
+                else:
+                    self.rightArmJointsInPosition[3] = True
+                    self.aux = self.initRightArmJointsPosition
+                
+            if (self.rightArmJointsInPosition[3]):
+                if not self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints):
+                    print("State 1: Moving Right arm joints 4 and 5.")
+                else:
+                    print("State 1: Right arm joints are in the init position")
+                    self.state = 2
             for joint in range(self.numRightArmJoints):
-                self.rightArmIPositionControl.positionMove(joint, self.initRightArmJointsPosition[joint])
-            if (self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
-                print("State 1: Right arm joints are in the init position.")
-                self.state = 2
-            else:
-                if self.firstInState:
-                    print(
-                        "State 1: Continue the Right arm joints motion towards the init position.")
-                    self.firstInState = False
+                self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
+
         if self.state == 2:  # Put the left arm joints in the init state
             for joint in range(self.numLeftArmJoints):
                 self.leftArmIPositionControl.positionMove(
@@ -281,9 +358,9 @@ class DemoSharon(yarp.RFModule):
                     self.firstInState = True
         if self.state == 4:
             print("State 4: Move to towards object.")
-            while self.d <= self.reachingDistance:
+            while self.d <= self.reachingDistance*0.85:
                 print(self.d)
-                self.d = self.d + self.reachingDistance/20.0
+                self.d = self.d + self.reachingDistance*0.85/20.0
 
                 frame_reaching_base = self.vectorToFrame(self.reachingPose)
 
@@ -328,11 +405,18 @@ class DemoSharon(yarp.RFModule):
                     else:
                         yarp.delay(0.5)
             self.state = 5
+            self.firstInState = True
         if self.state == 5:
             if self.firstInState:
                 print("TCP in object position")
+                self.rightHandIPositionControl.positionMove(0, -90)
+                print("wait 5 seconds...")
+                yarp.delay(5.0)
+                print("Lets move up")
+                self.rightArmIPositionControl.positionMove(2, -40)
                 self.firstInState = False
-                self.d = 0 
+                
+                self.d = 0
             # else:
             #     self.state = 0
             # if feasible:

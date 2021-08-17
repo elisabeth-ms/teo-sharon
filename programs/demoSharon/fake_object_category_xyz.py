@@ -13,15 +13,14 @@ if __name__ == "__main__":
     fakeObjectDataPort = yarp.Port()
     fakeObjectDataPort.open('/matching/object:o')
     
-    
     try:
         while True:
             objectData = yarp.Bottle()
             dictObject = objectData.addDict()
-            category = 'milk'
+            category = 'water'
             dictObject.put('category',category)
             
-            location = [random.uniform(0.2, 0.5), random.uniform(-0.4, 0), random.uniform(0.09,0.15)]
+            location = [0.35,-0.2, 0.19]
             dictObject.put("x", location[0])
             dictObject.put("y", location[1])
             dictObject.put("z", location[2])

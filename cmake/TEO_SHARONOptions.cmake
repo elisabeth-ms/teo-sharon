@@ -14,7 +14,8 @@ option(ENABLE_mapHumanHandTrajectoryToRobotEndEffector "Choose if you want to co
 option(ENABLE_exampleExtraOption "Enable/disable option exampleExtraOption" TRUE)
 
 option(ENABLE_generateManipulationTrajectories "Choose if you want to compile GenerateManipulationTrajectories" TRUE)
-
+#options: enable demoSharon python
+option(ENABLE_demoSharon "Choose if you want to compile demoSharon" TRUE)
 # options: unit testing
 cmake_dependent_option(ENABLE_tests "Enable/disable unit tests" ON
                        GTestSources_FOUND OFF)

@@ -4,4 +4,4 @@
 
 ### Go through single applications
 #add_subdirectory(prog)
-yarp_install(FILES applications/objectDumper.xml DESTINATION ${TEO-SHARON_APPLICATIONS_INSTALL_DIR})
+yarp_install(FILES applications/demoSharonSim.xml DESTINATION ${TEO-SHARON_APPLICATIONS_INSTALL_DIR})

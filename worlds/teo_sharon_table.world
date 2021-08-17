@@ -9,22 +9,27 @@
     </include>
 
     <include>
-      <pose>0 0 0.05 0 -0 0</pose>
-      <uri>model://teo_fixed</uri>
+      <pose>0 0 0.0 0 -0 0</pose>
+      <uri>model://teo_lacqueyFetch_fixed</uri>
     </include>
 
- 		<model name="box">
-			<static>true</static>
+    <model name="box">
+	<static>true</static>
     	<link name="link">
       <visual name="visual">
-        <pose>0.82 -0.113 0.425 0 0 0</pose>
+        <pose>0.82 -0.113 0.435 0 0 0</pose>
         <geometry>
           <box>
-            <size>1 1 0.85</size>
+            <size>1 1 0.87</size>
           </box>
         </geometry>
       </visual>
     	</link>
+	<include>
+		<pose> 0 0 -1.0 0 0 0</pose>
+		<uri>model://worldInterface</uri>
+	</include>
+
   	</model>
 
   </world>
