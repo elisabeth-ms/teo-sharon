@@ -35,6 +35,7 @@
 
 
 #define DEFAULT_ROBOT "teoSim" // teo or teoSim (default teo)
+#define DEFAULT_PLANNING_SPACE "joint" // joint or cartesian
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
 #define INPUT_READING_MS 10
@@ -80,6 +81,10 @@ namespace sharon
 
             /** robot used (teo/teoSim) **/
             std::string robot;
+
+            /** (joint/cartesian) space to plan a trajectory **/
+            std::string planningSpace; 
+
 
             KDL::Chain trunkAndRightArmChain;
             KDL::JntArray qmin;
@@ -152,6 +157,8 @@ namespace sharon
             
             bool isValid(const ob::State *state);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
+            bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
+
             // bool followDiscretePath();
 
             ob::StateSpacePtr space;

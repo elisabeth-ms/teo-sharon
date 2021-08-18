@@ -47,10 +47,10 @@ class DemoSharon(yarp.RFModule):
         # State
         self.state = 0
         self.firstInState = True  # For printing messages just once
-        self.jointsPositionError = 3.0
+        self.jointsPositionError = 5.0
 
         # Init Joints position for grasping
-        self.initTrunkJointsPosition = [0, 10]
+        self.initTrunkJointsPosition = [0, 9.2]
         # [-90, 0, 0, 0, 90, 0]
         self.initRightArmJointsPosition = [-50, -50, 40, -70, 30, -20]
         self.initLeftArmJointsPosition = [-50, 50, -40, -70, -30, -20]
@@ -347,6 +347,9 @@ class DemoSharon(yarp.RFModule):
                         self.followJointsTrajectory(
                             self.rightArm, self.jointsTrajectory)
                         self.firstInState = False
+                    else:
+                        print("Solution NOT found")
+                        self.state = -1
                 else:
                     print("solution not found")
                     self.state = -1
@@ -409,9 +412,9 @@ class DemoSharon(yarp.RFModule):
         if self.state == 5:
             if self.firstInState:
                 print("TCP in object position")
-                self.rightHandIPositionControl.positionMove(0, -90)
-                print("wait 5 seconds...")
-                yarp.delay(5.0)
+                self.rightHandIPositionControl.positionMove(0, -100)
+                print("wait 8 seconds...")
+                yarp.delay(8.0)
                 print("Lets move up")
                 self.rightArmIPositionControl.positionMove(2, -40)
                 self.firstInState = False
@@ -498,6 +501,8 @@ class DemoSharon(yarp.RFModule):
                     jointsTrajectory.append(jointsPosition)
                 print("JointsTrajectory")
                 return True, jointsTrajectory
+            elif response.get(0).asString() =='Solution NOT found':
+                return False, jointsTrajectory
         else:
             print("Selected left arm. TODO!")
 
