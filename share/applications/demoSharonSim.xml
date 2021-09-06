@@ -33,10 +33,40 @@
 
 	<module>
 		<name>trajectoryGeneration</name>
-		<parameters> --from /usr/local/share/teo-configuration-files/contexts/kinematics/teo-trunk-rightArm-fetch.ini
+		<parameters> --robot teoSim --prefix /trajectoryGeneration/trunkAndRightArm --planningSpace joint --deviceName trunkAndRightArm --kinematicsConfig teo-trunk-rightArm-fetch.ini
 		</parameters>
 		<node>localhost</node>
 	</module>
+
+	<module>
+		<name>trajectoryGeneration</name>
+		<parameters> --from /usr/local/share/teo-sharon/applications/conf/TrajectoryGenerationTrunkAndLeftArm.ini
+		</parameters>
+		<node>localhost</node>
+	</module>
+	
+ 	<module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/rgbd/rgbImage:i</parameters>
+        <node>localhost</node>
+    </module>
+    <connection>
+        <from>/teoSim/camera/rgbImage:o</from>
+        <to>/yarpview/rgbd/rgbImage:i</to>
+        <!--protocol></protocol-->
+    </connection>
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/rgbd/depthImage:i</parameters>
+        <node>localhost</node>
+    </module>
+    <!-- Requires YARP compiled with ENABLE_yarpcar_depthimage -->
+    <connection>
+        <from>/teoSim/camera/depthImage:o</from>
+        <to>/yarpview/rgbd/depthImage:i</to>
+        <protocol>udp+recv.portmonitor+type.dll+file.depthimage</protocol>
+    </connection>
 	
 
 </application>
