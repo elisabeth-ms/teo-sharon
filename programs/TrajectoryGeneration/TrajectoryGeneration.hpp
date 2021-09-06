@@ -83,17 +83,21 @@ namespace sharon
             std::string robot;
 
             /** (joint/cartesian) space to plan a trajectory **/
-            std::string planningSpace; 
+            std::string planningSpace;  
 
+            /** device name to plan a trajectory **/
+            std::string deviceName;
+            /** kinematics config file **/
+            std::string kinematicsConfig;
 
-            KDL::Chain trunkAndRightArmChain;
+            KDL::Chain chain;
             KDL::JntArray qmin;
             KDL::JntArray qmax;
-            std::vector<fcl::CollisionObjectf> rightArmCollisionObjects;
+            std::vector<fcl::CollisionObjectf> collisionObjects;
             std::vector<std::array<float, 3>> offsetCollisionObjects;
             
             
-            std::vector<KDL::Frame> rightArmCenterLinkWrtJoint;
+            std::vector<KDL::Frame> centerLinkWrtJoint;
 
 
 
@@ -106,28 +110,28 @@ namespace sharon
             /** RFModule updateModule. */
             virtual bool updateModule();
 
-            /*-- Right Arm Device --*/
+            /*-- Arm Device --*/
             /** Axes number **/
-            int numRightArmJoints;
+            int numArmJoints;
             /** Device **/
-            yarp::dev::PolyDriver rightArmDevice;
+            yarp::dev::PolyDriver armDevice;
             /** Encoders **/
-            yarp::dev::IEncoders *rightArmIEncoders;
+            yarp::dev::IEncoders *armIEncoders;
             /** Right Arm ControlMode2 Interface */
-            yarp::dev::IControlMode *rightArmIControlMode;
+            yarp::dev::IControlMode *armIControlMode;
             /** Right Arm PositionControl2 Interface */
-            yarp::dev::IPositionControl *rightArmIPositionControl;
+            yarp::dev::IPositionControl *armIPositionControl;
             /** Right Arm PositionDirect Interface */
-            yarp::dev::IPositionDirect *rightArmIPositionDirect;
+            yarp::dev::IPositionDirect *armIPositionDirect;
             /** Right Arm ControlLimits2 Interface */
-            yarp::dev::IControlLimits *rightArmIControlLimits;
+            yarp::dev::IControlLimits *armIControlLimits;
             /** Right Arm RemoteVariables **/
-            yarp::dev::IRemoteVariables *rightArmIRemoteVariables;
+            yarp::dev::IRemoteVariables *armIRemoteVariables;
 
             /** Solver device **/
-            yarp::dev::PolyDriver rightArmSolverDevice;
-            ICartesianSolver *rightArmICartesianSolver;
-            yarp::os::Property rightArmSolverOptions;
+            yarp::dev::PolyDriver armSolverDevice;
+            ICartesianSolver *armICartesianSolver;
+            yarp::os::Property armSolverOptions;
 
             /** Joints limits **/
             yarp::os::Bottle qrMin;
@@ -162,39 +166,6 @@ namespace sharon
             // bool followDiscretePath();
 
             ob::StateSpacePtr space;
-
-            // typedef std::shared_ptr <fcl::CollisionGeometry> CollisionGeometryPtr_t;
-            // fcl::Transform3f tfTeoTopBox {fcl::Vec3f {0.0, 0.0, 0.35}};
-            // fcl::Transform3f tfTeoBottomBox {fcl::Vec3f {0.0, 0.0, -0.4}};
-            // fcl::Transform3f tfEndEffector {fcl::Vec3f {0., 0, 0}};
-            // fcl::Transform3f tfTable{fcl::Vec3f{1.0, 0.0, -0.9}};
-
-
-            // CollisionGeometryPtr_t teoTopBox{new fcl::Box{0.35, 0.48, 0.7}};
-            // CollisionGeometryPtr_t teoBottomBox{new fcl::Box{0.38, 0.54, 0.8}};
-            // fcl::CollisionObject teoTopBoxObject{teoTopBox, tfTeoTopBox};
-            // fcl::CollisionObject teoBottomBoxObject{teoBottomBox, tfTeoBottomBox};
-
-            // CollisionGeometryPtr_t endEffector{new fcl::Box{0.25,0.25,0.45}};
-            // fcl::CollisionObject endEffectorObject{endEffector, tfEndEffector};
-
-            // CollisionGeometryPtr_t tableBox{new fcl::Box{1.4, 1.8, 2.0}};
-            // fcl::CollisionObject tableBoxObject{tableBox, tfTable};
-
-            // bool collide(const ob::State *stateEndEffector);
-            // bool collide(KDL::JntArray jointpositions);
-
-            // fcl::Transform3f tfLinkCenter;
-            // CollisionGeometryPtr_t teoAxialShoulder{new fcl::Box{AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_RADIUS, AXIAL_SHOULDER_LINK_LENGTH}};
-            // CollisionGeometryPtr_t teoFrontalElbow{new fcl::Box{FRONTAL_ELBOW_LINK_RADIUS,FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
-            // CollisionGeometryPtr_t teoFrontalWrist{new fcl::Box{ FRONTAL_WRIST_LINK_LENGTH,0.24,0.15}};
-
-
-
-            // int linksToCheckCollisions[3] = {4,6,8};
-
-            // const char *linkNames[3] = { "Axial shoulder", "Frontal Elbow", "Frontal wrist"};
-            
 
             #ifdef SEND_TRAJECTORY_DATA
             // Publish trajectory just for visualization

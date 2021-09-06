@@ -19,16 +19,37 @@ using namespace sharon;
 
 #define DEFAULT_MAX_DIFF_INV 0.0000001
 #define DEFAULT_PREFIX "/trajectoryGeneration"
+#define DEFAULT_DEVICE_NAME "trunkAndRightArm"
+#define DEFAULT_KINEMATICS_CONFIG "teo-trunk-rightArm-fetch.ini"
 #define DEFAULT_RANGE_RRT 0.1
 #define DEFAULT_PRUNE_THRESHOLD 0.6
 
-static KDL::Chain makeTeoFixedTrunkAndRightArmKinematicsFromDH()
+static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
 {
     const KDL::Joint rotZ(KDL::Joint::RotZ);
     const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
     KDL::Chain chain;
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.215, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09, 0, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, 0, 0.0975, 0)));
+
+    return chain;
+}
+
+static KDL::Chain makeTeoTrunkAndLeftArmKinematicsFromDH()
+{
+    const KDL::Joint rotZ(KDL::Joint::RotZ);
+    const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
+    KDL::Chain chain;
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.305, 0.0, 0.34692, -KDL::PI / 2)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, 0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, -KDL::PI / 2)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
@@ -48,6 +69,15 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     robot = rf.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
     std::string prefix = rf.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
     planningSpace = rf.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
+    deviceName = rf.check("deviceName", yarp::os::Value(DEFAULT_DEVICE_NAME), "device name").asString();
+    kinematicsConfig = rf.check("kinematicsConfig", yarp::os::Value(DEFAULT_KINEMATICS_CONFIG), "kinematics config").asString();
+    printf("TrajectoryGeneration using robot: %s\n",robot.c_str());
+    printf("TrajectoryGeneration using prefix: %s\n",prefix.c_str());
+    printf("TrajectoryGeneration using planningSpace: %s\n",planningSpace.c_str());
+    printf("TrajectoryGeneration using deviceName: %s\n",deviceName.c_str());
+    printf("TrajectoryGeneration using kinematicsConfig: %s\n",kinematicsConfig.c_str());
+
+
     printf("--------------------------------------------------------------\n");
     if (rf.check("help"))
     {
@@ -63,89 +93,73 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         return false;
     }
 
-    // ------ RIGHT ARM -------
+    // ------  ARM DEVICE -------
 
-    yarp::os::Property rightArmOptions;
-    rightArmOptions.put("device", "remote_controlboard");
-    rightArmOptions.put("remote", "/teoSim/trunkAndRightArm");
-    rightArmOptions.put("local", "/" + robot + "/trunkAndrightArm");
-    rightArmDevice.open(rightArmOptions);
-    if (!rightArmDevice.isValid())
+    yarp::os::Property armOptions;
+    armOptions.put("device", "remote_controlboard");
+    armOptions.put("remote", "/"+robot+"/"+deviceName);
+    armOptions.put("local", "/" + robot + "/"+deviceName);
+    armDevice.open(armOptions);
+    if (!armDevice.isValid())
     {
-        yError() << "Robot trunkAndRightArm device not available";
-        rightArmDevice.close();
+        yError() << "Robot "<<deviceName<<" device not available";
+        armDevice.close();
         yarp::os::Network::fini();
         return false;
     }
 
     // connecting our device with "IEncoders" interface
-    if (!rightArmDevice.view(rightArmIEncoders))
+    if (!armDevice.view(armIEncoders))
     {
-        yError() << "Problems acquiring rightArmIEncoders interface";
+        yError() << "Problems acquiring IEncoders interface in "<<deviceName;
         return false;
     }
     else
     {
-        yInfo() << "Acquired rightArmIEncoders interface";
-        if (!rightArmIEncoders->getAxes(&numRightArmJoints))
-            yError() << "Problems acquiring numRightArmJoints";
+        yInfo() << "Acquired IEncoders interface in "<<deviceName;
+        if (!armIEncoders->getAxes(&numArmJoints))
+            yError() << "Problems acquiring numArmJoints";
         else
-            yWarning() << "Number of joints:" << numRightArmJoints;
+            yWarning() << "Number of joints:" << numArmJoints;
     }
 
     // connecting our device with "control mode" interface, initializing which control mode we want (position)
-    if (!rightArmDevice.view(rightArmIControlMode))
+    if (!armDevice.view(armIControlMode))
     {
-        yError() << "Problems acquiring rightArmIControlMode interface";
+        yError() << "Problems acquiring armIControlMode interface";
         return false;
     }
     else
-        yInfo() << "Acquired rightArmIControlMode interface";
+        yInfo() << "Acquired armIControlMode interface";
 
     // connecting our device with "PositionControl" interface
-    if (!rightArmDevice.view(rightArmIPositionControl))
+    if (!armDevice.view(armIPositionControl))
     {
-        yError() << "Problems acquiring rightArmIPositionControl interface";
+        yError() << "Problems acquiring armIPositionControl interface";
         return false;
     }
     else
-        yInfo() << "Acquired rightArmIPositionControl interface";
+        yInfo() << "Acquired armIPositionControl interface";
 
-    // connecting our device with "PositionDirect" interface
-    // if (!rightArmDevice.view(rightArmIPositionDirect))
-    // {
-    //     yError() << "Problems acquiring rightArmIPositionDirect interface";
-    //     return false;
-    // }
-    // else
-    //     yInfo() << "Acquired rightArmIPositionDirect interface";
-
-    // std::vector<int> modes(numRightArmJoints, VOCAB_CM_POSITION_DIRECT);
-
-    // if (!rightArmIControlMode->setControlModes(modes.data()))
-    // {
-    //     yError() << "Unable to change mode";
-    //     return 1;
-    // }
-    // ----- Configuring KDL Solver for trunk and right arm -----
+    // ----- Configuring KDL Solver for device -----
 
 
-    if (!rightArmDevice.view(rightArmIControlLimits))
+    if (!armDevice.view(armIControlLimits))
     {
-        yError() << "Could not view iControlLimits in rightArmDevice";
+        yError() << "Could not view iControlLimits in "<<deviceName;
         return false;
     }
 
     //  Getting the limits of each joint
-    printf("---- Joint limits of right-arm ----\n");
+    printf("---- Joint limits of %s ----\n",deviceName.c_str());
 
-    qmin.resize(numRightArmJoints);
-    qmax.resize(numRightArmJoints);
+    qmin.resize(numArmJoints);
+    qmax.resize(numArmJoints);
 
-    for (unsigned int joint = 0; joint < numRightArmJoints; joint++)
+    for (unsigned int joint = 0; joint < numArmJoints; joint++)
     {
         double min, max;
-        rightArmIControlLimits->getLimits(joint, &min, &max);
+        armIControlLimits->getLimits(joint, &min, &max);
         qrMin.addDouble(min);
         qrMax.addDouble(max);
         yInfo("Joint %d limits: [%f,%f]", joint, min, max);
@@ -154,26 +168,26 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     }
 
 
-    std::string rightKinPath = rf.findFileByName("teo-trunk-rightArm-fetch.ini");
-    rightArmSolverOptions.fromConfigFile(rightKinPath);
-    rightArmSolverOptions.put("device", "KdlSolver");
-    rightArmSolverOptions.put("mins", yarp::os::Value::makeList(qrMin.toString().c_str()));
-    rightArmSolverOptions.put("maxs", yarp::os::Value::makeList(qrMax.toString().c_str()));
-    rightArmSolverOptions.put("ik", "nrjl"); // to use screw theory IK
-    rightArmSolverDevice.open(rightArmSolverOptions);
-    if (!rightArmSolverDevice.isValid())
+    std::string kinPath = rf.findFileByName(kinematicsConfig);
+    armSolverOptions.fromConfigFile(kinPath);
+    armSolverOptions.put("device", "KdlSolver");
+    armSolverOptions.put("mins", yarp::os::Value::makeList(qrMin.toString().c_str()));
+    armSolverOptions.put("maxs", yarp::os::Value::makeList(qrMax.toString().c_str()));
+    armSolverOptions.put("ik", "nrjl"); // to use screw theory IK
+    armSolverDevice.open(armSolverOptions);
+    if (!armSolverDevice.isValid())
     {
-        yError() << "KDLSolver solver device for trunkAndRightArm is not valid";
+        yError() << "KDLSolver solver device for "<<deviceName<<" is not valid";
         return false;
     }
 
-    if (!rightArmSolverDevice.view(rightArmICartesianSolver))
+    if (!armSolverDevice.view(armICartesianSolver))
     {
         yError() << "Could not view iCartesianSolver in KDLSolver";
         return false;
     }
 
-    yInfo() << "Acquired rightArmICartesianSolver interface";
+    yInfo() << "Acquired armICartesianSolver interface";
 
     yInfo() << "Running";
     std::vector<double> position;
@@ -186,11 +200,14 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     
 
     //Init collisions objects
-    trunkAndRightArmChain = makeTeoFixedTrunkAndRightArmKinematicsFromDH();
-
-    unsigned int nj = trunkAndRightArmChain.getNrOfJoints();
+    if(deviceName == "trunkAndRightArm")
+        chain = makeTeoTrunkAndRightArmKinematicsFromDH();
+    else{
+        chain = makeTeoTrunkAndLeftArmKinematicsFromDH();
+    }
+    unsigned int nj = chain.getNrOfJoints();
     yInfo() << "Number of joints: " << nj;
-    unsigned int nl = trunkAndRightArmChain.getNrOfSegments();
+    unsigned int nl = chain.getNrOfSegments();
     yInfo() << "Number of segments: " << nl;
    
     yInfo() <<"Lets create the collision objects";
@@ -215,14 +232,14 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
 
     int nOfCollisionObjects = 6;
-    rightArmCollisionObjects.clear();
-    rightArmCollisionObjects.reserve(nOfCollisionObjects);
-    rightArmCollisionObjects.emplace_back(collisionObject1);
-    rightArmCollisionObjects.emplace_back(collisionObject2);
-    rightArmCollisionObjects.emplace_back(collisionObject3);
-    rightArmCollisionObjects.emplace_back(collisionObject4);
-    rightArmCollisionObjects.emplace_back(collisionObject5);
-    rightArmCollisionObjects.emplace_back(collisionObject6);
+    collisionObjects.clear();
+    collisionObjects.reserve(nOfCollisionObjects);
+    collisionObjects.emplace_back(collisionObject1);
+    collisionObjects.emplace_back(collisionObject2);
+    collisionObjects.emplace_back(collisionObject3);
+    collisionObjects.emplace_back(collisionObject4);
+    collisionObjects.emplace_back(collisionObject5);
+    collisionObjects.emplace_back(collisionObject6);
 
     yInfo()<<"Collision objects created";
     offsetCollisionObjects.reserve(nOfCollisionObjects);
@@ -239,12 +256,10 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     yInfo()<<"offset collisions created";
 
-    checkSelfCollision = new CheckSelfCollision(trunkAndRightArmChain, qmin, qmax, rightArmCollisionObjects, offsetCollisionObjects);
+    checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
     yInfo()<<"Check selfCollisionObject created";
-    // space = ob::StateSpacePtr(new ob::RealVectorStateSpace(numRightArmJoints));
     if(planningSpace == "cartesian"){ // cartesian space
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
-        // ob::RealVectorBounds bounds{numRightArmJoints};
         ob::RealVectorBounds bounds{3};
 
         bounds.setLow(0, -0.0);
@@ -283,25 +298,6 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
     }
 
-
-
-    // std::vector<double> currentQ(numRightArmJoints);
-    // if (!rightArmIEncoders->getEncoders(currentQ.data()))
-    // {
-    //     yError() << "Failed getEncoders() of right-arm";
-    //     return false;
-    // }
-    
-
-    // KDL::JntArray qGoal = KDL::JntArray(numRightArmJoints);
-    // qGoal(0) = 0;
-    // qGoal(1) = -8;
-
-    // checkSelfCollision->updateCollisionObjectsTransform(qGoal);
-    // if (checkSelfCollision->selfCollision()){
-    //     yInfo()<<"Goal self collide";
-    // }
-    // yInfo()<<"Goal doesn't collide";
 
     rpcServer.setReader(*this);
 
@@ -378,10 +374,10 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         // //yInfo() << testAxisAngle;
         // //yInfo() << testAxisAngle;
 
-        std::vector<double> currentQ(numRightArmJoints);
-        if (!rightArmIEncoders->getEncoders(currentQ.data()))
+        std::vector<double> currentQ(numArmJoints);
+        if (!armIEncoders->getEncoders(currentQ.data()))
         {
-            yError() << "Failed getEncoders() of right-arm";
+            yError() << "Failed getEncoders() of "<<deviceName;
             return false;
         }
 
@@ -389,7 +385,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
 
         std::vector<double> xStart;
 
-        if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+        if (!armICartesianSolver->fwdKin(currentQ, xStart))
         {
             yError() << "fwdKin failed";
             return false;
@@ -412,12 +408,12 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             computeInvKin = false;
         }
 
-        std::vector<double> desireQ(numRightArmJoints);
+        std::vector<double> desireQ(numArmJoints);
 
 
         if (computeInvKin)
         {
-            if (!rightArmICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
+            if (!armICartesianSolver->invKin(testAxisAngle, currentQ, desireQ))
             {
                 yError() << "invKin() failed";
                 return false;
@@ -443,7 +439,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
     else{ // joint space
         yInfo()<<"joint space isValid()";
         const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
-        KDL::JntArray jointpositions = KDL::JntArray(numRightArmJoints);
+        KDL::JntArray jointpositions = KDL::JntArray(numArmJoints);
 
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
@@ -565,15 +561,15 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         frame.p = posKdl;
         std::vector<double> pose = frameToVector(frame);
         
-        std::vector<double> currentQ(numRightArmJoints);
-        if (!rightArmIEncoders->getEncoders(currentQ.data()))
+        std::vector<double> currentQ(numArmJoints);
+        if (!armIEncoders->getEncoders(currentQ.data()))
         {
-            yError() << "Failed getEncoders() of right-arm";
+            yError() << "Failed getEncoders() of "<<deviceName;
             return false;
         }
         std::vector<double> xStart;
 
-        if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+        if (!armICartesianSolver->fwdKin(currentQ, xStart))
         {
             yError() << "fwdKin failed";
             return false;
@@ -595,11 +591,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
             computeInvKin = false;
         }
 
-        std::vector<double> desireQ(numRightArmJoints);
+        std::vector<double> desireQ(numArmJoints);
 
         if (computeInvKin)
         {
-            if (!rightArmICartesianSolver->invKin(pose, currentQ, desireQ))
+            if (!armICartesianSolver->invKin(pose, currentQ, desireQ))
             {
                 yError() << "invKin() failed";
             }
@@ -609,8 +605,8 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
                     bPose.addDouble(pose[i]);
                 }
                 std::vector<double> jointsPosition;
-                jointsPosition.reserve(numRightArmJoints);
-                for(int i = 0; i<numRightArmJoints; i++){
+                jointsPosition.reserve(numArmJoints);
+                for(int i = 0; i<numArmJoints; i++){
                     jointsPosition.emplace_back(desireQ[i]);
                 }
                 jointsTrajectory.push_back(jointsPosition);
@@ -678,7 +674,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     }
 
     ob::RealVectorBounds bounds = space->as<ob::RealVectorStateSpace>()->getBounds();
-    for(unsigned int j=0; j<numRightArmJoints; j++){
+    for(unsigned int j=0; j<numArmJoints; j++){
         yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
     }
 
@@ -712,13 +708,13 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
 
         std::vector<double> poseQ;
-        poseQ.reserve(numRightArmJoints);
-        for(unsigned int j=0; j<numRightArmJoints; j++)
+        poseQ.reserve(numArmJoints);
+        for(unsigned int j=0; j<numArmJoints; j++)
             poseQ.emplace_back(jointState->values[j]);
 
         std::vector<double> pose;
 
-        if (!rightArmICartesianSolver->fwdKin(poseQ, pose))
+        if (!armICartesianSolver->fwdKin(poseQ, pose))
         {
             yError() << "fwdKin failed";
             return false;
@@ -757,18 +753,18 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     yInfo() << "command:" << command.toString();
 
 
-    std::vector<double> currentQ(numRightArmJoints);
-    if (!rightArmIEncoders->getEncoders(currentQ.data()))
+    std::vector<double> currentQ(numArmJoints);
+    if (!armIEncoders->getEncoders(currentQ.data()))
     {
-        yError() << "Failed getEncoders() of right-arm";
+        yError() << "Failed getEncoders() of "<<deviceName;
     }
 
     yInfo() << "currentQ: " << currentQ;
      
     if (planningSpace=="cartesian"){
 
-        rightArmSolverOptions.unput("mins");
-        rightArmSolverOptions.unput("maxs");
+        armSolverOptions.unput("mins");
+        armSolverOptions.unput("maxs");
         yarp::os::Bottle qMin, qMax;
         qMin.addDouble(currentQ[0]-2.5);
         qMin.addDouble(currentQ[1]-2.5);
@@ -778,26 +774,26 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             qMin.addDouble(qrMin.get(i).asDouble());
             qMax.addDouble(qrMax.get(i).asDouble());
         }
-        rightArmSolverOptions.put("mins", yarp::os::Value::makeList(qMin.toString().c_str()));
-        rightArmSolverOptions.put("maxs", yarp::os::Value::makeList(qMax.toString().c_str()));
-        rightArmSolverDevice.close();
+        armSolverOptions.put("mins", yarp::os::Value::makeList(qMin.toString().c_str()));
+        armSolverOptions.put("maxs", yarp::os::Value::makeList(qMax.toString().c_str()));
+        armSolverDevice.close();
 
-        rightArmSolverDevice.open(rightArmSolverOptions);
-        if (!rightArmSolverDevice.isValid())
+        armSolverDevice.open(armSolverOptions);
+        if (!armSolverDevice.isValid())
         {
-            yError() << "KDLSolver solver device for trunkAndRightArm is not valid";
+            yError() << "KDLSolver solver device for "<<deviceName<<" is not valid";
             return false;
         }
 
 
-        if (!rightArmSolverDevice.view(rightArmICartesianSolver))
+        if (!armSolverDevice.view(armICartesianSolver))
         {
             yError() << "Could not view iCartesianSolver in KDLSolver";
             return false;
         }
         std::vector<double> xStart;
 
-        if (!rightArmICartesianSolver->fwdKin(currentQ, xStart))
+        if (!armICartesianSolver->fwdKin(currentQ, xStart))
         {
             yError() << "fwdKin failed";
 
@@ -884,7 +880,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 Bottle bJointsTrajectory;
                 for(int i=0; i<jointsTrajectory.size(); i++){
                     Bottle bJointsPosition;
-                    for(int j = 0; j<numRightArmJoints; j++){
+                    for(int j = 0; j<numArmJoints; j++){
                         bJointsPosition.addDouble(jointsTrajectory[i][j]);
                     }
                     bJointsTrajectory.addList() = bJointsPosition;
@@ -911,7 +907,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     else{ // joint space
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
         ob::ScopedState<ob::RealVectorStateSpace> start(space);
-        for(unsigned int j=0; j<numRightArmJoints; j++){
+        for(unsigned int j=0; j<numArmJoints; j++){
             start[j] = currentQ[j];
         }
         pdef->clearStartStates();
@@ -924,10 +920,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             yInfo()<<"Not valid start state";
         }
                 
-        // const ob::RealVectorStateSpace::StateType *jointState = startState->as<ob::RealVectorStateSpace::StateType>();
-        // for(unsigned int j=0; j<numRightArmJoints; j++)
-            // yInfo()<<"Start j"<<j<<": "<<jointState->values[j];
-        
+
         if (command.get(0).toString() == "Check goal"){
             yInfo()<<"Check goal";
             Bottle * bGoal = command.get(1).asList();
@@ -936,16 +929,16 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 xGoal[i] = bGoal->get(i).asDouble();
             yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
-            std::vector<double> desireQ(numRightArmJoints);
+            std::vector<double> desireQ(numArmJoints);
 
-            std::vector<double> currentQ(numRightArmJoints);
-            if (!rightArmIEncoders->getEncoders(currentQ.data()))
+            std::vector<double> currentQ(numArmJoints);
+            if (!armIEncoders->getEncoders(currentQ.data()))
             {
-                yError() << "Failed getEncoders() of right-arm";
+                yError() << "Failed getEncoders() of "<<deviceName;
                 reply.addString("Not Valid");
             }
             else{
-                if (!rightArmICartesianSolver->invKin(xGoal, currentQ, desireQ))
+                if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
                 {
                     yError() << "invKin() failed";
                     reply.addString("Not Valid");
@@ -953,7 +946,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 else{   
                     yInfo()<<"desireQ: "<<desireQ;
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-                    for(unsigned int j=0; j<numRightArmJoints; j++){
+                    for(unsigned int j=0; j<numArmJoints; j++){
                         goal[j] = desireQ[j];
                     }
                     pdef->clearGoal();
@@ -979,18 +972,18 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             for (int i = 0; i < 6; i++)
                 xGoal[i] = bGoal->get(i).asDouble();
 
-            std::vector<double> desireQ(numRightArmJoints);
-            std::vector<double> currentQ(numRightArmJoints);
+            std::vector<double> desireQ(numArmJoints);
+            std::vector<double> currentQ(numArmJoints);
             yInfo()<<"getting encoders";
-            if (!rightArmIEncoders->getEncoders(currentQ.data()))
+            if (!armIEncoders->getEncoders(currentQ.data()))
             {
-                yError() << "Failed getEncoders() of right-arm";
+                yError() << "Failed getEncoders() of "<<deviceName;
                 reply.addString("Not Valid");
             }
             
             else{
-                yInfo()<<"getEncoders() of right-arm ok";
-                if (!rightArmICartesianSolver->invKin(xGoal, currentQ, desireQ))
+                yInfo()<<"getEncoders() of "<<deviceName<<" ok";
+                if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
                 {
                     yError() << "invKin() failed";
                     reply.addString("Not Valid");
@@ -998,7 +991,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 else{   
                     yInfo()<<"desireQ: "<<desireQ;
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-                    for(unsigned int j=0; j<numRightArmJoints; j++){
+                    for(unsigned int j=0; j<numArmJoints; j++){
                         goal[j] = desireQ[j];
                     }
                     pdef->clearGoal();
@@ -1016,7 +1009,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                         Bottle bJointsTrajectory;
                         for(int i=0; i<jointsTrajectory.size(); i++){
                             Bottle bJointsPosition;
-                            for(int j = 0; j<numRightArmJoints; j++){
+                            for(int j = 0; j<numArmJoints; j++){
                                 bJointsPosition.addDouble(jointsTrajectory[i][j]);
                             }
                             bJointsTrajectory.addList() = bJointsPosition;
