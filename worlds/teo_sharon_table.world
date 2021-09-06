@@ -19,9 +19,8 @@
 		</include>
 
 		<include>
-			<pose>0.35 -0.2 1.0 0.0 0.0 0.0</pose>
+			<pose>0.6 -0.2 1.0 0.0 0.0 0.0</pose>
 			<uri>model://bottle</uri>
 		</include>
-
   </world>
 </sdf>
