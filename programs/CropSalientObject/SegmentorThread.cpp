@@ -14,6 +14,51 @@ bool less_by_y(const cv::Point& lhs, const cv::Point& rhs)
 {
   return lhs.y < rhs.y;
 }
+
+// C++ program to find equation of a plane
+// passing through given 3 points.
+#include <bits/stdc++.h>
+#include<math.h>
+#include <iostream>
+#include <iomanip>
+ 
+using namespace std;
+ 
+// Function to find equation of plane.
+void equation_plane(float x1, float y1, float z1, float x2,
+                    float y2, float z2, float x3, float y3, float z3, std::array<float, 4> & plane)
+{
+    float a1 = x2 - x1;
+    float b1 = y2 - y1;
+    float c1 = z2 - z1;
+    float a2 = x3 - x1;
+    float b2 = y3 - y1;
+    float c2 = z3 - z1;
+    plane[0] = b1 * c2 - b2 * c1;
+    plane[1] = a2 * c1 - a1 * c2;
+    plane[2] = a1 * b2 - b1 * a2;
+    plane[3] = (- plane[0] * x1 - plane[1] * y1 - plane[2] * z1);
+    yInfo() << "equation of plane is " << plane[0] << " x + " << plane[1]
+        << " y + " << plane[2] << " z + " << plane[3] << " = 0.";
+    
+}
+
+
+
+static void onMouse(int event, int x, int y, int flags, void* param) // now it's in param
+{
+    Mat &xyz = *((Mat*)param); //cast and deref the param
+
+    if (event == EVENT_LBUTTONDOWN)
+    {
+
+        // uchar val = xyz.at< uchar >(y,x); // opencv is row-major ! 
+        yInfo() << "x= " << x << " y= " << y ;
+    }
+}
+
+
+
 namespace sharon{
 
 const std::string SegmentorThread::DEFAULT_ALGORITHM = "blueMinusRed";
@@ -117,17 +162,45 @@ bool SegmentorThread::init(yarp::os::ResourceFinder &rf)
      }
      yInfo("Using \"maxNumBlobs\": %d.\n", maxNumBlobs);
 
+vector<Point2f> corners1;
+    vector<Point2f> corners2;
+    corners1.push_back(Point2f(301,228));
+    corners2.push_back(Point2f(318,225));
+    corners1.push_back(Point2f(95,367));
+    corners2.push_back(Point2f(127,357));
+    corners1.push_back(Point2f(544,241));
+    corners2.push_back(Point2f(548,235));
+    corners1.push_back(Point2f(382,275));
+    corners2.push_back(Point2f(390,266));
+    corners1.push_back(Point2f(52,173));
+    corners2.push_back(Point2f(75,178));
+    corners1.push_back(Point2f(508,224));
+    corners2.push_back(Point2f(511,220));
+    corners1.push_back(Point2f(285,155));
+    corners2.push_back(Point2f(299,156));
+    corners1.push_back(Point2f(554,186));
+    corners2.push_back(Point2f(550,182));
+    corners1.push_back(Point2f(429,468));
+    corners2.push_back(Point2f(447,452));
+    corners1.push_back(Point2f(443,466));
+    corners2.push_back(Point2f(458,451));
+    corners1.push_back(Point2f(103,441));
+    corners2.push_back(Point2f(134,429));
+    H = findHomography(corners1, corners2);
+
      if(!setPeriod(rateMs * 0.001))
      {
          yError("\n");
          return false;
      }
 
+
      if(!start())
      {
          yError("\n");
          return false;
      }
+
      return true;
 }
 
@@ -204,28 +277,18 @@ void SegmentorThread::run()
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb> rgbImage = yarp::cv::fromCvMat<yarp::sig::PixelRgb>(copyOrigCvMat);
 
-    float maxDistance = 1.1;
+    float maxDistance = 1.2;
     depthFilter(inCvMat,depthFrame, maxDistance);
 
 
+
     Mat depthImage = yarp::cv::toCvMat<yarp::sig::PixelFloat>(depthFrame);
-    float maxZ=0;
-    float minZ = maxDistance;
-    Mat cloneDepthImage = depthImage.clone();
-    for(int x = 0;x<cloneDepthImage.rows;x++){
-        for(int y=0;y<cloneDepthImage.cols;y++){
-            float pix =  cloneDepthImage.at<float>(x, y);
-            if(pix>maxZ){
-                maxZ = pix;
-            }
-            if(pix<minZ){
-                minZ = pix;
-            }
-        }
-    }
-    yInfo()<<"Mat Max: "<<maxZ<<" Min: "<<minZ;
-    imshow("test",inCvMat);
-    waitKey(0);
+
+    depthFilter(depthImage, depthFrame, maxDistance);
+
+  
+    // imshow("test",inCvMat);
+    // waitKey(0);
 
     vector<float> boundingBox;
 
@@ -243,10 +306,11 @@ void SegmentorThread::run()
 //    waitKey(0);
 
     int bx=0, by=0;
-    //boundingBox = cropSalientObject(origCvMat,inCvMat,depthImage,croppedImage, croppedDepthImage, bx, by);
+    // boundingBox = cropSalientObject(origCvMat,inCvMat,depthImage,croppedImage, croppedDepthImage, bx, by);
 
     // boundingBox = findGlass(origCvMat,inCvMat,depthImage);
-    boundingBox = findCereal(origCvMat,inCvMat,depthImage);
+    // boundingBox = findCereal(origCvMat,inCvMat,depthImage);
+    boundingBox =findBlackCup(origCvMat, inCvMat, depthImage);
 
     Mat cloneMatCroppedImage;
     Mat test;
@@ -258,10 +322,10 @@ void SegmentorThread::run()
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb> storeCroppedRgb = yarp::cv::fromCvMat<yarp::sig::PixelRgb>(cloneMatCroppedImage);
 
-    storeRgbDepthImages(rgbImage,storeCroppedRgb,depthFrame,outCroppedDepthImage,bFileName->toString());
+    //storeRgbDepthImages(rgbImage,storeCroppedRgb,depthFrame,outCroppedDepthImage,bFileName->toString());
     //outCroppedDepthImage.setPixelSize(outCroppedDepthImage.getPixelSize());
 
-    createLabelsFile(bFileName->toString(), boundingBox, 3, rgbImage, depthFrame);
+    createLabelsFile(bFileName->toString(), boundingBox, 19, rgbImage, depthFrame);
 
 
 
@@ -340,10 +404,12 @@ vector<float> SegmentorThread::getBoundingBox(int origImageWidth, int origImageH
     float widthBox = (*mmx.second).x-(*mmx.first).x;
     float heightBox = (*mmy.second).y-(*mmy.first).y;
 
+
+
     cv::Rect roiBoundingBox((*mmx.first).x,(*mmy.first).y,widthBox,heightBox);
 
     rectangle(maskDepth, roiBoundingBox, 50, 2);
-    imshow("maskDepth", maskDepth);
+    // imshow("maskDepth", maskDepth);
 
 
     vector<float> boundingBox;
@@ -363,13 +429,20 @@ vector<float> SegmentorThread::cropSalientObject(Mat& origImage,const Mat& image
     Mat bgr[3];   //destination array
     split(image,bgr);
     Mat dstImage, mask;
-    cv::subtract(bgr[2],bgr[1],dstImage,mask);
+    cv::subtract(bgr[0],bgr[2],dstImage,mask);
 
     // For the cup
+    imshow("IMAGE", image);
+    waitKey(0);
+
 
 //    dstImage = bgr[2].clone();
-    imshow("Channel 3 - channel 2", dstImage);
-    //waitKey(0);
+    imshow("Channel 1 - channel 3", dstImage);
+    waitKey(0);
+
+    // cv::subtract(bgr[0],bgr[1],dstImage,mask);
+    // imshow("Channel 1 - channel 2", dstImage);
+    // waitKey(0);
 
 
 
@@ -378,10 +451,10 @@ vector<float> SegmentorThread::cropSalientObject(Mat& origImage,const Mat& image
 //    imshow("Result-channel 1", dstImage);
 //     waitKey(2);
 
-    Mat thresholdImage;
-    cv::threshold(bgr[2], thresholdImage,20, 255, THRESH_BINARY);
-    imshow("thresholdImage", dstImage);
-    waitKey(0);
+    Mat thresholdImage = dstImage.clone();
+    // cv::threshold(bgr[0], thresholdImage,100, 255, THRESH_BINARY);
+    // imshow("thresholdImage", thresholdImage);
+    // waitKey(0);
 
 
 
@@ -917,7 +990,6 @@ int SegmentorThread::countWindowPixels(Mat& image, int roiX, int roiY, int roiWi
         *yAvg = ((*mmy.first).y + (*mmy.second).y)/2.0;
     }
 
-
     //cout<<"avg x:"<<*xAvg<<endl;
     //cout<<"avg y:"<<*yAvg<<endl;
 
@@ -966,7 +1038,7 @@ void SegmentorThread::depthFilter(Mat &image, yarp::sig::ImageOf<yarp::sig::Pixe
 
             double mmZ_tmp = depth.pixel(int(x), int(y));
             if(mmZ_tmp > maxDistance){
-                circle(image, Point(x,y), 4, Scalar(0, 0, 0), -1, 8);
+                circle(image, Point(x,y), 4, Scalar(255, 255, 255), -1, 8);
             }
             if(mmZ_tmp>maxZ){
                 maxZ = mmZ_tmp;
@@ -975,19 +1047,19 @@ void SegmentorThread::depthFilter(Mat &image, yarp::sig::ImageOf<yarp::sig::Pixe
                 minZ = mmZ_tmp;
             }
 
-            if (y<180){
-                circle(image, Point(x,y), 8, Scalar(0, 0, 0), -1, 8);
-            }
+            // if (y<180){
+            //     circle(image, Point(x,y), 4, Scalar(0, 0, 0), -1, 8);
+            // }
 
-            if(x<30){
-                circle(image, Point(x,y), 8, Scalar(0, 0, 0), -1, 8);
+            // // if(x<30){
+            // //     circle(image, Point(x,y), 4, Scalar(0, 0, 0), -1, 8);
 
-            }
+            // // }
 
-            if(x>600 && y<280){
-                circle(image, Point(x,y), 8, Scalar(0, 0, 0), -1, 8);
+            // if(x>640 && y<300){
+            //     circle(image, Point(x,y), 4, Scalar(0, 0, 0), -1, 8);
 
-            }
+            // }
 
 
         }
@@ -1038,8 +1110,8 @@ vector<float> SegmentorThread::findGlass(const Mat& origImage,const Mat& image, 
             }
         }
     }
-//    imshow("gray", gray);
-//    waitKey(0);
+    imshow("gray", gray);
+    waitKey(0);
 
     cv::threshold(gray, gray,120, 255, THRESH_BINARY_INV);
 
@@ -1166,7 +1238,7 @@ vector<float> SegmentorThread::findGlass(const Mat& origImage,const Mat& image, 
 
     Mat croppedImage = thresholdImage(roi);
     imshow("cropped", croppedImage);
-//   waitKey(0);
+    waitKey(0);
 
 
     vector< vector <Point> > contours; // Vector for storing contour
@@ -1211,45 +1283,587 @@ vector<float> SegmentorThread::findGlass(const Mat& origImage,const Mat& image, 
 
 }
 
+vector<float> SegmentorThread::findBlackCup(const Mat& origImage,const Mat& image, const Mat &depthImage){
+    // imshow("image", image);
+    // waitKey(0);
+    Mat hsv = image.clone();
+    cvtColor(image, hsv, CV_BGR2HSV);
+    Mat mask;
+    inRange(hsv, Scalar(0,0,0), Scalar(255,255,40), mask);
+
+    
+    // imshow("mask", mask);
+    // waitKey(0);
+
+    vector<Point> locations;   // output, locations of non-zero pixels
+    cv::findNonZero(mask, locations);
+    cout<<locations.size()<<endl;
+    auto mmx = std::minmax_element(locations.begin(), locations.end(), less_by_x);
+    cout<<"Minx pixel: "<<*mmx.first<<endl;
+    cout<<"Maxx pixel: "<<*mmx.second<<endl;
+    auto mmy = std::minmax_element(locations.begin(), locations.end(), less_by_y);
+    cout<<"Miny pixel: "<<*mmy.first<<endl;
+    cout<<"Maxy pixel: "<<*mmy.second<<endl;
+
+    int widthROI = 120;
+    int heightROI = 120;
+    int bestTotalIntensity = 0;
+    int totalIntensityROI = 0;
+    int bestX=0, bestY=0;
+    float prevAvgLimitsIntensity[2] = {0.0,0.0};
+    float avgX=0;
+    float avgY=0;
+    int bx=0, by=0;
+
+    vector<float> yvector;
+
+    auto minx = *mmx.first;
+
+    int x = minx.x-widthROI;
+    if (x<0){
+        x=0;
+    }
+    int xmax = (*mmx.second).x;
+
+    if(xmax>mask.cols-widthROI)
+    {
+        xmax = mask.cols-widthROI;
+    }
+    int y = (*mmy.first).y-heightROI;
+    if (y<0){
+        y=0;
+    }
+    int startY = y;
+
+    int ymax = (*mmy.second).y;
+
+    if(ymax>mask.rows-heightROI)
+    {
+        ymax = mask.rows-heightROI;
+    }
+
+
+
+    for(x;x<xmax; x=x+1)
+    {
+        for(y=startY;y<ymax;y=y+1)
+        {
+            avgX=0;
+            avgY=0;
+            totalIntensityROI = countWindowPixels(mask, x,y,widthROI,heightROI,&avgX,&avgY,yvector);
+            if(totalIntensityROI>=bestTotalIntensity)
+            {
+                        bestTotalIntensity = totalIntensityROI;
+                        bestX = x;
+                        bestY = y;
+            }
+        }
+    }
+    yvector.clear();
+    cout<<"best crop"<<endl;
+    totalIntensityROI = countWindowPixels(mask, bestX,bestY,widthROI,heightROI,&avgX,&avgY,yvector);
+//    cout<<yvector<<endl;
+    cout<<"avg: "<<avgX<<", "<<avgY<<endl;
+//    auto n = yvector.size();
+//    float average = 0;
+//    for(int i=0;i<n;i++){
+//         average =average+ yvector[i];
+//    }
+
+//    cout<<"avg Y:"<<avgY<<endl;
+//    avgY = average/n;
+//    cout<<"average: "<<avgY<<endl;
+    bx = bestX+avgX-widthROI/2;
+    if ((bx+widthROI)>origImage.cols)
+    {
+        bx = origImage.cols-widthROI-1;
+    }
+    if (bx<0)
+        bx =0;
+    cout<<origImage.cols<<" "<<origImage.rows<<endl;
+    cout<<bx<<" "<<origImage.cols-widthROI<<endl;
+    by = bestY+avgY-heightROI/2;
+    if ((by+heightROI)>origImage.rows)
+    {
+        by = origImage.rows-heightROI-1;
+    }
+    cout<<by<<" "<<origImage.rows-heightROI<<endl;
+
+    cv::Rect roi(bx,by,widthROI,heightROI);
+    // check the box within the image plane
+    if (0 <= roi.x
+        && 0 <= roi.width
+        && roi.x + roi.width <= origImage.cols
+        && 0 <= roi.y
+        && 0 <= roi.height
+        && roi.y + roi.height <= origImage.rows){
+
+    }
+    else{
+        yError()<<"outside bounds";
+        // box out of image plane, do something...
+    }
+
+
+    Mat croppedImage = mask(roi);
+        
+    Mat kernel1 = getStructuringElement(MORPH_RECT, Size(3, 3));
+    dilate(croppedImage, croppedImage, kernel1);
+    // imshow("cropped", croppedImage);
+    // waitKey(0);
+
+    // Mat kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
+    // erode(croppedImage, croppedImage, kernel);
+    // imshow("cropped", croppedImage);
+    // waitKey(0);
+
+    vector< vector <Point> > contours; // Vector for storing contour
+    vector< Vec4i > hierarchy;
+    findContours(croppedImage, contours, hierarchy,CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE ); // Find the contours in the image
+
+    int largest_contour_index=0;
+    int largest_area=0;
+
+    for( int i = 0; i< contours.size(); i++ ) // iterate through each contour.
+    {
+        double a=contourArea( contours[i],false);  //  Find the area of contour
+        if(a>largest_area){
+            largest_area=a;
+            largest_contour_index=i;                //Store the index of largest contour
+        }
+    }
+    Mat maskCropped(croppedImage.rows, croppedImage.cols, CV_8U, cv::Scalar(0, 0, 0));
+
+    drawContours(maskCropped,contours, largest_contour_index, Scalar(255,255,255),CV_FILLED, 8, hierarchy ); // Draw the largest contour using previously stored index.
+    // imshow("maskCropped",maskCropped);
+    // waitKey(0);
+    
+    Mat kernel2 = getStructuringElement(MORPH_RECT, Size(5, 5));
+    dilate(maskCropped, maskCropped, kernel2);
+    // imshow("maskCropped",maskCropped);
+    // waitKey(0);
+    vector<float> boundingBox;
+
+    boundingBox = getBoundingBox(origImage.cols,origImage.rows, bx,by,maskCropped);
+
+    cv::Rect roiBoundingBox(boundingBox[0]*origImage.cols-boundingBox[2]*origImage.cols/2,boundingBox[1]*origImage.rows - boundingBox[3]*origImage.rows/2,boundingBox[2]*origImage.cols,boundingBox[3]*origImage.rows);
+
+    rectangle(origImage, roiBoundingBox, 0, 2);
+    // imshow("bounding box", origImage);
+    // waitKey(0);
+
+    return boundingBox;
+   
+
+
+}
+
+vector<float> SegmentorThread::findBlueCup(const Mat& origImage,const Mat& image, const Mat &depthImage){
+    // imshow("image", image);
+    // waitKey(0);
+    Mat hsv = image.clone();
+    cvtColor(image, hsv, CV_BGR2HSV);
+    Mat mask;
+    inRange(hsv, Scalar(50,50,50), Scalar(255,255,255), mask);
+
+    
+    // imshow("mask", mask);
+    // waitKey(0);
+
+    vector<Point> locations;   // output, locations of non-zero pixels
+    cv::findNonZero(mask, locations);
+    cout<<locations.size()<<endl;
+    auto mmx = std::minmax_element(locations.begin(), locations.end(), less_by_x);
+    cout<<"Minx pixel: "<<*mmx.first<<endl;
+    cout<<"Maxx pixel: "<<*mmx.second<<endl;
+    auto mmy = std::minmax_element(locations.begin(), locations.end(), less_by_y);
+    cout<<"Miny pixel: "<<*mmy.first<<endl;
+    cout<<"Maxy pixel: "<<*mmy.second<<endl;
+
+    int widthROI = 120;
+    int heightROI = 120;
+    int bestTotalIntensity = 0;
+    int totalIntensityROI = 0;
+    int bestX=0, bestY=0;
+    float prevAvgLimitsIntensity[2] = {0.0,0.0};
+    float avgX=0;
+    float avgY=0;
+    int bx=0, by=0;
+
+    vector<float> yvector;
+
+    auto minx = *mmx.first;
+
+    int x = minx.x-widthROI;
+    if (x<0){
+        x=0;
+    }
+    int xmax = (*mmx.second).x;
+
+    if(xmax>mask.cols-widthROI)
+    {
+        xmax = mask.cols-widthROI;
+    }
+    int y = (*mmy.first).y-heightROI;
+    if (y<0){
+        y=0;
+    }
+    int startY = y;
+
+    int ymax = (*mmy.second).y;
+
+    if(ymax>mask.rows-heightROI)
+    {
+        ymax = mask.rows-heightROI;
+    }
+
+
+
+    for(x;x<xmax; x=x+1)
+    {
+        for(y=startY;y<ymax;y=y+1)
+        {
+            avgX=0;
+            avgY=0;
+            totalIntensityROI = countWindowPixels(mask, x,y,widthROI,heightROI,&avgX,&avgY,yvector);
+            if(totalIntensityROI>=bestTotalIntensity)
+            {
+                        bestTotalIntensity = totalIntensityROI;
+                        bestX = x;
+                        bestY = y;
+            }
+        }
+    }
+    yvector.clear();
+    cout<<"best crop"<<endl;
+    totalIntensityROI = countWindowPixels(mask, bestX,bestY,widthROI,heightROI,&avgX,&avgY,yvector);
+//    cout<<yvector<<endl;
+    cout<<"avg: "<<avgX<<", "<<avgY<<endl;
+//    auto n = yvector.size();
+//    float average = 0;
+//    for(int i=0;i<n;i++){
+//         average =average+ yvector[i];
+//    }
+
+//    cout<<"avg Y:"<<avgY<<endl;
+//    avgY = average/n;
+//    cout<<"average: "<<avgY<<endl;
+    bx = bestX+avgX-widthROI/2;
+    if ((bx+widthROI)>origImage.cols)
+    {
+        bx = origImage.cols-widthROI-1;
+    }
+    if (bx<0)
+        bx =0;
+    cout<<origImage.cols<<" "<<origImage.rows<<endl;
+    cout<<bx<<" "<<origImage.cols-widthROI<<endl;
+    by = bestY+avgY-heightROI/2;
+    if ((by+heightROI)>origImage.rows)
+    {
+        by = origImage.rows-heightROI-1;
+    }
+    cout<<by<<" "<<origImage.rows-heightROI<<endl;
+
+    cv::Rect roi(bx,by,widthROI,heightROI);
+    // check the box within the image plane
+    if (0 <= roi.x
+        && 0 <= roi.width
+        && roi.x + roi.width <= origImage.cols
+        && 0 <= roi.y
+        && 0 <= roi.height
+        && roi.y + roi.height <= origImage.rows){
+
+    }
+    else{
+        yError()<<"outside bounds";
+        // box out of image plane, do something...
+    }
+
+
+    Mat croppedImage = mask(roi);
+    imshow("cropped", croppedImage);
+    waitKey(0);
+
+    // Mat kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
+    // erode(croppedImage, croppedImage, kernel);
+    // imshow("cropped", croppedImage);
+    // waitKey(0);
+
+    vector< vector <Point> > contours; // Vector for storing contour
+    vector< Vec4i > hierarchy;
+    findContours(croppedImage, contours, hierarchy,CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE ); // Find the contours in the image
+
+    int largest_contour_index=0;
+    int largest_area=0;
+
+    for( int i = 0; i< contours.size(); i++ ) // iterate through each contour.
+    {
+        double a=contourArea( contours[i],false);  //  Find the area of contour
+        if(a>largest_area){
+            largest_area=a;
+            largest_contour_index=i;                //Store the index of largest contour
+        }
+    }
+    Mat maskCropped(croppedImage.rows, croppedImage.cols, CV_8U, cv::Scalar(0, 0, 0));
+
+    drawContours(maskCropped,contours, largest_contour_index, Scalar(255,255,255),CV_FILLED, 8, hierarchy ); // Draw the largest contour using previously stored index.
+    imshow("maskCropped",maskCropped);
+    waitKey(0);
+    
+    Mat kernel2 = getStructuringElement(MORPH_RECT, Size(5, 5));
+    dilate(maskCropped, maskCropped, kernel2);
+    imshow("maskCropped",maskCropped);
+    waitKey(0);
+    vector<float> boundingBox;
+
+    boundingBox = getBoundingBox(origImage.cols,origImage.rows, bx,by,maskCropped);
+
+    cv::Rect roiBoundingBox(boundingBox[0]*origImage.cols-boundingBox[2]*origImage.cols/2,boundingBox[1]*origImage.rows - boundingBox[3]*origImage.rows/2,boundingBox[2]*origImage.cols,boundingBox[3]*origImage.rows);
+
+    rectangle(origImage, roiBoundingBox, 0, 2);
+    imshow("bounding box", origImage);
+    waitKey(0);
+
+    return boundingBox;
+   
+
+
+}
+
 vector<float> SegmentorThread::findCereal(const Mat& origImage,const Mat& image, const Mat &depthImage){
     Mat bgr[3];   //destination array
     split(image,bgr);
     Mat dstImage, mask;
     cv::subtract(bgr[2],bgr[1],dstImage,mask);
 
-    imshow("Channel 1", bgr[0]);
-    imshow("Depth", depthImage);
-    Mat prueba;
-
-    cv::threshold(bgr[0], prueba,120, 255, THRESH_BINARY_INV);
-    imshow("Threshold", prueba);
-
-    dstImage = prueba.clone();
-
-    Mat kernel = getStructuringElement(MORPH_RECT, Size(5, 5));
-    erode(dstImage, dstImage, kernel);
-    dilate(dstImage,dstImage,kernel);
-    imshow("final", dstImage);
-    waitKey(0);
-
-    //instantiates the specific Saliency
-    Ptr<Saliency> saliencyAlgorithm = StaticSaliencySpectralResidual::create();
-    Mat binaryMap;
-    Mat saliencyMap;
-    if( saliencyAlgorithm->computeSaliency( bgr[0], saliencyMap ) )
-    {
-      StaticSaliencySpectralResidual spec;
-      spec.computeBinaryMap( saliencyMap, binaryMap );
-
-      imshow( "Saliency Map", saliencyMap );
-      imshow( "Original Image", image );
-      imshow( "Binary Map", binaryMap );
-      waitKey( 0 );
+    float maxZ=0;float minZ = 8000;
+    Mat cloneDepthImage = depthImage.clone();
+    for(int x = 0;x<cloneDepthImage.rows;x++){
+        for(int y=0;y<cloneDepthImage.cols;y++){
+            float pix =  cloneDepthImage.at<float>(x, y);
+            if(pix>maxZ){
+                maxZ = pix;
+            }
+            if(pix<minZ){
+                minZ = pix;
+            }
+            
+        }
     }
 
+    Mat gray(cloneDepthImage.rows,cloneDepthImage.cols,CV_8U);
+
+    for(int u = 0;u<gray.cols;u++){
+        for(int v=0;v<gray.rows;v++){
+            float z =  cloneDepthImage.at<float>(v, u);
+            gray.at<uchar>(v,u) = (int)(z*255)/maxZ;
+        }
+    }
+
+    
+    Mat threePoints = gray.clone();
+    cvtColor(gray, threePoints, CV_GRAY2BGR);
+
+    int point1[2] = {200, 200};
+    float point1_depth = depthImage.at<float>(point1[0], point1[1]);
+
+    circle(threePoints, Point(point1[0],point1[1]), 4, Scalar(255, 0, 0), -1, 8);
+
+    int point2[2] = {400, 250};
+    float point2_depth = depthImage.at<float>(point2[0], point2[1]);
+
+    circle(threePoints, Point(point2[0],point2[1]), 4, Scalar(0, 255, 0), -1, 8);
+
+
+    int point3[2] = {410, 410};
+    float point3_depth = depthImage.at<float>(point3[0], point3[1]);
+
+    circle(threePoints, Point(point3[0],point3[1]), 4, Scalar(0, 0, 255), -1, 8);
+
+    std::array<float, 4> plane;
+    equation_plane(point1[0], point1[1], point1_depth, point2[0], point2[1], point2_depth,
+                    point3[0], point3[1], point3_depth, plane);
+    //imshow("plane", threePoints);
+
+    // waitKey(0);
+
+    // imshow("check1", gray);
+    Mat xyz;
+    // setMouseCallback("check1", onMouse, &xyz); // pass the address
+    // waitKey(0);
+    
+    for(int x = 0;x<depthImage.rows;x++){
+        for(int y=0;y<depthImage.cols;y++){
+            float z =  depthImage.at<float>(x, y);
+            float zplane = (-plane[0]*x-plane[1]*y-plane[3])/plane[2];
+            if(zplane-0.033<=z)
+            {
+                gray.at<uchar>(x,y) = 0;
+            }
+        }
+    }
+    // imshow("check1", gray);
+    // waitKey(0);
+
+    Mat test(Size(gray.cols, gray.rows),CV_8UC1);
+    test.setTo(cv::Scalar(255,255,255));
+
+    
+    Mat gray_warp;
+    warpPerspective(gray, gray, H, gray.size());
+    
+    // for(int u = 0;u<gray.cols;u++){
+    //     for(int v=0;v<gray.rows;v++){
+    //         float z =  cloneDepthImage.at<float>(v, u);
+    //     //     if(z!=0){
+    //     // //     //gray.at<uchar>(v,u) = (int)(z*255)/maxZ;
+    //     //     float xbefore =  (u - 319.5)*z/525.0;
+    //     //     float ybefore =  (v - 239.5)*z/525.0;
+    //     //     Mat temp = (Mat_ <float>(4,1) <<xbefore,ybefore,z,1);
+    //     //     Mat result = transformation * temp;
+    //     //     float colorx = result.at<float>(0,0);
+    //     //     float colory = result.at<float>(0,1);
+    //     //     float colorz = result.at<float>(0,2);
+    //     //     if(colorz==0)
+    //     //         yInfo()<<colorz;
+    //     //     Point3d colorPoint;
+    //     //     colorPoint.x=colorx;
+    //     //     colorPoint.y=colory;
+    //     //     colorPoint.z=colorz;
+
+    //     //     int bx = (int)(colorx*525/colorz+319.5);
+    //     //     int by = (int)(colory*525/colorz+239.5);
+    //     //     // yInfo()<<"bx: "<<bx<<" by: "<<by;
+    //         int bx = u;
+    //         // if (u<(640/2))
+    //         //     bx = u+20;
+    //         // else{
+    //         //     bx = u;
+    //         // }
+    //         int by = v;
+            
+    //         if(bx<=gray.cols && by<gray.rows) 
+    //             test.at<uchar>(by,bx) = (int)(z*255)/maxZ;
+        
+    //     // else{
+    //     //     test.at<uchar>(v,u) = (int)(255);
+    //     // }
+    //     }
+    // }
+    
+
+    // imshow("checkcolor", origImage);
+    // setMouseCallback("checkcolor", onMouse, &xyz); // pass the address
+    // waitKey(0);
+
+    //applyColorMap(test, test, cv::COLORMAP_AUTUMN);
+    // imshow("check2", test);
+    // waitKey(0);
+    yInfo()<<gray.rows<<gray.cols<<origImage.rows<<origImage.cols;
+    Mat opacity;
+    cvtColor(gray, opacity, CV_GRAY2BGR);
+
+    float alpha = 0.05;
+    float beta = beta = ( 1.0 - alpha );
+    addWeighted( origImage, alpha, opacity, beta, 0.0, opacity);
+    // imshow("check", opacity);
+
+    // waitKey(0);
+
+
+
+   
+    // imshow("without plane", gray);
+
+    // waitKey(0);
+
+    cv::threshold(gray, gray,10, 255, THRESH_BINARY);
+    // imshow("Thres", gray);
+    // waitKey( 0 );
+
+   
+    //imshow("erode", gray);
+    // waitKey( 0 );
+    Mat kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
+
+    erode(gray, gray, kernel);
+    // imshow("dilate", gray);
+    // waitKey( 0 );
+
+
+    vector< vector <Point> > contours; // Vector for storing contour
+    vector< Vec4i > hierarchy;
+    findContours(gray, contours, hierarchy,CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE ); // Find the contours in the image
+
+    int largest_contour_index=0;
+    int largest_area=0;
+
+    for( int i = 0; i< contours.size(); i++ ) // iterate through each contour.
+    {
+        double a=contourArea( contours[i],false);  //  Find the area of contour
+        if(a>largest_area){
+            largest_area=a;
+            largest_contour_index=i;                //Store the index of largest contour
+        }
+    }
+    
+    Mat maskDepth(gray.rows, gray.cols, CV_8U, cv::Scalar(0, 0, 0));
+    drawContours(maskDepth,contours, largest_contour_index, Scalar(255,255,255),CV_FILLED, 8, hierarchy ); // Draw the largest contour using previously stored index.
+    // imshow("maskDepth",maskDepth);
+    // waitKey(0);
+    // Mat kernel1 = getStructuringElement(MORPH_RECT, Size(3, 3));
+    // erode(maskDepth, maskDepth, kernel1);
+    Mat kernel1 = getStructuringElement(MORPH_RECT, Size(7, 7));
+
+    dilate(maskDepth, maskDepth, kernel1);
+    // imshow("maskDepth",maskDepth);
+    // waitKey(0);
+    vector<Point> locations;   // output, locations of non-zero pixels
+    cv::findNonZero(maskDepth, locations);
+
+    cout<<locations.size()<<endl;
+    auto mmx = std::minmax_element(locations.begin(), locations.end(), less_by_x);
+    if((*mmx.first).x <= 35)
+        (*mmx.first).x = 0;
+
+
+    cout<<"Minx pixel: "<<*mmx.first<<endl;
+    cout<<"Maxx pixel: "<<*mmx.second<<endl;
+    auto mmy = std::minmax_element(locations.begin(), locations.end(), less_by_y);
+    cout<<"Miny pixel: "<<*mmy.first<<endl;
+    cout<<"Maxy pixel: "<<*mmy.second<<endl;
+
+    (*mmy.second).y = (*mmy.second).y+2;
+
+    float widthBox = (*mmx.second).x-(*mmx.first).x;
+    float heightBox = (*mmy.second).y-(*mmy.first).y;
+
+    cv::Rect roiBoundingBox((*mmx.first).x,(*mmy.first).y,widthBox,heightBox);
+
+    rectangle(threePoints, roiBoundingBox, Scalar( 255, 0, 0 ), 2);
+    // imshow("bounding box", threePoints);
+
+    // int sumx = 0;
+    // if(bx<25){
+    //     sumx = 25;
+    //     bx = 0;            
+    // }
+    // else if(bx>=25 && bx<origImage.cols/2){
+    //     bx = bx + 25;
+    // }
+
+    cv::Rect roiBoundingBoxColor((*mmx.first).x,(*mmy.first).y,widthBox,heightBox);
+    rectangle(image, roiBoundingBoxColor, Scalar( 255, 0, 0 ), 2);
+
+    imshow("bounding box color", image);
+
+    waitKey(100);
 
     vector<float> boundingBox;
-
+    boundingBox.push_back(((*mmx.first).x+(widthBox)/2)/origImage.cols);
+    boundingBox.push_back(((*mmy.first).y+heightBox/2)/origImage.rows);
+    boundingBox.push_back((widthBox)/origImage.cols);
+    boundingBox.push_back(heightBox/origImage.rows);
 
     return boundingBox;
 
@@ -1426,8 +2040,13 @@ vector<float> SegmentorThread::findCup(const Mat& origImage,const Mat& image, ve
     {
         bx = origImage.cols-widthROI-1;
     }
-    cout<<origImage.cols<<" "<<origImage.rows<<endl;
-    cout<<bx<<" "<<origImage.cols-widthROI<<endl;
+
+    if (bx<=0)
+    {
+        bx=0;
+    }
+    cout<<"cols: "<<origImage.cols<<"rows: "<<origImage.rows<<endl;
+    cout<<"bx:"<<bx<<" "<<origImage.cols-widthROI<<endl;
     by = bestY+avgY-heightROI/2;
     if ((by+heightROI)>origImage.rows)
     {
@@ -1447,6 +2066,7 @@ vector<float> SegmentorThread::findCup(const Mat& origImage,const Mat& image, ve
     }
     else{
         yError()<<"outside bounds";
+
         // box out of image plane, do something...
     }
 

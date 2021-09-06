@@ -69,6 +69,10 @@ public:
     bool createLabelsFile(string strFileName, vector<float> boundingBox, int label, yarp::sig::ImageOf<yarp::sig::PixelRgb> rgb, yarp::sig::ImageOf<yarp::sig::PixelFloat> depth);
     vector<float> findGlass(const Mat& origImage,const Mat& image, const Mat &depthImage);
     vector<float> findCereal(const Mat& origImage,const Mat& image, const Mat &depthImage);
+    vector<float> findBlueCup(const Mat& origImage,const Mat& image, const Mat &depthImage);
+    vector<float> findBlackCup(const Mat& origImage,const Mat& image, const Mat &depthImage);
+
+    
 
 private:
     void run() override; // The periodical function
@@ -82,6 +86,7 @@ private:
     yarp::os::BufferedPort<yarp::os::Bottle> *pInFileNamePort;
     yarp::os::Port *pOutPort;
 
+    Mat H;
     //
     double fx_d,fy_d,cx_d,cy_d;
     //
