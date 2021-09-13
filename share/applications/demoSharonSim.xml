@@ -1,6 +1,12 @@
 <application>
 	<name>demoSharonSim</name>
 	<module>
+		<name>gazebo</name>
+		<parameters>../worlds/teo_sharon_table.world</parameters>
+		<node>localhost</node>
+	</module>
+
+	<module>
 		<name>remotecontrolboardremapper</name>
 		<parameters>--name /teoSim/trunkAndRightArm --robot remotecontrolboardremapper --localPortPrefix /local/tra --axesNames "(AxialWaist FrontalWaist FrontalRightShoulder SagittalRightShoulder AxialRightShoulder FrontalRightElbow AxialRightWrist FrontalRightWrist)"  --remoteControlBoards "(/teoSim/trunk /teoSim/rightArm)" --solver KdlTreeSolver --ik nrjl --from teo-trunk-rightArm-fetch.ini --eps 0.001 --maxIter 1000
 		</parameters>
@@ -42,6 +48,12 @@
 		<name>trajectoryGeneration</name>
 		<parameters> --from /usr/local/share/teo-sharon/applications/conf/TrajectoryGenerationTrunkAndLeftArm.ini
 		</parameters>
+		<node>localhost</node>
+	</module>
+	
+	<module>
+		<name>python3</name>
+		<parameters>../programs/demoSharon/demo_sharon.py</parameters>
 		<node>localhost</node>
 	</module>
 	

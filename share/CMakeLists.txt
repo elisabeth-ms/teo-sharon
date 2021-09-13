@@ -6,3 +6,4 @@
 #add_subdirectory(prog)
 yarp_install(DIRECTORY conf DESTINATION ${TEO-SHARON_APPLICATIONS_INSTALL_DIR})
 yarp_install(FILES applications/demoSharonSim.xml DESTINATION ${TEO-SHARON_APPLICATIONS_INSTALL_DIR})
+yarp_install(FILES applications/demoSharon.xml DESTINATION ${TEO-SHARON_APPLICATIONS_INSTALL_DIR})

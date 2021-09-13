@@ -1,0 +1,64 @@
+<application>
+	<name>demoSharon</name>
+
+	<module>
+		<name>remotecontrolboardremapper</name>
+		<parameters>--name /teo/trunkAndRightArm         --robot teo         --localPortPrefix /local/bcc         --axesNames "(AxialTrunk FrontalTrunk  FrontalRightShoulder SagittalRightShoulder AxialRightShoulder FrontalRightElbow AxialRightWrist FrontalRightWrist)"         --remoteControlBoards "(/teo/trunk /teo/rightArm)"         --solver KdlTreeSolver         --ik nrjl         --from teo-trunk-rightArm-fetch.ini         --eps 0.001         --maxIter 1000
+		</parameters>
+		<node>localhost</node>
+    <deployer>yarpdev</deployer>
+	</module>
+
+	<module>
+		<name>remotecontrolboardremapper</name>
+		<parameters>--name /teo/trunkAndLeftArm --robot teo --localPortPrefix /local/blc --axesNames "(AxialTrunk FrontalTrunk  FrontalLeftShoulder SagittalLeftShoulder AxialLeftShoulder FrontalLeftElbow AxialLeftWrist FrontalLeftWrist)" --remoteControlBoards "(/teo/trunk /teo/leftArm)" --solver KdlTreeSolver --ik nrjl --from teo-trunk-rightArm-fetch.ini --eps 0.001 --maxIter 1000
+		</parameters>
+		<node>localhost</node>
+    <deployer>yarpdev</deployer>
+	</module>
+
+	<module>
+		<name>rgbdDetection</name>
+		<parameters>--RGBDRemote /xtion --detector ColorRegionDetector --algorithm redMinusGreen</parameters>
+		<node>localhost</node>
+	</module>
+	<module>
+
+		<name>trajectoryGeneration</name>
+		<parameters>--robot teo --prefix /trajectoryGeneration/trunkAndRightArm --planningSpace joint --deviceName trunkAndRightArm --kinematicsConfig teo-trunk-rightArm-fetch.ini
+		</parameters>
+		<node>localhost</node>
+	</module>
+
+	
+	<!--module>
+		<name>python3</name>
+		<parameters>../programs/demoSharon/demo_sharon.py</parameters>
+		<node>localhost</node>
+	</module-->
+	
+ 	<module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/rgbd/rgbImage:i</parameters>
+        <node>localhost</node>
+    </module>
+    <connection>
+        <from>/xtion/rgbImage:o</from>
+        <to>/yarpview/rgbd/rgbImage:i</to>
+        <!--protocol></protocol-->
+    </connection>
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/rgbd/depthImage:i</parameters>
+        <node>localhost</node>
+    </module>
+    <!-- Requires YARP compiled with ENABLE_yarpcar_depthimage -->
+    <connection>
+        <from>/xtion/depthImage:o</from>
+        <to>/yarpview/rgbd/depthImage:i</to>
+        <protocol>udp+recv.portmonitor+type.dll+file.depthimage</protocol>
+    </connection>
+	
+
+</application>
