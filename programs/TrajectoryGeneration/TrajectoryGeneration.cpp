@@ -24,6 +24,8 @@ using namespace sharon;
 #define DEFAULT_RANGE_RRT 0.1
 #define DEFAULT_PRUNE_THRESHOLD 0.6
 
+
+
 static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
 {
     const KDL::Joint rotZ(KDL::Joint::RotZ);
@@ -42,6 +44,7 @@ static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
 
     return chain;
 }
+/************************************************************************/
 
 static KDL::Chain makeTeoTrunkAndLeftArmKinematicsFromDH()
 {
@@ -61,11 +64,51 @@ static KDL::Chain makeTeoTrunkAndLeftArmKinematicsFromDH()
 
     return chain;
 }
+/************************************************************************/
+
+static KDL::Chain makeTeoFixedTrunkAndRightArmKinematicsFromDH(){
+    const KDL::Joint rotZ(KDL::Joint::RotZ);
+    const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
+
+    KDL::Chain chain;
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.0, -KDL::PI/2, 0.1932,0.0)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.305, 0.0, 0.34692, -KDL::PI/2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(    0, -KDL::PI / 2,        0,            0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(    0, -KDL::PI / 2,        0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(    0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(    0,  KDL::PI / 2,        0,            0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(    0, -KDL::PI / 2,   -0.215,            0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09,            0,        0, -KDL::PI / 2)));
+
+    return chain;
+}
+
+/************************************************************************/
+
+static KDL::Chain makeTeoFixedTrunkAndLeftArmKinematicsFromDH(){
+    const KDL::Joint rotZ(KDL::Joint::RotZ);
+    const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
+
+    KDL::Chain chain;
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0.305, 0.0, 0.34692, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.32901, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, KDL::PI / 2, 0, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.215, 0)));
+    chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09, 0, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, KDL::PI / 2, 0, -KDL::PI / 2)));
+    chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, 0, 0.0975, 0)));
+
+    return chain;
+}
 
 /************************************************************************/
 
 bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 {
+    resourceFinder = rf;
     robot = rf.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
     std::string prefix = rf.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
     planningSpace = rf.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
@@ -156,10 +199,15 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     qmin.resize(numArmJoints);
     qmax.resize(numArmJoints);
 
+
     for (unsigned int joint = 0; joint < numArmJoints; joint++)
     {
         double min, max;
         armIControlLimits->getLimits(joint, &min, &max);
+        if(numArmJoints == 8 && joint == 1){ // we don't want the frontal joint tilt so much
+            min = - 10;
+            max = 15.0;
+        }
         qrMin.addDouble(min);
         qrMax.addDouble(max);
         yInfo("Joint %d limits: [%f,%f]", joint, min, max);
@@ -202,9 +250,21 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     //Init collisions objects
     if(deviceName == "trunkAndRightArm")
         chain = makeTeoTrunkAndRightArmKinematicsFromDH();
-    else{
+    else if (deviceName == "rightArm")
+    {
+        chain = makeTeoFixedTrunkAndRightArmKinematicsFromDH();
+    }
+    else if(deviceName == "trunkAndLeftArm")
+    {
         chain = makeTeoTrunkAndLeftArmKinematicsFromDH();
     }
+    else if(deviceName == "leftArm"){
+        chain = makeTeoFixedTrunkAndLeftArmKinematicsFromDH();
+    }
+    else{
+        yError()<<"Invalid deviceName. Options: trunkAndRightArm, rightArm, trunkAndLeftArm, leftArm";
+    }
+
     unsigned int nj = chain.getNrOfJoints();
     yInfo() << "Number of joints: " << nj;
     unsigned int nl = chain.getNrOfSegments();
@@ -631,9 +691,10 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     // pdef->clearStartStates();
     // pdef->addStartState(start);
 
+
     auto plannerRRT = (new og::RRTstar(si));
-    plannerRRT->setRange(0.8);
-    plannerRRT->setPruneThreshold(0.2);
+    plannerRRT->setRange(1.0);
+    plannerRRT->setPruneThreshold(1.5);
     plannerRRT->setTreePruning(true);
     plannerRRT->setInformedSampling(true);
 
@@ -681,8 +742,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     planner->setProblemDefinition(pdef);
 
     planner->setup();
+    pdef->clearSolutionPaths();
 
-    bool solutionFound = planner->solve(8.0);
+
+    bool solutionFound = planner->solve(15.0);
+
 
     if (solutionFound == true)
     {
@@ -742,15 +806,34 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
 bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 {
+    yarp::os::Bottle reply;
     auto *writer = connection.getWriter();
+
+
+    if (!yarp::os::NetworkBase::exists("/"+robot+"/"+deviceName+"/rpc:i"))
+    {
+        yError()<<"Check if the device "<<deviceName<<" is open!";
+        // configure(resourceFinder);
+        reply.addString("Device not open");
+        return reply.write(*writer);
+    }
+    else{
+        if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+deviceName+"/rpc:o", "/"+robot+"/"+deviceName+"/rpc:i"))
+        {
+            yWarning()<<"Device not connected";
+            configure(resourceFinder);
+            reply.addString("Open device");
+            return reply.write(*writer);
+        }
+    }
+
     yarp::os::Bottle command;
     if (!command.read(connection) || writer == nullptr)
     {
         return false;
     }
-    yarp::os::Bottle reply;
-
     yInfo() << "command:" << command.toString();
+
 
 
     std::vector<double> currentQ(numArmJoints);
@@ -905,6 +988,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         }
     }
     else{ // joint space
+        yInfo("Joint space");
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
         ob::ScopedState<ob::RealVectorStateSpace> start(space);
         for(unsigned int j=0; j<numArmJoints; j++){
@@ -1035,6 +1119,9 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 }
 
             }
+        }
+        else{
+            yWarning()<<"command not available";
         }
     }
     return reply.write(*writer);

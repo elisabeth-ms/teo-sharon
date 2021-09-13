@@ -81,7 +81,7 @@ namespace sharon
 
             /** robot used (teo/teoSim) **/
             std::string robot;
-
+            yarp::os::ResourceFinder resourceFinder;
             /** (joint/cartesian) space to plan a trajectory **/
             std::string planningSpace;  
 
@@ -98,9 +98,6 @@ namespace sharon
             
             
             std::vector<KDL::Frame> centerLinkWrtJoint;
-
-
-
 
 
             /** RFModule interruptModule. */
