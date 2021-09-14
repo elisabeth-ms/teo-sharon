@@ -20,17 +20,21 @@
       <kinematic>0</kinematic>
       <enable_wind>0</enable_wind>
       <visual name='visual'>
-        <pose frame=''>-0.03 -0.037 -0.105 0 -0 0</pose>
+        <pose frame=''>0.0 0.0 -0.105 0 -0 0</pose>
         <geometry>
           <mesh>
-          <uri>model:///milk1/meshes/milk.stl</uri>
+          <uri>model:///milk1/meshes/milk.dae</uri>
 	  <scale>0.01 0.01 0.01</scale>
         </mesh>
         </geometry>
         <material>
-          <lighting>1</lighting>
-          <ambient>1.0 0.0 0.0 1</ambient>
-          <diffuse>1.0 0.0 0.0 1</diffuse>
+	  			<script>
+    	  		<uri>file://media/materials/scripts/gazebo.material</uri>
+          	<name>Gazebo/DepthMapVS</name>
+					</script>          
+					<lighting>1</lighting>
+          <ambient>0.5 0.3 0.3 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
           <specular>0.01 0.01 0.01 1</specular>
           <emissive>0 0 0 1</emissive>
         </material>
