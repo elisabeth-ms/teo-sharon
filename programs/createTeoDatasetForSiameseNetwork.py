@@ -6,11 +6,11 @@ from PIL import Image
 totalWidth = 640
 totalHeight = 480
 
-path = r"/home/elisabeth/data/dataset/"
-pathImages = path+"images/jpg/"
-pathLabels = path+"labels/"
+path = r"/home/elisabeth/data/simulation_data/"
+pathImages = path+"rgbImage_o/jpg/"
+pathLabels = path+"new_labels/"
 
-newPath = r"/home/elisabeth/data/siamese_dataset/teo_variable_sizes/"
+newPath = r"/home/elisabeth/data/siamese_dataset/simulation/teo_variable_sizes/"
 
 imagesList = os.listdir(pathImages)
 
@@ -45,25 +45,25 @@ for image in imagesList:
     #     print(width*totalWidth, height*totalHeight)
     im1 = imPIL.crop(area)
     
-    if category == 0: # rice
-        imageName = newPath +"rice/"+ "rice_image_"
+    if category == 0: # milk1 entera
+        imageName = newPath +"milk1/"+ "milk1_image_"
         im1.save(imageName+str(index[0]) + ".jpg", "JPEG")
         index[0] = index[0]+1
     
-    elif category == 1: # milk
-        imageName = newPath +"milk_bottle/"+ "milk_bottle_image_"
+    elif category == 1: # milk2 semi
+        imageName = newPath +"milk2/"+ "milk2_image_"
         im1.save(imageName+str(index[1]) + ".jpg", "JPEG")
         index[1] = index[1]+1
         
-    elif category == 2: # cup
-        imageName = newPath +"cup/"+ "cup_image_"
-        im1.save(imageName+str(index[2]) + ".jpg", "JPEG")
-        index[2] = index[2]+1
+    # elif category == 2: # cup
+    #     imageName = newPath +"cup/"+ "cup_image_"
+    #     im1.save(imageName+str(index[2]) + ".jpg", "JPEG")
+    #     index[2] = index[2]+1
     
-    elif category == 3: # glass
-        imageName = newPath +"glass/"+ "glass_image_"
-        im1.save(imageName+str(index[3]) + ".jpg", "JPEG")
-        index[3] = index[3]+1
+    # elif category == 3: # glass
+    #     imageName = newPath +"glass/"+ "glass_image_"
+    #     im1.save(imageName+str(index[3]) + ".jpg", "JPEG")
+    #     index[3] = index[3]+1
         
     
 # pathTrain = path + 'train/'

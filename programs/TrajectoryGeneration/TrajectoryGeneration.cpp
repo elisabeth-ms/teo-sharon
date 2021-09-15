@@ -206,7 +206,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         armIControlLimits->getLimits(joint, &min, &max);
         if(numArmJoints == 8 && joint == 1){ // we don't want the frontal joint tilt so much
             min = - 10;
-            max = 15.0;
+            max = 20.0;
         }
         qrMin.addDouble(min);
         qrMax.addDouble(max);

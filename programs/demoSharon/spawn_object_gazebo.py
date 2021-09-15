@@ -12,15 +12,22 @@ simulation_data_directory = "/home/elisabeth/data/simulation_data/"
 
 absolute_width = 640
 absolute_height = 480
+just_move = True
+
+
 if __name__ == "__main__":
     print("main")
     
-    try:
-        startImage = int(sys.argv[1])
-        label = int(sys.argv[2])
-    except:
-        print('(start label) (Number of naming the files, label number')
-        
+    if not just_move:
+        try:
+            category = str(sys.argv[1])
+            startImage = int(sys.argv[2])
+            label = int(sys.argv[3])
+        except:
+            print('(category start label) (Category, Number of naming the files, label number')
+    else:
+        category = str(sys.argv[1])
+        print("Just moving the object ",category," activated...")
     yarp.Network.init()  # connect to YARP network
 
     if not yarp.Network.checkNetwork():  # let's see if there was actually a reachable YARP network
@@ -34,94 +41,145 @@ if __name__ == "__main__":
     world_interface_client = yarp.RpcClient()
     world_interface_client.open("/test/world_interface")
     world_interface_client.addOutput("/world_input_port")
-    
-    global start
-    start = int(startImage)
-    
-    inRgbPort = yarp.Port()
-    inRgbPort.open("/rgbImage")
-    yarp.Network.connect("/teoSim/camera/rgbImage:o","/rgbImage")
+    if not just_move:
+        global start
+        start = int(startImage)
+        
+        inRgbPort = yarp.Port()
+        inRgbPort.open("/rgbImage")
+        yarp.Network.connect("/teoSim/camera/rgbImage:o","/rgbImage")
 
-    inDepthPort = yarp.Port()
-    inDepthPort.open("/depthImage")
-    yarp.Network.connect("/teoSim/camera/depthImage:o", "/depthImage")
-    
-    
-    color_detection_port_name = "/rgbdDetection/teoSim/camera/state:o"
-    input_port_name = "/fake/rgbdDetection/teoSim/camera/state:o"
-    input_port = yarp.Port()
-    input_port.open(input_port_name)
-    
-    yarp.Network.connect(color_detection_port_name, input_port_name)
-    
-    img_array = np.zeros((480, 640, 3), dtype=np.uint8)
-    yarp_image = yarp.ImageRgb()
-    yarp_image.resize(640, 480)
-    yarp_image.setExternal(img_array.data, img_array.shape[1], img_array.shape[0])
-    
-    depthImgArray = np.random.uniform(0., 255., (480, 640)).astype(np.float32)
-    yarpImgDepth = yarp.ImageFloat()
-    yarpImgDepth.resize(640,480)
-    yarpImgDepth.setExternal(depthImgArray.data,depthImgArray.shape[1], depthImgArray.shape[0])
+        inDepthPort = yarp.Port()
+        inDepthPort.open("/depthImage")
+        yarp.Network.connect("/teoSim/camera/depthImage:o", "/depthImage")
+        
+        
+        color_detection_port_name = "/rgbdDetection/teoSim/camera/state:o"
+        input_port_name = "/fake/rgbdDetection/teoSim/camera/state:o"
+        input_port = yarp.Port()
+        input_port.open(input_port_name)
+        
+        yarp.Network.connect(color_detection_port_name, input_port_name)
+        
+        img_array = np.zeros((480, 640, 3), dtype=np.uint8)
+        yarp_image = yarp.ImageRgb()
+        yarp_image.resize(640, 480)
+        yarp_image.setExternal(img_array.data, img_array.shape[1], img_array.shape[0])
+        
+        depthImgArray = np.random.uniform(0., 255., (480, 640)).astype(np.float32)
+        yarpImgDepth = yarp.ImageFloat()
+        yarpImgDepth.resize(640,480)
+        yarpImgDepth.setExternal(depthImgArray.data,depthImgArray.shape[1], depthImgArray.shape[0])
 
-    
-    color_detection_data = yarp.Bottle()
+        
+        color_detection_data = yarp.Bottle()
 
-    num_image = start
-    for x in np.arange(0.5,1.0, 0.2):
-        for y in np.arange(-0.25,0.35,0.2):
-            startRotZ = random.uniform(0, 0.2)
-            print(startRotZ)
-            for rotZ in np.arange(startRotZ,np.pi+0.1, 0.2):
-                category = 'milk2'
-                print("Lets modify the position of the object ", category, "x: ", x, "y: ", y)
-                cmd = yarp.Bottle()
-                rep = yarp.Bottle()
-                cmd.addString('setPose')
-                cmd.addString(category)
-                cmd.addDouble(x)
-                cmd.addDouble(y)
-                cmd.addDouble(1)
-                cmd.addDouble(0)
-                cmd.addDouble(0)
-                cmd.addDouble(rotZ)
-                world_interface_client.write(cmd, rep)
-                yarp.delay(1.0)
-                
-                inRgbPort.read(yarp_image)
-                inDepthPort.read(yarpImgDepth)
-                
-                input_port.read(color_detection_data)
-                
-                brx = color_detection_data.get(0).find("brx").asDouble()
-                bry = color_detection_data.get(0).find("bry").asDouble()
-                
-                tlx = color_detection_data.get(0).find("tlx").asDouble()
-                tly = color_detection_data.get(0).find("tly").asDouble()
+        num_image = start
+    for x in np.arange(0.5,1.0, 0.15):
+        if x<0.8:
+            for y in np.arange(-0.25,0.35,0.15):
+                startRotZ = random.uniform(0, 0.2)
+                print(startRotZ)
+                for rotZ in np.arange(startRotZ,np.pi*2.0, 0.3):
+                    print("Lets modify the position of the object ", category, "x: ", x, "y: ", y)
+                    cmd = yarp.Bottle()
+                    rep = yarp.Bottle()
+                    cmd.addString('setPose')
+                    cmd.addString(category)
+                    cmd.addDouble(x)
+                    cmd.addDouble(y)
+                    cmd.addDouble(1)
+                    cmd.addDouble(0)
+                    cmd.addDouble(0)
+                    cmd.addDouble(rotZ)
+                    world_interface_client.write(cmd, rep)
+                    yarp.delay(1.0)
+                    if not just_move:
+                        inRgbPort.read(yarp_image)
+                        inDepthPort.read(yarpImgDepth)
+                        input_port.read(color_detection_data)
+                    
+                        brx = color_detection_data.get(0).find("brx").asDouble()
+                        bry = color_detection_data.get(0).find("bry").asDouble()
+                    
+                        tlx = color_detection_data.get(0).find("tlx").asDouble()
+                        tly = color_detection_data.get(0).find("tly").asDouble()
 
-                print(brx, bry, tlx, tly)
+                        print(brx, bry, tlx, tly)
 
-                im = Image.fromarray(img_array)
+                        im = Image.fromarray(img_array)
+                    
+                        strImageFile = str(num_image)
+                        #print(strImageFile)
                 
-                
+                        # if not os.path.exists("rgbImage_o/"+strImageFile+'.ppm'):
+                        print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
+                        im.save(simulation_data_directory+"rgbImage_o/"+ strImageFile + '.ppm')
+                        print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
+                        yarp.write(yarpImgDepth,simulation_data_directory+"depthImage_o/"+strImageFile + '.float')
+                        labels_file  = open(simulation_data_directory+"labels/"+strImageFile+'.txt', "w+")
+                        x_label = (brx+tlx)/(2.0*absolute_width)
+                        y_label = (bry+tly)/(2.0*absolute_height)
+                        width = (brx-tlx)/absolute_width
+                        height = (bry-tly)/absolute_height
+                        labels_file.write(str(label)+" "+str(x_label)+" "+str(y_label)+" " + str(width)+" "+str(height)+"\n")
+                        labels_file.close()
+                        num_image+=1
+        else:
+            for y in np.arange(-0.25,0.5,0.15):
+                startRotZ = random.uniform(0, 0.2)
+                print(startRotZ)
+                for rotZ in np.arange(startRotZ,np.pi*2.0, 0.2):
+                    print("Lets modify the position of the object ", category, "x: ", x, "y: ", y)
+                    cmd = yarp.Bottle()
+                    rep = yarp.Bottle()
+                    cmd.addString('setPose')
+                    cmd.addString(category)
+                    cmd.addDouble(x)
+                    cmd.addDouble(y)
+                    cmd.addDouble(1)
+                    cmd.addDouble(0)
+                    cmd.addDouble(0)
+                    cmd.addDouble(rotZ)
+                    world_interface_client.write(cmd, rep)
+                    yarp.delay(1.0)
+                    
+                    
+                    if not just_move:
+                        inRgbPort.read(yarp_image)
+                        inDepthPort.read(yarpImgDepth)
+                        
+                        input_port.read(color_detection_data)
+                        
+                        brx = color_detection_data.get(0).find("brx").asDouble()
+                        bry = color_detection_data.get(0).find("bry").asDouble()
+                        
+                        tlx = color_detection_data.get(0).find("tlx").asDouble()
+                        tly = color_detection_data.get(0).find("tly").asDouble()
 
-                strImageFile = str(num_image)
-                #print(strImageFile)
-            
-                # if not os.path.exists("rgbImage_o/"+strImageFile+'.ppm'):
-                print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
-                im.save(simulation_data_directory+"rgbImage_o/"+ strImageFile + '.ppm')
-                print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
-                yarp.write(yarpImgDepth,simulation_data_directory+"depthImage_o/"+strImageFile + '.float')
-                labels_file  = open(simulation_data_directory+"labels/"+strImageFile+'.txt', "w+")
-                x_label = (brx+tlx)/(2.0*absolute_width)
-                y_label = (bry+tly)/(2.0*absolute_height)
-                width = (brx-tlx)/absolute_width
-                height = (bry-tly)/absolute_height
-                labels_file.write(str(label)+" "+str(x_label)+" "+str(y_label)+" " + str(width)+" "+str(height)+"\n")
-                labels_file.close()
-                num_image+=1
-    
+                        print(brx, bry, tlx, tly)
+
+                        im = Image.fromarray(img_array)
+                        
+                        
+
+                        strImageFile = str(num_image)
+                        #print(strImageFile)
+                    
+                        # if not os.path.exists("rgbImage_o/"+strImageFile+'.ppm'):
+                        print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
+                        im.save(simulation_data_directory+"rgbImage_o/"+ strImageFile + '.ppm')
+                        print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
+                        yarp.write(yarpImgDepth,simulation_data_directory+"depthImage_o/"+strImageFile + '.float')
+                        labels_file  = open(simulation_data_directory+"labels/"+strImageFile+'.txt', "w+")
+                        x_label = (brx+tlx)/(2.0*absolute_width)
+                        y_label = (bry+tly)/(2.0*absolute_height)
+                        width = (brx-tlx)/absolute_width
+                        height = (bry-tly)/absolute_height
+                        labels_file.write(str(label)+" "+str(x_label)+" "+str(y_label)+" " + str(width)+" "+str(height)+"\n")
+                        labels_file.close()
+                        num_image+=1
+        
     print("Closing ports")
     inDepthPort.close()
     inRgbPort.close()

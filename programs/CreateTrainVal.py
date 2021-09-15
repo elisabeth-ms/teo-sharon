@@ -5,7 +5,7 @@ from PIL import Image
 
 
 pathObjects = r"/home/elisabeth/repos/darknet/data/obj/"
-pathImages = r"/home/elisabeth/data/dataset/images/jpg/"
+pathImages = r"/home/elisabeth/data/simulation_data/rgbImage_o/jpg/"
 pathTxt = r"/home/elisabeth/repos/darknet/data/"
 
 imagesList = os.listdir(pathImages)

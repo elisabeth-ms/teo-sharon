@@ -38,7 +38,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         # Create numpy array to receive the image
         self.xtionImageArray = np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)
         
-        self.xtionObjectDetectionsPort = yarp.Port()
+        self.xtionObjectDetectionsPort = yarp.BufferedPortBottle()
         
         self.glassesImagePort = yarp.BufferedPortImageRgb()
         self.glassesResolution = (1088,1080)
@@ -46,7 +46,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.minConfidenceDetection = 0.7
         self.cropsResolution = (200,200)
         
-        self.glassesDataPort = yarp.Port()
+        self.glassesDataPort = yarp.BufferedPortBottle()
         
         self.tripletModel = None
         self.embeddingModel = None
@@ -56,22 +56,32 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.fixationObjectImagePort = yarp.BufferedPortImageRgb()
         self.detections = yarp.Bottle()
         self.bottleData = yarp.Bottle()
-   
 
-
+        self.xtionImagePortName = "/xtion/rgbImage" 
+        self.xtionObjectDetectionPortName = "/opencvDnnObjectDetection2D/xtion/detections"
+        self.glassesImagePortName = "/glassesServer/images"
+        self.glassesDataPortName = "/glassesServer/data"
+        
+        self.fixationObjectPortName = "/fixationObject"
+        self.fixationObjectImagePortName = "/rgbImage"
+        
     def configure(self, rf):
         print("Configuring...")
-        self.xtionImagePort.open("/matching/xtion/rgbImage:i")
-        self.xtionObjectDetectionsPort.open("/matching/opencvDnnObjectDetection2D/xtion/detections:i")
-        self.glassesImagePort.open("/matching/glassesServer/images:i")
-        self.glassesDataPort.open("/matching/glassesServer/data:i")
-        self.fixationObjectPort.open("/matching/fixationObject:o")
-        self.fixationObjectImagePort.open("/matching/rgbImage:o")
+        
+        self.xtionImagePort.open("/matching"+self.xtionImagePortName+":i")
+        self.xtionObjectDetectionsPort.open("/matching"+self.xtionObjectDetectionPortName+":i")
+        self.glassesImagePort.open("/matching"+self.glassesImagePortName+":i")
+        self.glassesDataPort.open("/matching"+self.glassesDataPortName+":i")
+
+        self.fixationObjectPort.open("/matching"+self.fixationObjectPortName+":o")
+        self.fixationObjectImagePort.open("/matching"+self.fixationObjectImagePortName+":o")
+        
         #connect up the output port to our input port
-        yarp.Network.connect("/xtion/rgbImage:o", "/matching/xtion/rgbImage:i")
-        yarp.Network.connect("/opencvDnnObjectDetection2D/xtion/detections:o", "/matching/opencvDnnObjectDetection2D/xtion/detections:i")
-        yarp.Network.connect("/glassesServer/images:o", "/matching/glassesServer/images:i")
-        yarp.Network.connect("/glassesServer/data:o", "/matching/glassesServer/data:i")
+        yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i")
+        yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i")
+        
+        yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i")
+        yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i")
 
         gpus = tf.config.list_physical_devices('GPU')
 
@@ -150,7 +160,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages
     
     def getGlassesCropImageCenterFixation(self,bottleData):
-        fixationPoint = (bottleData.get(1).asList().get(0).asFloat32(), bottleData.get(1).asList().get(1).asFloat32())
+        fixationPoint = (bottleData.get(0).asList().get(0).asFloat32(), bottleData.get(0).asList().get(1).asFloat32())
         tlx = int(fixationPoint[0] - self.cropsResolution[0]/2)
         brx = int(fixationPoint[0] + self.cropsResolution[0]/2)
         if tlx<=0:
@@ -252,7 +262,32 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         imWithRect = np.asarray(im)
         return imWithRect
 
+    def areConnected(self):
+        if not yarp.Network.isConnected(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i"):
+            print("Try to connect to",self.xtionImagePortName+":o")
+            print("Please check if the camera is publishing images.")
+            yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i")
+            return False
         
+        if not yarp.Network.isConnected(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i"):
+            print("Try to connect to",self.xtionObjectDetectionPortName+":o")
+            print("Please check if objectDetection is running.")
+            yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i")
+            return False
+        
+        if not yarp.Network.isConnected(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i"):
+            print("Try to connect to",self.glassesImagePortName+":o")
+            print("Please Check if glasses images are being received...")
+            yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i")
+            return False
+        
+        if not yarp.Network.isConnected(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i"):
+            print("Try to connect to",self.glassesDataPortName+":o",)
+            print("Please Check if glasses images are being received...")
+            yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i")
+            return False
+        
+        return True 
 
 
     def updateModule(self):
@@ -260,71 +295,78 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         detectionsCropImages = []
         detectionsCropsLabels = [] 
         
+        
+        if not self.areConnected():
+            print("Not all yarp ports are available...")
+            return True
+        
         xtionYarpImage= self.xtionImagePort.read(False)
         if xtionYarpImage:
             xtionYarpImage.setExternal(self.xtionImageArray.data, self.xtionImageArray.shape[1], self.xtionImageArray.shape[0])
-        glassesYarpImage = self.glassesImagePort.read(True)
+        glassesYarpImage = self.glassesImagePort.read(False)
         if glassesYarpImage:
             glassesYarpImage.setExternal(self.glassesImageArray.data, self.glassesImageArray.shape[1], self.glassesImageArray.shape[0])
         
         detections = yarp.Bottle()
-        self.xtionObjectDetectionsPort.read(detections)          
+        detections=self.xtionObjectDetectionsPort.read(False)          
         if detections:
             self.detections = detections
+        print(detections)
         
-        bottleData = yarp.Bottle()
-        self.glassesDataPort.read(bottleData)
+        #bottleData = yarp.Bottle()
+        bottleData = self.glassesDataPort.read(False)
         
         if bottleData:
             self.bottleData = bottleData
+            print("fixation")            
 
-        fixationPoint = (self.bottleData.get(1).asList().get(0).asFloat32(), self.bottleData.get(1).asList().get(1).asFloat32())
-        print(fixationPoint)
+            fixationPoint = (self.bottleData.get(0).asList().get(0).asFloat32(), self.bottleData.get(0).asList().get(1).asFloat32())
+            print(fixationPoint)
         
-        print(np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)))
-        
-        print(np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)))
+            print(np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)))
+            
+            print(np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)))
 
-        if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
-            print("We have data from both cameras and detections")
-            
-            glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
-            
-            detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages = self.createLabeledCropsFromDetections(self.detections)
-            
-            predictEmbeddingGlasses = self.computeEmbeddingsCropImage(glassesCropImage)
-            
-            iMin = -1
-            minDistance = np.array(10000)
-            for i,crop in enumerate(detectionsCropImages):
-                predictEmbeddingDetection = self.computeEmbeddingsCropImage(crop)
+            if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
+                print("We have data from both cameras and detections")
+                
+                glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
+                
+                detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages = self.createLabeledCropsFromDetections(self.detections)
+                
+                predictEmbeddingGlasses = self.computeEmbeddingsCropImage(glassesCropImage)
+                
+                iMin = -1
+                minDistance = np.array(10000)
+                for i,crop in enumerate(detectionsCropImages):
+                    predictEmbeddingDetection = self.computeEmbeddingsCropImage(crop)
 
-                distance = K.square(predictEmbeddingGlasses - predictEmbeddingDetection)
-                distance = K.sqrt(K.sum(distance, axis=-1, keepdims=True))
-                distance = distance.numpy()[0][0]            
+                    distance = K.square(predictEmbeddingGlasses - predictEmbeddingDetection)
+                    distance = K.sqrt(K.sum(distance, axis=-1, keepdims=True))
+                    distance = distance.numpy()[0][0]            
 
-                if distance < minDistance:
-                    minDistance = distance
-                    iMin = i
-            
-            if iMin>=0:
-                print(minDistance)
-                fixationObject = yarp.Bottle()
-                dictObject = fixationObject.addDict()
-                dictObject.put("category",detectionsCropsLabels[iMin])
-                dictObject.put("distance", minDistance.item())
-                dictObject.put("tlx", tlxCropImages[iMin])
-                dictObject.put("tly", tlyCropImages[iMin])
-                dictObject.put("brx", brxCropImages[iMin])
-                dictObject.put("bry", bryCropImages[iMin])
-            
-                self.fixationObjectPort.write(fixationObject)
-                print("Min distance of ",minDistance, "for object labeled as", detectionsCropsLabels[iMin])
-                outImage = self.drawRectImage(tlxCropImages[iMin], tlyCropImages[iMin], brxCropImages[iMin], bryCropImages[iMin])
-            
-                self.writeImageYarpPort(outImage)
-            else:
-                self.writeImageYarpPort(self.xtionImageArray)
+                    if distance < minDistance:
+                        minDistance = distance
+                        iMin = i
+                
+                if iMin>=0:
+                    print(minDistance)
+                    fixationObject = yarp.Bottle()
+                    dictObject = fixationObject.addDict()
+                    dictObject.put("category",detectionsCropsLabels[iMin])
+                    dictObject.put("distance", minDistance.item())
+                    dictObject.put("tlx", tlxCropImages[iMin])
+                    dictObject.put("tly", tlyCropImages[iMin])
+                    dictObject.put("brx", brxCropImages[iMin])
+                    dictObject.put("bry", bryCropImages[iMin])
+                
+                    self.fixationObjectPort.write(fixationObject)
+                    print("Min distance of ",minDistance, "for object labeled as", detectionsCropsLabels[iMin])
+                    outImage = self.drawRectImage(tlxCropImages[iMin], tlyCropImages[iMin], brxCropImages[iMin], bryCropImages[iMin])
+                
+                    self.writeImageYarpPort(outImage)
+                else:
+                    self.writeImageYarpPort(self.xtionImageArray)
 
                 
                         

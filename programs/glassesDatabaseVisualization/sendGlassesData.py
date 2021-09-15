@@ -45,7 +45,7 @@ class GlassesServerYarp(yarp.RFModule):
 
         # Open the yarp ports in the yarp network
         self.glasses_images_port.open("/glassesServer/images:o") # Give name to the port in the yarp network
-        self.glasses_fixation_point_port.open("/glassesServer/fixationPoint:o") 
+        self.glasses_fixation_point_port.open("/glassesServer/data:o") 
         
         print("RFModule configure. Running the model")
         return True
@@ -86,7 +86,7 @@ class GlassesServerYarp(yarp.RFModule):
         img.setExternal(img_array.data, self.imageHeight, self.imageWidth) # Wrap yarp image around the numpy array  
             
         yarp_img.copy(img)
-        print(yarp_img)
+        #print(yarp_img)
         self.glasses_images_port.write()
     
     def write_fixation_point_yarp_port(self, fixation_point):
@@ -108,7 +108,7 @@ class GlassesServerYarp(yarp.RFModule):
         
         # Change img_array (numpy array [height, width, 3]) with the actual image from the glasses server
         global frame_number
-        print(frame_number)
+        print("Sending frame:",frame_number)
         im=Image.open(pathImages+"/"+frames[frame_number])
         img_array = np.asarray(im)
         

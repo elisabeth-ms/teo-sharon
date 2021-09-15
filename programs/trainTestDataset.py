@@ -5,14 +5,14 @@ from PIL import Image
 import numpy as np
 import shutil
 from random import randint
-path = r"/home/elisabeth/data/siamese_dataset/teo_variable_sizes/glass/"
-pathTrain = r"/home/elisabeth/data/siamese_dataset/teo_variable_sizes/train/glass/"
-pathTest = r"/home/elisabeth/data/siamese_dataset/teo_variable_sizes/test/glass/"
+path = r"/home/elisabeth/data/siamese_dataset/glasses_only_milks/milk2/"
+pathTrain = r"/home/elisabeth/data/siamese_dataset/glasses_only_milks/train/milk2/"
+pathTest = r"/home/elisabeth/data/siamese_dataset/glasses_only_milks/test/milk2/"
 
 
 imagesList = os.listdir(path)
 
-numberOfImages = 40
+numberOfImages = 500
 x=np.random.randint(len(imagesList), size=(len(imagesList)-numberOfImages))
 listRandomImages = []
 i = 0

@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from PIL import Image 
 
-path = r"/home/elisabeth/data/siamese_dataset/glasses_objects_database/"
-label = "fork"
+path = r"/home/elisabeth/data/siamese_dataset/glasses_only_milks/"
+label = "milk2"
 pathImages = path+label+"/"
 imageName = pathImages + label+"_image_"
 
@@ -23,14 +23,6 @@ def nextImage(evt=None):
     global continueImages
     continueImages = not continueImages
 
-
-if __name__ == "__main__":
-    directoryObject = ''
-    try:
-        directoryObject = sys.argv[1]
-        print(directoryObject)
-    except:
-        print('Please pass directory_name')
 
 
 if __name__ == "__main__":

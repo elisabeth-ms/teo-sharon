@@ -13,7 +13,7 @@ import numpy as np
 from scipy import interpolate
 from matplotlib.ticker import MaxNLocator
 
-robot = '/teo'
+robot = '/teoSim'
 
 available_right_hand_controlboard = True
 available_left_hand_controlboard = False
@@ -80,14 +80,14 @@ class DemoSharon(yarp.RFModule):
         # self.rpcClientLeftHand = yarp.RpcClient()
 
         # State
-        self.state = 4
+        self.state = 0
         self.firstInState = True  # For printing messages just once
-        self.jointsPositionError = 2.0
+        self.jointsPositionError = 1.0
 
 
         # Init Joints position for grasping
-        self.initTrunkJointsPosition = [0, 14.0]
-        self.initHeadJointsPosition = [0, 23.0]
+        self.initTrunkJointsPosition = [0, 15.0]
+        self.initHeadJointsPosition = [0, 15.0]
 
         # [-90, 0, 0, 0, 90, 0]
         self.initRightArmJointsPosition = [-50, -50, 40, -70, 30, -20]
@@ -321,7 +321,7 @@ class DemoSharon(yarp.RFModule):
         self.trunkRightArmSolverOptions.put("ik", "nrjl")
 
         self.trunkRightArmSolverOptions.fromString("(mins (-40 -10.0 -98.1 -75.5 -80.1 -99.6 -80.4 -115.4))", False)
-        self.trunkRightArmSolverOptions.fromString("(maxs (40 15.0 106 22.4 57 98.4 99.6 44.7))", False)
+        self.trunkRightArmSolverOptions.fromString("(maxs (40 20.0 106 22.4 57 98.4 99.6 44.7))", False)
         print("mins")
         print(self.trunkRightArmSolverOptions.find("mins").toString())
         print("maxs")
@@ -351,7 +351,7 @@ class DemoSharon(yarp.RFModule):
         self.trunkLeftArmSolverOptions.fromString(
             "(mins (-40 -10.1 -98.1 -75.5 -80.1 -99.6 -80.4 -115.4))", False)
         self.trunkLeftArmSolverOptions.fromString(
-            "(maxs (40 10.1 106 22.4 57 98.4 99.6 44.7))", False)
+            "(maxs (40 20.1 106 22.4 57 98.4 99.6 44.7))", False)
         print("mins")
         print(self.trunkLeftArmSolverOptions.find("mins").toString())
         print("maxs")
@@ -999,13 +999,7 @@ class DemoSharon(yarp.RFModule):
         
         frame_head_trunk = self.vectorToFrame(x_head_trunk)
         
-        frame_camera_head = PyKDL.Frame()
-        print(frame_camera_head)
-        frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation(), PyKDL.Vector(0,0,0.146))
-        frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation.RotZ(-np.pi/2.0), PyKDL.Vector(0,0,0))
-        frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation.RotX(-np.pi/2.0), PyKDL.Vector(0,0,0))
-        frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation(), PyKDL.Vector(-0.018-0.026,0,0))
-        print(frame_camera_head)
+        
 
         
         
@@ -1021,26 +1015,38 @@ class DemoSharon(yarp.RFModule):
             print("Object of category ", category_object_to_grasp, "is detected")
 
 
-        # frame_object_trunk = PyKDL.Frame()
-        # frame_object_trunk.p.x(objects_data.get(o).find("x").asDouble())
-        # frame_object_trunk.p.y(objects_data.get(o).find("y").asDouble())
-        # frame_object_trunk.p.z(objects_data.get(o).find("z").asDouble())
-        
-        # frame_object_camera =frame_head_trunk.Inverse()*frame_object_trunk
-        # pose_object_camera = self.frameToVector(frame_object_camera)
+       
+        if robot=="/teo":
+            frame_camera_head = PyKDL.Frame()
+            print(frame_camera_head)
+            frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation(), PyKDL.Vector(0,0,0.146))
+            frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation.RotZ(-np.pi/2.0), PyKDL.Vector(0,0,0))
+            frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation.RotX(-np.pi/2.0), PyKDL.Vector(0,0,0))
+            frame_camera_head = frame_camera_head*PyKDL.Frame(PyKDL.Rotation(), PyKDL.Vector(-0.018-0.026,0,0))
+            print(frame_camera_head)
+
+            frame_object_camera = PyKDL.Frame()
+            
+            frame_object_camera.p.x(objects_data.get(o).find("x").asDouble())
+            frame_object_camera.p.y(objects_data.get(o).find("y").asDouble())
+            frame_object_camera.p.z(objects_data.get(o).find("z").asDouble())
+            
+            frame_object_head = frame_camera_head*frame_object_camera
+            frame_object_trunk = frame_head_trunk*frame_object_head
+            
+            pose_object_trunk = self.frameToVector(frame_object_trunk)
+        else:
+            frame_object_camera = PyKDL.Frame()
+
+            frame_object_camera.p.x(objects_data.get(o).find("z").asDouble())
+            frame_object_camera.p.y(objects_data.get(o).find("x").asDouble())
+            frame_object_camera.p.z(-objects_data.get(o).find("y").asDouble())
+
+            frame_object_trunk = frame_head_trunk*frame_object_camera
+
+            pose_object_trunk = self.frameToVector(frame_object_trunk)
         
         # print(pose_object_camera[0], pose_object_camera[1], pose_object_camera[2])
-        
-        frame_object_camera = PyKDL.Frame()
-        
-        frame_object_camera.p.x(objects_data.get(o).find("x").asDouble())
-        frame_object_camera.p.y(objects_data.get(o).find("y").asDouble())
-        frame_object_camera.p.z(objects_data.get(o).find("z").asDouble())
-        
-        frame_object_head = frame_camera_head*frame_object_camera
-        frame_object_trunk = frame_head_trunk*frame_object_head
-        
-        pose_object_trunk = self.frameToVector(frame_object_trunk)
         
         return [pose_object_trunk[0], pose_object_trunk[1], pose_object_trunk[2]]
 

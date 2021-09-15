@@ -2,7 +2,7 @@ import yarp
 import sys
 import random
 
-robot = "/teo"
+robot = "/teoSim"
 
 if __name__ == "__main__":
     print("main")
