@@ -29,12 +29,12 @@
 		</include-->
 
 		<include>
-			<pose>0.6 -0.0 1.0 0.0 0.0 0.0</pose>
+			<pose>0.6 -0.05 1.0 0.0 0.0 -0.1</pose>
 			<uri>model://milk1</uri>
 		</include>
 
 		<include>
-			<pose>0.7 -0.0 1.0 0.0 0.0 0.0</pose>
+			<pose>0.65 -0.25 1.0 0.0 0.0 0.65</pose>
 			<uri>model://milk2</uri>
 		</include>
 		<light type="directional" name="directional">

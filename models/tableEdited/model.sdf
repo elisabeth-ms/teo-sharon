@@ -23,7 +23,7 @@
         <pose frame=''>0 0 0.9 0 -0 0</pose>
         <geometry>
           <box>
-            <size>1.5 0.8 0.03</size>
+            <size>0.8 0.8 0.03</size>
           </box>
         </geometry>
         <material>
@@ -40,7 +40,7 @@
         <cast_shadows>1</cast_shadows>
       </visual>
       <visual name='front_left_leg'>
-        <pose frame=''>0.68 0.38 0.45 0 -0 0</pose>
+        <pose frame=''>0.38 0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -64,7 +64,7 @@
         <cast_shadows>1</cast_shadows>
       </visual>
       <visual name='front_right_leg'>
-        <pose frame=''>0.68 -0.38 0.45 0 -0 0</pose>
+        <pose frame=''>0.38 -0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -88,7 +88,7 @@
         <cast_shadows>1</cast_shadows>
       </visual>
       <visual name='back_right_leg'>
-        <pose frame=''>-0.68 -0.38 0.45 0 -0 0</pose>
+        <pose frame=''>-0.38 -0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -112,7 +112,7 @@
         <cast_shadows>1</cast_shadows>
       </visual>
       <visual name='back_left_leg'>
-        <pose frame=''>-0.68 0.38 0.45 0 -0 0</pose>
+        <pose frame=''>-0.38 0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -141,7 +141,7 @@
         <pose frame=''>0 0 0.9 0 -0 0</pose>
         <geometry>
           <box>
-            <size>1.5 0.8 0.03</size>
+            <size>0.8 0.8 0.03</size>
           </box>
         </geometry>
         <surface>
@@ -193,7 +193,7 @@
       <collision name='front_left_leg'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose frame=''>0.68 0.38 0.45 0 -0 0</pose>
+        <pose frame=''>0.38 0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -249,7 +249,7 @@
       <collision name='front_right_leg'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose frame=''>0.68 -0.38 0.45 0 -0 0</pose>
+        <pose frame=''>0.38 -0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -305,7 +305,7 @@
       <collision name='back_right_leg'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose frame=''>-0.68 -0.38 0.45 0 -0 0</pose>
+        <pose frame=''>-0.38 -0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
@@ -361,7 +361,7 @@
       <collision name='back_left_leg'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose frame=''>-0.68 0.38 0.45 0 -0 0</pose>
+        <pose frame=''>-0.38 0.38 0.45 0 -0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.02</radius>
