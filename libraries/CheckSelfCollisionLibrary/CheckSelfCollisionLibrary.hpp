@@ -26,8 +26,8 @@ namespace sharon
 class CheckSelfCollision
 {
 public:
-    CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObjectf> &t_collisionObjects, std::vector<std::array <float,3>> &t_offset): 
-    chain(t_chain), qmin(t_qmin), qmax(t_qmax), collisionObjects(t_collisionObjects), offsetCenterCollisionObjects(t_offset)
+    CheckSelfCollision(const KDL::Chain & t_chain, const KDL::JntArray & t_qmin, const KDL::JntArray & t_qmax, std::vector<fcl::CollisionObjectf> &t_collisionObjects, std::vector<std::array <float,3>> &t_offset,const std::vector<fcl::CollisionObjectf> &t_tableCollision): 
+    chain(t_chain), qmin(t_qmin), qmax(t_qmax), collisionObjects(t_collisionObjects), offsetCenterCollisionObjects(t_offset), tableCollision(t_tableCollision)
     {
         printf("eo\n");
         if (chain.getNrOfJoints() <1)
@@ -90,6 +90,7 @@ public:
     bool twoLinksCollide(const KDL::JntArray &q, int link1, int link2);
     double twoLinksDistance(const KDL::JntArray &q, int link1, int link2);
     double minDistance();
+    bool linkTableCollide(const KDL::JntArray &q, int link);
 
     KDL::JntArray jointsDeg2Rad(const KDL::JntArray &q);
     KDL::Chain chain;
@@ -103,6 +104,7 @@ public:
     std::vector<fcl::CollisionObjectf> collisionObjects;
     std::vector<std::array<float,3>> offsetCenterCollisionObjects;
     std::vector<std::pair<int,KDL::Frame>> centerLinksWrtJoints;
+    std::vector<fcl::CollisionObjectf> tableCollision;
 
 
 };
