@@ -130,7 +130,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         ::exit(0);
     }
 
-    if (!outCartesianTrajectoryPort.open("/"+robot + "/cartesianTrajectory:o"))
+    if (!outCartesianTrajectoryPort.open("/"+robot +"/"+deviceName+"/cartesianTrajectory:o"))
     {
         yError("Bad outCartesianTrajectoryPort.open\n");
         return false;
@@ -291,6 +291,13 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.5,0.9}};
+    fcl::CollisionObjectf collisionObjectTable{table, tfTest};
+    fcl::Vector3f translation(0.6, -0.0, -0.45);
+    collisionObjectTable.setTranslation(translation);
+    tableCollision.clear();
+    tableCollision.push_back(collisionObjectTable);
+
     int nOfCollisionObjects = 6;
     collisionObjects.clear();
     collisionObjects.reserve(nOfCollisionObjects);
@@ -316,7 +323,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     yInfo()<<"offset collisions created";
 
-    checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+    checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
     yInfo()<<"Check selfCollisionObject created";
     if(planningSpace == "cartesian"){ // cartesian space
         space = ob::StateSpacePtr(new ob::SE3StateSpace());

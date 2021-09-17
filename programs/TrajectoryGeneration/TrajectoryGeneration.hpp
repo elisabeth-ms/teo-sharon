@@ -95,7 +95,7 @@ namespace sharon
             KDL::JntArray qmax;
             std::vector<fcl::CollisionObjectf> collisionObjects;
             std::vector<std::array<float, 3>> offsetCollisionObjects;
-            
+            std::vector<fcl::CollisionObjectf> tableCollision;
             
             std::vector<KDL::Frame> centerLinkWrtJoint;
 
