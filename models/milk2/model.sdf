@@ -3,7 +3,7 @@
   <model name='milk2'>
     <link name='link_0'>
       <inertial>
-        <mass>1</mass>
+        <mass>0.5</mass>
         <inertia>
           <ixx>0.004131</ixx>
           <ixy>0</ixy>
