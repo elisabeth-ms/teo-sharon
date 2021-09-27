@@ -7,6 +7,7 @@ from PIL import Image
 from pynput import keyboard
 import os
 
+import cv2 as cv
 
 simulation_data_directory = "/home/elisabeth/data/simulation_data/"
 
@@ -54,12 +55,12 @@ if __name__ == "__main__":
         yarp.Network.connect("/teoSim/camera/depthImage:o", "/depthImage")
         
         
-        color_detection_port_name = "/rgbdDetection/teoSim/camera/state:o"
-        input_port_name = "/fake/rgbdDetection/teoSim/camera/state:o"
+        #color_detection_port_name = "/rgbdDetection/teoSim/camera/state:o"
+        #input_port_name = "/fake/rgbdDetection/teoSim/camera/state:o"
         input_port = yarp.Port()
         input_port.open(input_port_name)
         
-        yarp.Network.connect(color_detection_port_name, input_port_name)
+        #yarp.Network.connect(color_detection_port_name, input_port_name)
         
         img_array = np.zeros((480, 640, 3), dtype=np.uint8)
         yarp_image = yarp.ImageRgb()
@@ -97,34 +98,39 @@ if __name__ == "__main__":
                     if not just_move:
                         inRgbPort.read(yarp_image)
                         inDepthPort.read(yarpImgDepth)
-                        input_port.read(color_detection_data)
+                        
+                        vis0 = cv.fromarray(depthImgArray)
+                        cv.imshow("test", vis0)
+                        cv.waitKey(0)
+                        #input_port.read(color_detection_data)
                     
-                        brx = color_detection_data.get(0).find("brx").asDouble()
-                        bry = color_detection_data.get(0).find("bry").asDouble()
+                        
+                        # brx = color_detection_data.get(0).find("brx").asDouble()
+                        # bry = color_detection_data.get(0).find("bry").asDouble()
                     
-                        tlx = color_detection_data.get(0).find("tlx").asDouble()
-                        tly = color_detection_data.get(0).find("tly").asDouble()
+                        # tlx = color_detection_data.get(0).find("tlx").asDouble()
+                        # tly = color_detection_data.get(0).find("tly").asDouble()
 
-                        print(brx, bry, tlx, tly)
+                        # print(brx, bry, tlx, tly)
 
-                        im = Image.fromarray(img_array)
+                        # im = Image.fromarray(img_array)
                     
-                        strImageFile = str(num_image)
+                        # strImageFile = str(num_image)
                         #print(strImageFile)
                 
                         # if not os.path.exists("rgbImage_o/"+strImageFile+'.ppm'):
-                        print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
-                        im.save(simulation_data_directory+"rgbImage_o/"+ strImageFile + '.ppm')
-                        print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
-                        yarp.write(yarpImgDepth,simulation_data_directory+"depthImage_o/"+strImageFile + '.float')
-                        labels_file  = open(simulation_data_directory+"labels/"+strImageFile+'.txt', "w+")
-                        x_label = (brx+tlx)/(2.0*absolute_width)
-                        y_label = (bry+tly)/(2.0*absolute_height)
-                        width = (brx-tlx)/absolute_width
-                        height = (bry-tly)/absolute_height
-                        labels_file.write(str(label)+" "+str(x_label)+" "+str(y_label)+" " + str(width)+" "+str(height)+"\n")
-                        labels_file.close()
-                        num_image+=1
+                        # print("Save rgbImage: ", "rgbImage_o/"+strImageFile,".ppm")
+                        # im.save(simulation_data_directory+"rgbImage_o/"+ strImageFile + '.ppm')
+                        # print("Save depthImage: ", "depthImage_o/"+strImageFile,".float")
+                        # yarp.write(yarpImgDepth,simulation_data_directory+"depthImage_o/"+strImageFile + '.float')
+                        # labels_file  = open(simulation_data_directory+"labels/"+strImageFile+'.txt', "w+")
+                        # x_label = (brx+tlx)/(2.0*absolute_width)
+                        # y_label = (bry+tly)/(2.0*absolute_height)
+                        # width = (brx-tlx)/absolute_width
+                        # height = (bry-tly)/absolute_height
+                        # labels_file.write(str(label)+" "+str(x_label)+" "+str(y_label)+" " + str(width)+" "+str(height)+"\n")
+                        # labels_file.close()
+                        # num_image+=1
         else:
             for y in np.arange(-0.25,0.5,0.15):
                 startRotZ = random.uniform(0, 0.2)

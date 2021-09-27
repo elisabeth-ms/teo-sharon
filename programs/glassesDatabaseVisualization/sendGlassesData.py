@@ -10,7 +10,7 @@ import os
 
 
 cwd = os.getcwd()
-pathImages = cwd + '/glass__2021-01-29_04-55-27-5f53bf16'
+pathImages = cwd + '/tomato_sauce__2021-03-25_04-16-51-b6a6cb2c__1'
 fixationsFileStr = pathImages+'/fixations.pkl'
 
 def get_frames_fixations_from_pkl(fixationsFileStr):
@@ -67,7 +67,7 @@ class GlassesServerYarp(yarp.RFModule):
         
         Returns: The period of the module in seconds.
         """
-        return 0.1
+        return 1.0
     
         
     def write_image_yarp_port(self, img_array):

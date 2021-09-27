@@ -5,6 +5,11 @@
 		<parameters>../worlds/teo_sharon_table.world</parameters>
 		<node>localhost</node>
 	</module>
+	<module>
+		<name>rgbdDetection</name>
+		<parameters>--RGBDRemote /teoSim/camera --detector ObjectDetection2DOpencvDnn --context ObjectDetection2DOpencvDnn --from ObjectDetection2DOpencvDnnSimulation.ini</parameters>
+		<node>localhost</node>
+	</module>
 
 	<module>
 		<name>remotecontrolboardremapper</name>
@@ -53,10 +58,17 @@
 	
 	<module>
 		<name>python3</name>
-		<parameters>../programs/demoSharon/demo_sharon.py</parameters>
+		<parameters>/home/elisabeth/repos/teo-sharon/programs/EncryptedComms/serverEncrypted.py</parameters>
 		<node>localhost</node>
 	</module>
 	
+	
+	<module>
+		<name>python3</name>
+		<parameters>/home/elisabeth/repos/teo-sharon/programs/glassesDatabaseVisualization/matchingGlassesTeoImages.py</parameters>
+		<node>localhost</node>
+	</module>
+
  	<module>
         <name>yarpview</name>
         <parameters>--name /yarpview/rgbd/rgbImage:i</parameters>
@@ -67,7 +79,7 @@
         <to>/yarpview/rgbd/rgbImage:i</to>
         <!--protocol></protocol-->
     </connection>
-
+    
     <module>
         <name>yarpview</name>
         <parameters>--name /yarpview/rgbd/depthImage:i</parameters>
@@ -79,6 +91,25 @@
         <to>/yarpview/rgbd/depthImage:i</to>
         <protocol>udp+recv.portmonitor+type.dll+file.depthimage</protocol>
     </connection>
-	
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/rgbdDetection/img:i</parameters>
+        <node>localhost</node>
+    </module>
+    <connection>
+        <from>/rgbdDetection/teoSim/camera/img:o </from>
+        <to>/yarpview/rgbdDetection/img:i</to>
+    </connection>
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /yarpview/glassesServer/images:i</parameters>
+        <node>localhost</node>
+    </module>
+    <connection>
+        <from>/glassesServer/images:o</from>
+        <to>/yarpview/glassesServer/images:i</to>
+    </connection>
 
 </application>

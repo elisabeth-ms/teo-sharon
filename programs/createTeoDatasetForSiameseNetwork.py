@@ -7,9 +7,8 @@ totalWidth = 640
 totalHeight = 480
 
 path = r"/home/elisabeth/data/simulation_data/"
-pathImages = path+"rgbImage_o/jpg/"
+pathImages = path+"rgbImage_o/"
 pathLabels = path+"new_labels/"
-
 newPath = r"/home/elisabeth/data/siamese_dataset/simulation/teo_variable_sizes/"
 
 imagesList = os.listdir(pathImages)
@@ -20,6 +19,7 @@ index = [0,0,0,0]
 
 for image in imagesList:
     label = image[:-4] + ".txt"
+    print(label)
     fileLabel = open(pathLabels+label,'r')
     line = fileLabel.read()
     content = line.split(" ")
@@ -44,15 +44,17 @@ for image in imagesList:
     # if width*totalWidth >=200 or height*totalHeight>=200:
     #     print(width*totalWidth, height*totalHeight)
     im1 = imPIL.crop(area)
+                    
+
     
     if category == 0: # milk1 entera
         imageName = newPath +"milk1/"+ "milk1_image_"
-        im1.save(imageName+str(index[0]) + ".jpg", "JPEG")
+        im1.save(imageName+str(index[0]) + ".ppm")
         index[0] = index[0]+1
     
     elif category == 1: # milk2 semi
         imageName = newPath +"milk2/"+ "milk2_image_"
-        im1.save(imageName+str(index[1]) + ".jpg", "JPEG")
+        im1.save(imageName+str(index[1]) + ".ppm")
         index[1] = index[1]+1
         
     # elif category == 2: # cup
