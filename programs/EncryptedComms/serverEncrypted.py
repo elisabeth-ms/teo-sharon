@@ -9,6 +9,7 @@ import base64
 import numpy as np
 import yarp
 import sys
+
 class ServerProtocol(yarp.RFModule):
 
     def __init__(self):
@@ -25,7 +26,7 @@ class ServerProtocol(yarp.RFModule):
         self.glasses_images_port = yarp.BufferedPortImageRgb() # Create a port
         self.glasses_data_port = yarp.Port()
         self.wait_for_connection = True
-        self.server_ip = '2.2.2.109'
+        self.server_ip = '127.0.0.1'#'163.117.150.88' #'2.2.2.109'
         
     def configure(self, rf):
         self.imageWidth = rf.find("width").asInt32()
@@ -61,13 +62,13 @@ class ServerProtocol(yarp.RFModule):
         
         Returns: The period of the module in seconds.
         """
-        return 0.5
+        return 0.1
     
     def create_cipher_encrypt_decrypt(self):
-        with open("keyEncryption.bin", mode='rb') as file:  
+        with open(os.path.join(sys.path[0],"keyEncryption.bin"), mode='rb') as file:  
             key = file.read()
-        with open("ivEncryption.bin", mode='rb') as file:
-            iv = file.read()   
+        with open(os.path.join(sys.path[0],"ivEncryption.bin"), mode='rb') as file:
+            iv = file.read()
         
             
         self.cipher_encrypt = AES.new(key, AES.MODE_CFB, iv=iv)
@@ -118,44 +119,6 @@ class ServerProtocol(yarp.RFModule):
             return True, data_array 
 
 
-    def handle_images(self):
-        print("Lets accept the connection")
-        (self.connection, addr) = self.socket.accept()
-        print("Connection accept")
-        ok = False
-        while self.connection:
-            try:
-                ok, length_image_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the image data occupy
-                
-                ok, length_fixation_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the fixation data occupy
-                                
-                ok, length_probability_vector = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
-                
-                ok, image_data = self.receive_and_decrypt_image_data(length_image_data) # Receive and decipher the received image data
-                if ok:
-                    print("Image data received")
-                    image = Image.open(io.BytesIO(image_data))
-                    #image.save("ImagesReceivedSocket/"+str(self.file_num)+".png", "PNG")
-                    #self.file_num += 1
-             
-                ok, fixation_data = self.receive_and_decrypt_array(length_fixation_data) # Receive and decipher the received fixation data 
-                if ok:
-                    print("Fixation point received")
-                    print(fixation_data)
-                
-                ok, probability_vector = self.receive_and_decrypt_array(length_probability_vector) # Receive and decipher the received probability vector
-                if ok:            
-                    print("Probability vector received")
-                    print(probability_vector)
-                                
-                if ok: # Send back ok
-                    data_ok = b'\01'
-                    print("Send Ok")                             
-                    data_ok_cipher = self.cipher_encrypt.encrypt(data_ok)
-                    self.connection.sendall(data_ok_cipher)
-                                
-            except KeyboardInterrupt:
-                break
 
     def updateModule(self):
         ''' 
@@ -175,16 +138,26 @@ class ServerProtocol(yarp.RFModule):
                 try:
                     ok, length_image_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the image data occupy
                 
-                    ok, length_fixation_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the fixation data occupy
-                                
-                    ok, length_probability_vector = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
-                
                     ok, image_data = self.receive_and_decrypt_image_data(length_image_data) # Receive and decipher the received image data
+
+     
                     if ok:
                         print("Image data received")
                         image = Image.open(io.BytesIO(image_data))
                         #image.save("ImagesReceivedSocket/"+str(self.file_num)+".png", "PNG")
                         #image = Image.open("ImagesReceivedSocket/"+str(self.file_num)+".png")
+                        width, height = image.size
+                        
+                        #yarpview has problems with the visualization of images of some resolutions. Since the images received are almost squared, we are 
+                        # going to crop the image
+                        square_length = 0
+                        if width<height:
+                            square_length = width
+                        else:
+                            square_length = height
+                        
+                        image = image.crop((0,0,square_length,square_length))
+
                         img_array = np.asarray(image)
                         #print(img_array)
                         #self.file_num += 1
@@ -193,19 +166,20 @@ class ServerProtocol(yarp.RFModule):
             
                         img = yarp.ImageRgb()
                 
-                        width, height = image.size
-                        
-                        img.resize(width, height)
-                        img.setExternal(img_array.data, width, height) # Wrap yarp image around the numpy array  
+                        img.resize(square_length, square_length)
+                        img.setExternal(img_array.data, square_length, square_length) # Wrap yarp image around the numpy array  
                         yarp_img.copy(img)
                         self.glasses_images_port.write()                    
-                        
-                
+                    
+                    ok, length_fixation_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the fixation data occupy
+    
                     ok, fixation_data = self.receive_and_decrypt_array(length_fixation_data) # Receive and decipher the received fixation data 
                     if ok:
                         print("Fixation point received")
                         print(fixation_data)
                     
+                    ok, length_probability_vector = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
+
                     ok, probability_vector = self.receive_and_decrypt_array(length_probability_vector) # Receive and decipher the received probability vector
                     if ok:            
                         print("Probability vector received")
@@ -247,6 +221,7 @@ class ServerProtocol(yarp.RFModule):
     #     self.socket = None
     
     def close_connections(self):
+        print("Closing the connections...")
         try:
             self.connection.shutdown(SHUT_RDWR)
         except:
