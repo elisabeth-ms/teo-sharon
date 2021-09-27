@@ -25,8 +25,9 @@ import sys
 
 
 
-# TODO configure param: Confidence margin for the detections from yolo
 
+robot= '/teoSim'
+maxMinDistance = 1.8
 
 class MatchingGlassesTeoImages(yarp.RFModule):
     
@@ -41,10 +42,11 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.xtionObjectDetectionsPort = yarp.BufferedPortBottle()
         
         self.glassesImagePort = yarp.BufferedPortImageRgb()
-        self.glassesResolution = (1088,1080)
+        self.glassesResolution = (720,720)
         self.glassesImageArray =  np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)
-        self.minConfidenceDetection = 0.7
-        self.cropsResolution = (200,200)
+        self.minConfidenceDetection = 0.5
+        self.triggerProb = 0.7
+        self.cropsResolution = (120,120)
         
         self.glassesDataPort = yarp.BufferedPortBottle()
         
@@ -54,16 +56,25 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         # Output Ports
         self.fixationObjectPort = yarp.Port()
         self.fixationObjectImagePort = yarp.BufferedPortImageRgb()
+        self.glassesCropImagePort =  yarp.BufferedPortImageRgb()
         self.detections = yarp.Bottle()
         self.bottleData = yarp.Bottle()
 
-        self.xtionImagePortName = "/xtion/rgbImage" 
-        self.xtionObjectDetectionPortName = "/opencvDnnObjectDetection2D/xtion/detections"
+        if robot == '/teo':
+            self.xtionImagePortName = "/xtion/rgbImage" 
+            self.xtionObjectDetectionPortName = "/rgbdDetection/xtion/detections"
+        elif robot == '/teoSim':
+            self.xtionImagePortName = "/teoSim/camera/rgbImage" 
+            self.xtionObjectDetectionPortName = "/rgbdDetection/teoSim/camera/state"
         self.glassesImagePortName = "/glassesServer/images"
         self.glassesDataPortName = "/glassesServer/data"
         
-        self.fixationObjectPortName = "/fixationObject"
+        self.fixationObjectPortName = "/object"
         self.fixationObjectImagePortName = "/rgbImage"
+        self.glassesCropImagePortName = "/Glassescrop"
+        
+        # Categories
+        self.categories = None
         
     def configure(self, rf):
         print("Configuring...")
@@ -75,6 +86,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
 
         self.fixationObjectPort.open("/matching"+self.fixationObjectPortName+":o")
         self.fixationObjectImagePort.open("/matching"+self.fixationObjectImagePortName+":o")
+        self.glassesCropImagePort.open("/matching"+self.glassesCropImagePortName+":o")
         
         #connect up the output port to our input port
         yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i")
@@ -87,10 +99,13 @@ class MatchingGlassesTeoImages(yarp.RFModule):
 
         self.embeddingModel, self.tripletModel = self.getModel()
 
-        checkpoint_path = '/home/elisabeth/repos/teo-sharon/tfmodels/training4_130TrainedLayers_128output/cp-0005.ckpt'
+        checkpoint_path = '/home/elisabeth/repos/teo-sharon/tfmodels/training_milks2_130TrainedLayers_128output/cp-0005.ckpt'
  
         self.tripletModel.load_weights(checkpoint_path)
-    
+        
+        self.categories = np.load(sys.path[0]+'/categories.npy')
+        print(self.categories)
+        
         print("MatchingGlassesTeoImages Module initialized...")
         
         return True
@@ -109,7 +124,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         return True
     
     def getPeriod(self):
-        return 0.05
+        return 0.01
     
     def createLabeledCropsFromDetections(self, detections):
         cropImages = []
@@ -118,6 +133,9 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         tlyCropImages = []
         brxCropImages = []
         bryCropImages = []
+        mmxCropImages = []
+        mmyCropImages = []
+        mmzCropImages = []
         for i in range(detections.size()):
             print("Detection ",i)
             dictDetection = detections.get(i)
@@ -125,6 +143,10 @@ class MatchingGlassesTeoImages(yarp.RFModule):
             tly = dictDetection.find("tly").asInt32()
             brx = dictDetection.find("brx").asInt32()
             bry = dictDetection.find("bry").asInt32()
+            mmx = dictDetection.find("mmX").asFloat32()
+            mmy = dictDetection.find("mmY").asFloat32()
+            mmz = dictDetection.find("mmZ").asFloat32()
+
             centerx = int((brx + tlx)/2.0)
             centery = int((bry + tly)/2.0)
             tlyCrop = int(centery-self.cropsResolution[1]/2)
@@ -155,12 +177,77 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                 tlxCropImages.append(tlx)
                 tlyCropImages.append(tly)
                 bryCropImages.append(bry)
-            
+                mmxCropImages.append(mmx)
+                mmyCropImages.append(mmy)
+                mmzCropImages.append(mmz)
 
-        return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages
+
+        return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages
+    
+    def getLabeledCropsSameCategory(self, detections, glassesCategory):
+        
+        cropImages = []
+        labelsCropImages = []
+        tlxCropImages = []
+        tlyCropImages = []
+        brxCropImages = []
+        bryCropImages = []
+        mmxCropImages = []
+        mmyCropImages = []
+        mmzCropImages = []
+        
+        for i in range(detections.size()):
+            dictDetection = detections.get(i)
+            tlx = dictDetection.find("tlx").asInt32()
+            tly = dictDetection.find("tly").asInt32()
+            brx = dictDetection.find("brx").asInt32()
+            bry = dictDetection.find("bry").asInt32()
+            mmx = dictDetection.find("mmX").asFloat32()
+            mmy = dictDetection.find("mmY").asFloat32()
+            mmz = dictDetection.find("mmZ").asFloat32()
+
+            centerx = int((brx + tlx)/2.0)
+            centery = int((bry + tly)/2.0)
+            tlyCrop = int(centery-self.cropsResolution[1]/2)
+            bryCrop = int(centery+self.cropsResolution[0]/2)
+            if tlyCrop <=0:
+                tlyCrop = 0
+                bryCrop = self.cropsResolution[1]
+            if bryCrop>=self.xtionResolution[1]:
+                bryCrop = self.xtionResolution[1]
+                tlyCrop = bryCrop - self.cropsResolution[1]
+                
+            tlxCrop = int(centerx - self.cropsResolution[0]/2)
+            brxCrop = int(centerx + self.cropsResolution[0]/2)
+            
+            if tlxCrop <= 0:
+                tlxCrop = 0
+                brxCrop = self.cropsResolution[0]
+            if brxCrop >= self.xtionResolution[0]:
+                brxCrop = self.xtionResolution[0]
+                tlxCrop = brxCrop - self.cropsResolution[0]
+                
+            category = dictDetection.find("category").asString()
+            confidence = dictDetection.find("confidence").asFloat32()
+            print("Detection ",i," ",category, confidence, glassesCategory in category)
+            
+            if confidence>=self.minConfidenceDetection and glassesCategory in category:
+                cropImages.append(self.xtionImageArray[tlyCrop:bryCrop, tlxCrop:brxCrop,:])
+                labelsCropImages.append(category)
+                brxCropImages.append(brx)
+                tlxCropImages.append(tlx)
+                tlyCropImages.append(tly)
+                bryCropImages.append(bry)
+                mmxCropImages.append(mmx)
+                mmyCropImages.append(mmy)
+                mmzCropImages.append(mmz)
+
+        return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages
+        
+
     
     def getGlassesCropImageCenterFixation(self,bottleData):
-        fixationPoint = (bottleData.get(0).asList().get(0).asFloat32(), bottleData.get(0).asList().get(1).asFloat32())
+        fixationPoint = (bottleData.get(1).asList().get(0).asFloat32(), bottleData.get(1).asList().get(1).asFloat32())
         tlx = int(fixationPoint[0] - self.cropsResolution[0]/2)
         brx = int(fixationPoint[0] + self.cropsResolution[0]/2)
         if tlx<=0:
@@ -184,24 +271,24 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         return self.glassesImageArray[tly:bry, tlx:brx, :]
     
     
-    def writeImageYarpPort(self, imgArray):
+    def writeImageYarpPort(self, imgArray, yarpPort):
         """ Send the image through the yarp port
         
         param img_array: image data in the form of numpy array [height, width, 3].
             Image to be sent.
         """
         
-        yarpImg = self.fixationObjectImagePort.prepare() # Get a place to store the image to be sent
+        yarpImg = yarpPort.prepare() # Get a place to store the image to be sent
         
         img = yarp.ImageRgb()
             
-        img.resize(self.xtionResolution[0], self.xtionResolution[1])
+        img.resize(imgArray.shape[1], imgArray.shape[0])
        
-        img.setExternal(imgArray.data, self.xtionResolution[0], self.xtionResolution[1]) # Wrap yarp image around the numpy array  
+        img.setExternal(imgArray.data, imgArray.shape[1], imgArray.shape[0]) # Wrap yarp image around the numpy array  
             
         yarpImg.copy(img)
 
-        self.fixationObjectImagePort.write()  
+        yarpPort.write()  
 
     def tripletLoss(self,inputs, dist='sqeuclidean', margin='maxplus'):
         anchor, positive, negative = inputs
@@ -291,7 +378,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
 
 
     def updateModule(self):
-        print("Update")
+        # print("Update")
         detectionsCropImages = []
         detectionsCropsLabels = [] 
         
@@ -311,63 +398,88 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         detections=self.xtionObjectDetectionsPort.read(False)          
         if detections:
             self.detections = detections
-        print(detections)
         
-        #bottleData = yarp.Bottle()
+        bottleData = yarp.Bottle()
         bottleData = self.glassesDataPort.read(False)
         
         if bottleData:
             self.bottleData = bottleData
             print("fixation")            
 
-            fixationPoint = (self.bottleData.get(0).asList().get(0).asFloat32(), self.bottleData.get(0).asList().get(1).asFloat32())
+            fixationPoint = (self.bottleData.get(1).asList().get(0).asFloat32(), self.bottleData.get(1).asList().get(1).asFloat32())
             print(fixationPoint)
+            vectorProbs = []
+            listProbs = self.bottleData.get(3).asList()
+            for i in range(listProbs.size()):
+                vectorProbs.append(listProbs.get(i).asFloat32())
+            vectorProbs=np.asarray(vectorProbs)
+           
         
-            print(np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)))
+            print("xtion: ",np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)))
             
-            print(np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)))
+            print("glasses: ", np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)))
+            if vectorProbs.size == self.categories.size:
+                if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
+                    print("We have data from both cameras and detections")
+                    
+                    if np.argmax(vectorProbs)!=0 and np.max(vectorProbs)>= self.triggerProb: # Glasses detected an object
+                        glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
+                    
+                        glassesCategory = self.categories[np.argmax(vectorProbs)]
+                        print("Glasses category: ", glassesCategory)
+                        # detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages= self.createLabeledCropsFromDetections(self.detections)
+                        detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages= self.getLabeledCropsSameCategory(self.detections, glassesCategory)
+                        #Instead of compare the the glasses image with all the detections. lets just compare it with the detections that have a simular label. This is to differenciate the 
+                        # objects of the same category, but different class inside the category
+                        
+                        print(detectionsCropsLabels)
+                        
+                        predictEmbeddingGlasses = self.computeEmbeddingsCropImage(glassesCropImage)
+                        
+                        iMin = -1
+                        minDistance = np.array(10000)
+                        for i,crop in enumerate(detectionsCropImages):
+                            predictEmbeddingDetection = self.computeEmbeddingsCropImage(crop)
 
-            if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
-                print("We have data from both cameras and detections")
-                
-                glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
-                
-                detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages = self.createLabeledCropsFromDetections(self.detections)
-                
-                predictEmbeddingGlasses = self.computeEmbeddingsCropImage(glassesCropImage)
-                
-                iMin = -1
-                minDistance = np.array(10000)
-                for i,crop in enumerate(detectionsCropImages):
-                    predictEmbeddingDetection = self.computeEmbeddingsCropImage(crop)
+                            distance = K.square(predictEmbeddingGlasses - predictEmbeddingDetection)
+                            distance = K.sqrt(K.sum(distance, axis=-1, keepdims=True))
+                            distance = distance.numpy()[0][0]
+                            print(distance)        
 
-                    distance = K.square(predictEmbeddingGlasses - predictEmbeddingDetection)
-                    distance = K.sqrt(K.sum(distance, axis=-1, keepdims=True))
-                    distance = distance.numpy()[0][0]            
+                            if distance < minDistance:
+                                minDistance = distance
+                                iMin = i
+                        print(minDistance)
+                        if minDistance< maxMinDistance:
+                            print(minDistance)
+                            if iMin>=0:
+                                print(minDistance)
+                                fixationObject = yarp.Bottle()
+                                dictObject = fixationObject.addDict()
+                                dictObject.put("category",detectionsCropsLabels[iMin])
+                                dictObject.put("distance", minDistance.item())
+                                dictObject.put("tlx", tlxCropImages[iMin])
+                                dictObject.put("tly", tlyCropImages[iMin])
+                                dictObject.put("brx", brxCropImages[iMin])
+                                dictObject.put("bry", bryCropImages[iMin])
+                                dictObject.put("mmX", mmxCropImages[iMin])
+                                dictObject.put("mmY", mmyCropImages[iMin])
+                                dictObject.put("mmZ", mmzCropImages[iMin])
 
-                    if distance < minDistance:
-                        minDistance = distance
-                        iMin = i
-                
-                if iMin>=0:
-                    print(minDistance)
-                    fixationObject = yarp.Bottle()
-                    dictObject = fixationObject.addDict()
-                    dictObject.put("category",detectionsCropsLabels[iMin])
-                    dictObject.put("distance", minDistance.item())
-                    dictObject.put("tlx", tlxCropImages[iMin])
-                    dictObject.put("tly", tlyCropImages[iMin])
-                    dictObject.put("brx", brxCropImages[iMin])
-                    dictObject.put("bry", bryCropImages[iMin])
-                
-                    self.fixationObjectPort.write(fixationObject)
-                    print("Min distance of ",minDistance, "for object labeled as", detectionsCropsLabels[iMin])
-                    outImage = self.drawRectImage(tlxCropImages[iMin], tlyCropImages[iMin], brxCropImages[iMin], bryCropImages[iMin])
-                
-                    self.writeImageYarpPort(outImage)
-                else:
-                    self.writeImageYarpPort(self.xtionImageArray)
+                            
+                                self.fixationObjectPort.write(fixationObject)
+                                print("Min distance of ",minDistance, "for object labeled as", detectionsCropsLabels[iMin])
+                                outImage = self.drawRectImage(tlxCropImages[iMin], tlyCropImages[iMin], brxCropImages[iMin], bryCropImages[iMin])
 
+                                self.writeImageYarpPort(outImage,self.fixationObjectImagePort)
+                                print("write glassescrop")
+                                im = Image.fromarray(glassesCropImage)
+                                im_np= np.asarray(im)
+                                self.writeImageYarpPort(im_np, self.glassesCropImagePort)
+                        # else:
+                            # self.writeImageYarpPort(self.xtionImageArray)
+            else:
+                print("Probability vector size is different to the number of categories ...")
                 
                         
         return True

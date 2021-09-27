@@ -16,9 +16,9 @@ from matplotlib.ticker import MaxNLocator
 robot = '/teoSim'
 
 available_right_hand_controlboard = True
-available_left_hand_controlboard = False
+available_left_hand_controlboard = True
 available_right_arm_controlboard = True
-available_left_arm_controlboard = False
+available_left_arm_controlboard = True
 available_head_controlboard = True
 available_trunk_controlboard = True
 
@@ -82,12 +82,13 @@ class DemoSharon(yarp.RFModule):
         # State
         self.state = 0
         self.firstInState = True  # For printing messages just once
-        self.jointsPositionError = 1.0
+        self.jointsPositionError = 2.0
 
 
         # Init Joints position for grasping
-        self.initTrunkJointsPosition = [0, 15.0]
-        self.initHeadJointsPosition = [0, 15.0]
+        self.initTrunkJointsPosition = [0, 14.0]
+        self.initBackTrunkJointsPosition = [0, -9.0]
+        self.initHeadJointsPosition = [0, 14.0]
 
         # [-90, 0, 0, 0, 90, 0]
         self.initRightArmJointsPosition = [-50, -50, 40, -70, 30, -20]
@@ -136,6 +137,8 @@ class DemoSharon(yarp.RFModule):
 
         self.matching_object_output_port_name = "/matching/object:o"
         self.demo_object_input_port_name = "/demoSharon/object:i"
+        
+        self.once = True
 
 
     def configure(self, rf):
@@ -455,117 +458,251 @@ class DemoSharon(yarp.RFModule):
         return True
 
     def getPeriod(self):
-        return 0.6
+        return 0.5
 
     def updateModule(self):
         try:
-            if self.state == 0:  # Put the trunk joints in the init state
 
-                for joint in range(self.numTrunkJoints):
-                    self.trunkIPositionControl.positionMove(
-                        joint, self.initTrunkJointsPosition[joint])
-                if (self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints)):
-                    print("State 0: Trunks joints are in the init position.")
-                    self.state = 1
-                    self.firstInState = True
-                    yarp.delay(2.0)
+            if self.state == 0:  # Put the trunk joints in the init state
+                if self.firstInState:
+                    if (self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)): 
+                        print("State 0: Trunk and right arm are in the init position")
+                        self.state = 1
+                        self.firstInState = True
+                    else:
+                        initTrunkAndRightArmPosition = self.initTrunkJointsPosition + self.initRightArmJointsPosition
+                        
+                        self.jointsTrajectory = []
+                        found, self.jointsTrajectory = self.computeTrajectoryToJointsPosition(self.rightArm, initTrunkAndRightArmPosition)
+                        if found:
+                            self.numPointTrajectory = 0
+                            # Lets plot the trajectory
+                            print(len(self.jointsTrajectory))
+                            self.smoothJointsTrajectory = self.computeSmoothJointsTrajectory()
+                            print(len(self.jointsTrajectory))
+                            self.plotTrajectories(self.jointsTrajectory, self.smoothJointsTrajectory)
+                            self.firstInState = False
                 else:
-                    if self.firstInState:
-                        print("State 0: Continue the Trunk joints motion towards the init position.")
-                        self.firstInState = False
-            if self.state == 1: # Put the neck joints in the init state
+                    if(self.followJointsTrajectory(self.rightArm, self.jointsTrajectory)):
+                        self.state = 1
+                        self.firstInState = True
+            if self.state == 1:
                 if available_head_controlboard:
                     for joint in range(self.numHeadJoints):
                         self.headIPositionControl.positionMove(joint, self.initHeadJointsPosition[joint])
                     if (self.checkJointsPosition(self.initHeadJointsPosition, self.headIEncoders, self.numHeadJoints)):
                         print("State 1: Head joints are in the init position.")
-                        self.state = 2
+                        self.state = 5
                         self.firstInState = True
-                        yarp.delay(1.0)
+                        yarp.delay(5.0)
                     else:
                         if self.firstInState:
                             print("State 1: Continue the head joints motion towards the init position.")
                             self.firstInState = False
                 else:
-                    self.state = 2
+                    self.state = 5
                     self.firstInState = True
-            if self.state == 2:  # Put the right arm joints in the init state
-                if available_right_arm_controlboard:
-                    if (self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
-                        print("State 2: Right arm joints are in the init position.")
-                        self.state = 3
-                        self.firstInState = True
-                    else:
-                        if self.firstInState:
-                            print("State 2: Continue the Right arm joints motion towards the init position.")
-                            self.firstInState = False
-                            if available_right_hand_controlboard and robot == '/teoSim':
-                                self.rightHandIPositionControl.positionMove(0, 1200)
-                            if available_right_hand_controlboard and robot == '/teo':
-                                self.rightHandIPWMControl.setRefDutyCycle(0,100)
-                                self.rightHandIPWMControl.setRefDutyCycle(0,100)
-                                self.rightHandIPWMControl.setRefDutyCycle(0,100)
+            
+            #     for joint in range(self.numTrunkJoints):
+            #         self.trunkIPositionControl.positionMove(joint, self.initBackTrunkJointsPosition[joint])
+            #     if (self.checkJointsPosition(self.initBackTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints)):
+            #         print("State 0: Trunks joints are in the back position.")
+            #         self.state = 1
+            #         self.firstInState = True
+            #         yarp.delay(2.0)
+            #     else:
+            #         if self.firstInState:
+            #             print("State 0: Continue the Trunk joints motion towards the back position.")
+            #             self.firstInState = False
+            # if self.state == 1: # Put the neck joints in the init state
+            #     if available_head_controlboard:
+            #         for joint in range(self.numHeadJoints):
+            #             self.headIPositionControl.positionMove(joint, self.initHeadJointsPosition[joint])
+            #         if (self.checkJointsPosition(self.initHeadJointsPosition, self.headIEncoders, self.numHeadJoints)):
+            #             print("State 1: Head joints are in the init position.")
+            #             self.state = 2
+            #             self.firstInState = True
+            #             yarp.delay(1.0)
+            #         else:
+            #             if self.firstInState:
+            #                 print("State 1: Continue the head joints motion towards the init position.")
+            #                 self.firstInState = False
+            #     else:
+            #         self.state = 2
+            #         self.firstInState = True
+            # if self.state == 2:  # Put the right arm joints in the init state
+            #     if available_right_arm_controlboard:
+            #         if (self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
+            #             print("State 2: Right arm joints are in the init position.")
+            #             self.state = 3
+            #             self.firstInState = True
+            #         else:
+            #             if self.firstInState:
+            #                 print("State 2: Continue the Right arm joints motion towards the init position.")
+            #                 self.firstInState = False
+            #                 if available_right_hand_controlboard and robot == '/teoSim':
+            #                     self.rightHandIPositionControl.positionMove(0, 1200)
+            #                 if available_right_hand_controlboard and robot == '/teo':
+            #                     self.rightHandIPWMControl.setRefDutyCycle(0,100)
+            #                     self.rightHandIPWMControl.setRefDutyCycle(0,100)
+            #                     self.rightHandIPWMControl.setRefDutyCycle(0,100)
 
-                            if available_left_hand_controlboard:
-                                self.leftHandIPositionControl.positionMove(0, 1200)
-                            self.aux = [0, -50, 40, 0, 0, 0]
-                        # Move right arm joints 1 2
-                        if(not self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[1]):
-                            if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
-                                print("State 2: Moving right arm joints 1 and 2")
-                            else:
-                                self.aux = [-50, -50, 40, 0, 0, 0]                    
-                                self.rightArmJointsInPosition[1] = True
-                                self.rightArmJointsInPosition[2] = True
-                                
-                        # Move right arm joint 0   
-                        if(not self.rightArmJointsInPosition[0] and self.rightArmJointsInPosition[1]):
-                            if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
-                                print("State 2: Moving right arm joint 0")
-                            else:
-                                self.rightArmJointsInPosition[0] = True
-                                aux = [-50, -50, 40, 70, 0, 0]
-                
-                        if(self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[3]):
-                            if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
-                                print("State 2: Moving right arm joint 3")
-                            else:
-                                self.rightArmJointsInPosition[3] = True
-                                self.aux = self.initRightArmJointsPosition
+            #                 if available_left_hand_controlboard:
+            #                     self.leftHandIPositionControl.positionMove(0, 1200)
+            #                 self.aux = [0, -50, 40, 0, 0, 0]
+            #             # Move right arm joints 1 2
+            #             if(not self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[1]):
                             
-                        if (self.rightArmJointsInPosition[3]):
-                            if not self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints):
-                                print("State 2: Moving Right arm joints 4 and 5.")
-                            else:
-                                print("State 2: Right arm joints are in the init position")
-                                self.state = 3
+            #                 if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+            #                     print("State 2: Moving right arm joints 1 and 2")
+            #                     if self.once :
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.aux = [-50, -50, 40, 0, 0, 0]                    
+            #                     self.rightArmJointsInPosition[1] = True
+            #                     self.rightArmJointsInPosition[2] = True
+            #                     self.once = True
+                                
+            #             # Move right arm joint 0   
+            #             if(not self.rightArmJointsInPosition[0] and self.rightArmJointsInPosition[1]):
+            #                 if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+            #                     print("State 2: Moving right arm joint 0")
+            #                     if self.once :
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.rightArmJointsInPosition[0] = True
+            #                     aux = [-50, -50, 40, 70, 0, 0]
+            #                     self.once = True
+                
+            #             if(self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[3]):
+            #                 if not self.checkJointsPosition(self.aux, self.rightArmIEncoders, self.numRightArmJoints):
+            #                     print("State 2: Moving right arm joint 3")
+            #                     if self.once :
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.rightArmJointsInPosition[3] = True
+            #                     self.aux = self.initRightArmJointsPosition
+            #                     self.once = True
+                
+                            
+                        # if (self.rightArmJointsInPosition[3]):
+                        #     if not self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints):
+                        #         print("State 2: Moving Right arm joints 4 and 5.")
+                        #         if self.once :
+                        #             for joint in range(self.numRightArmJoints):
+                        #                 self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
+                        #             self.once = False
+                        #     else:
+                        #         print("State 2: Right arm joints are in the init position")
+                        #         self.state = 3
+                        #         self.once = True
                         # if robot=="/teoSim":
                         #     yarp.delay(2.0)        
-                        for joint in range(self.numRightArmJoints):
-                            self.rightArmIPositionControl.positionMove(joint, self.aux[joint])
-                else:
+                        
+                # else:
+                #     self.once = True
+                #     self.state = 3
+                #     self.firstInState = True
+            # if self.state == 3:  # Put the left arm joints in the init state
+            #     for i  in range(len(self.rightArmJointsInPosition)):
+            #         self.rightArmJointsInPosition[i] = False
+            #     if available_left_arm_controlboard:
+            #         # for joint in range(self.numLeftArmJoints):
+            #         #     self.leftArmIPositionControl.positionMove(joint, self.initLeftArmJointsPosition[joint])
+            #         if (self.checkJointsPosition(self.initLeftArmJointsPosition, self.leftArmIEncoders, self.numLeftArmJoints)):
+            #             print("State 3: Left arm joints are in the init position.")
+            #             self.state = 4
+            #             self.firstInState = True
+            #         else:
+            #             if self.firstInState:
+            #                 print("State 3: Continue the left arm joints motion towards the init position.")
+            #                 self.firstInState = False
+            #                 self.once = True
+            #                 if available_left_hand_controlboard and robot == '/teoSim':
+            #                     self.leftHandIPositionControl.positionMove(0, 1200)
+            #                 if available_left_hand_controlboard and robot == '/teo':
+            #                     self.leftHandIPWMControl.setRefDutyCycle(0,100)
+            #                     self.leftHandIPWMControl.setRefDutyCycle(0,100)
+            #                     self.leftHandIPWMControl.setRefDutyCycle(0,100)
+            #                 self.aux = [0, 50, -40, 0, 0, 0]
+            #             # Move right arm joints 1 2
+            #             if(not self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[1]):
+                     
+            #                 if not self.checkJointsPosition(self.aux, self.leftArmIEncoders, self.numRightArmJoints):
+            #                     print("State 3: Moving left arm joints 1 and 2")
+            #                     if self.once :
+            #                         print("command")
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.leftArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.aux = [-50, 50, -40, 0, 0, 0]                    
+            #                     self.rightArmJointsInPosition[1] = True
+            #                     self.rightArmJointsInPosition[2] = True
+            #                     self.once = True
+                                
+            #             # Move right arm joint 0   
+            #             if(not self.rightArmJointsInPosition[0] and self.rightArmJointsInPosition[1]):
+            #                 if not self.checkJointsPosition(self.aux, self.leftArmIEncoders, self.numRightArmJoints):
+            #                     print("State 3: Moving left arm joint 0")
+            #                     if self.once:
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.leftArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.rightArmJointsInPosition[0] = True
+            #                     aux = [-50, 50, -40, -70, 0, 0]
+            #                     self.once = True
+                
+            #             if(self.rightArmJointsInPosition[0] and not self.rightArmJointsInPosition[3]):
+            #                 if not self.checkJointsPosition(self.aux, self.leftArmIEncoders, self.numRightArmJoints):
+            #                     print("State 3: Moving left arm joint 3")
+            #                     if self.once :
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.leftArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     self.rightArmJointsInPosition[3] = True
+            #                     self.aux = self.initLeftArmJointsPosition
+            #                     self.once = True
+                
+                            
+            #             if (self.rightArmJointsInPosition[3]):
+            #                 if not self.checkJointsPosition(self.initLeftArmJointsPosition, self.leftArmIEncoders, self.numRightArmJoints):
+            #                     print("State 3: Moving Left arm joints 4 and 5.")
+            #                     if self.once :
+            #                         for joint in range(self.numRightArmJoints):
+            #                             self.leftArmIPositionControl.positionMove(joint, self.aux[joint])
+            #                         self.once = False
+            #                 else:
+            #                     print("State 3: Left arm joints are in the init position")
+            #                     self.state = 4
+            #                     self.once = True
+            #     else:
+            #         print("State 3: leftArm controlboard is not selected.")
+            #         self.state = 4
+            #         self.firstInState = True
+            # if self.state == 4:  # Put the trunk joints in the init state
 
-                    self.state = 3
-                    self.firstInState = True
-            if self.state == 3:  # Put the left arm joints in the init state
-                for i  in range(len(self.rightArmJointsInPosition)):
-                    self.rightArmJointsInPosition[i] = False
-                if available_left_arm_controlboard:
-                    for joint in range(self.numLeftArmJoints):
-                        self.leftArmIPositionControl.positionMove(joint, self.initLeftArmJointsPosition[joint])
-                    if (self.checkJointsPosition(self.initLeftArmJointsPosition, self.leftArmIEncoders, self.numLeftArmJoints)):
-                        print("State 3: Left arm joints are in the init position.")
-                        self.state = 4
-                        self.firstInState = True
-                    else:
-                        if self.firstInState:
-                            print("State 3: Continue the Left arm joints motion towards the init position.")
-                            self.firstInState = False
-                else:
-                    print("State 3: leftArm controlboard is not selected.")
-                    self.state = 4
-                    self.firstInState = True
-            if self.state == 4:
+            #     for joint in range(self.numTrunkJoints):
+            #         self.trunkIPositionControl.positionMove(
+            #             joint, self.initTrunkJointsPosition[joint])
+            #     if (self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints)):
+            #         print("State 4: Trunks joints are in the init position.")
+            #         self.state = 5
+            #         self.firstInState = True
+            #         yarp.delay(5.0)
+            #     else:
+            #         if self.firstInState:
+            #             print("State 4: Continue the Trunk joints motion towards the init position.")
+            #             self.firstInState = False
+            if self.state == 5:
                 if self.firstInState:
                     if not yarp.Network.isConnected(self.matching_object_output_port_name, self.demo_object_input_port_name):
                         print("Try to connect to",self.matching_object_output_port_name)
@@ -573,16 +710,23 @@ class DemoSharon(yarp.RFModule):
                         yarp.Network.connect(self.matching_object_output_port_name, self.demo_object_input_port_name)
 
                     else:
-                        print("State 4: Waiting for object location ...")
-                        objectData = yarp.Bottle()
-                        objectData = self.objectPositionPort.read(False) 
+                        print("State 5: Waiting for object location ...")
+                        objectData = self.objectPositionPort.read(False)
+                        print(objectData)
+
                         if objectData:
                             #TODO: object coordinates wrt trunk
+                            yarp.Network.disconnect(self.matching_object_output_port_name, self.demo_object_input_port_name)
                             self.objectData = objectData
                             category = self.objectData.get(0).find('category').asString()
                             self.locationTCP = self.transformFromXYZFromCameraCoordinatesToTrunk(self.objectData, category)
-                            self.rightArm = True
-                            print("State 4: We are ready to move near the object ", category, "in location: ", self.locationTCP)
+                            self.locationTCP[1] = self.locationTCP[1]- 0.01
+                            if self.locationTCP[1]<=0.1:
+                                self.rightArm = True    
+                            else:
+                                self.rightArm = False
+                            
+                            print("State 5: We are ready to move near the object ", category, "in location: ", self.locationTCP)
                             self.reachingDistance = 0.1
                             feasible, self.orientationTCP, self.reachingPose = self.computeFeasibleOrientation(
                                 self.rightArm, self.locationTCP, self.reachingDistance)
@@ -602,84 +746,94 @@ class DemoSharon(yarp.RFModule):
                                     self.firstInState = False
                                 else:
                                     print("Solution NOT found")
-                                    self.state = -1
+                                    self.state = 5
+                                    self.firstInState = True
                             else:
                                 print("solution not found")
-                                self.state = -1
+                                self.state = 5
+                                self.firstInState = True
                 else:
-                    print("State 4: Following path to the reaching pose.")
+                    
+                    print("State 5: Following path to the reaching pose.")
                     # Finished following the joints trajectory
                     if(self.followJointsTrajectory(self.rightArm, self.jointsTrajectory)):
                         self.d = 0
-                        self.state = 5
+                        self.state = 6
                         self.firstInState = True
-            if self.state == 5:
-                print("State 5: Move to towards object.")
-                while self.d <= self.reachingDistance:
-                    print(self.d)
-                    self.d = self.d + self.reachingDistance/40.0
-
-                    frame_reaching_base = self.vectorToFrame(self.reachingPose)
-
-                    frame_aux_reaching = PyKDL.Frame()
-                    frame_aux_reaching.p.z(self.d)
-
-                    frame_aux_base = frame_reaching_base*frame_aux_reaching
-
-                    aux_pose = self.frameToVector(frame_aux_base)
-                    x_vector = yarp.DVector(6)
-                    for i in range(len(x_vector)):
-                        x_vector[i] = aux_pose[i]
-
-                    print(x_vector[0], x_vector[1], x_vector[2], x_vector[3], x_vector[4], x_vector[5])
-                    trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
-                    self.trunkIEncoders.getEncoders(trunkCurrentQ)
-
-                    armCurrentQ = yarp.DVector(self.numRightArmJoints)
-                    self.rightArmIEncoders.getEncoders(armCurrentQ)
-
-                    current_Q = yarp.DVector(
-                        self.numRightArmJoints+self.numTrunkJoints)
-                    desire_Q = yarp.DVector(
-                        self.numRightArmJoints+self.numTrunkJoints)
-
-                    for j in range(0, self.numRightArmJoints):
-                        current_Q[j+2] = armCurrentQ[j]
-                    for j in range(self.numTrunkJoints):
-                        current_Q[j] = trunkCurrentQ[j]
-
-                    if self.rightArm:
-                        if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
-                            for joint in range(0, self.numRightArmJoints, 1):
-                                self.rightArmIPositionControl.positionMove(joint, desire_Q[joint+2])
-                            for joint in range(self.numTrunkJoints):
-                                    self.trunkIPositionControl.positionMove(joint, desire_Q[joint])
-                            if self.d == 0:
-                                yarp.delay(5.0)
-                            else:
-                                yarp.delay(0.5)
-                    else:
-                        if(self.trunkLeftArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
-                            for joint in range(0, self.numLeftArmJoints, 1):
-                                self.leftArmIPositionControl.positionMove(joint, desire_Q[joint+2])
-                            for joint in range(self.numTrunkJoints):
-                                self.trunkIPositionControl.positionMove(joint, desire_Q[joint])
-                            if self.d == 0:
-                                yarp.delay(5.0)
-                            else:
-                                yarp.delay(0.5)
-                self.state = 6
-                self.firstInState = True
             if self.state == 6:
                 if self.firstInState:
-                    print("State 6: TCP in object position")
+                    if available_right_hand_controlboard and robot == '/teoSim':
+                        self.rightHandIPositionControl.positionMove(0, 1200)
+                    if available_right_hand_controlboard and robot == '/teo':
+                        self.rightHandIPWMControl.setRefDutyCycle(0,100)
+                    yarp.delay(5.0)
+                    print("State 6: Hand Open")
+                    self.firstInState = False
+                    
+                else:
+                    print("State 6: Move to towards object.")
+                    while self.d <= 0.85*self.reachingDistance:
+                        print(self.d)
+                        self.d = self.d + self.reachingDistance/40.0
+
+                        frame_reaching_base = self.vectorToFrame(self.reachingPose)
+
+                        frame_aux_reaching = PyKDL.Frame()
+                        frame_aux_reaching.p.z(self.d)
+
+                        frame_aux_base = frame_reaching_base*frame_aux_reaching
+
+                        aux_pose = self.frameToVector(frame_aux_base)
+                        x_vector = yarp.DVector(6)
+                        for i in range(len(x_vector)):
+                            x_vector[i] = aux_pose[i]
+
+                        #print(x_vector[0], x_vector[1], x_vector[2], x_vector[3], x_vector[4], x_vector[5])
+                        trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
+                        self.trunkIEncoders.getEncoders(trunkCurrentQ)
+
+                        armCurrentQ = yarp.DVector(self.numRightArmJoints)
+                        self.rightArmIEncoders.getEncoders(armCurrentQ)
+
+                        current_Q = yarp.DVector(
+                            self.numRightArmJoints+self.numTrunkJoints)
+                        desire_Q = yarp.DVector(
+                            self.numRightArmJoints+self.numTrunkJoints)
+
+                        for j in range(0, self.numRightArmJoints):
+                            current_Q[j+2] = armCurrentQ[j]
+                        for j in range(self.numTrunkJoints):
+                            current_Q[j] = trunkCurrentQ[j]
+
+                        if self.rightArm:
+                            if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
+                                for joint in range(0, self.numRightArmJoints, 1):
+                                    self.rightArmIPositionControl.positionMove(joint, desire_Q[joint+2])
+                                for joint in range(self.numTrunkJoints):
+                                        self.trunkIPositionControl.positionMove(joint, desire_Q[joint])
+                                yarp.delay(0.5)
+                        else:
+                            if(self.trunkLeftArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
+                                for joint in range(0, self.numLeftArmJoints, 1):
+                                    self.leftArmIPositionControl.positionMove(joint, desire_Q[joint+2])
+                                for joint in range(self.numTrunkJoints):
+                                    self.trunkIPositionControl.positionMove(joint, desire_Q[joint])
+                                if self.d == 0:
+                                    yarp.delay(5.0)
+                                else:
+                                    yarp.delay(0.5)
+                    self.state = 7
+                    self.firstInState = True
+            if self.state == 7:
+                if self.firstInState:
+                    print("State 7: TCP in object position")
                     if self.rightArm:
                         if available_right_hand_controlboard and robot == '/teoSim':
-                            self.rightHandIPositionControl.positionMove(0, -120)
+                            self.rightHandIPositionControl.positionMove(0, -300)
                         elif available_right_hand_controlboard and robot == '/teo':
                             self.rightHandIPWMControl.setRefDutyCycle(0, -50)             
-
-                        print("State 6: Lets move up")
+                        yarp.delay(8.0)
+                        print("State 7: Lets move up")
                         # Get current pose of the tcp
                         trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
                         self.trunkIEncoders.getEncoders(trunkCurrentQ)
@@ -702,12 +856,12 @@ class DemoSharon(yarp.RFModule):
                         self.firstInState = False
                     else:
                         if available_left_hand_controlboard and robot == '/teoSim':
-                            self.leftHandIPositionControl.positionMove(0, -100)
+                            self.leftHandIPositionControl.positionMove(0, -600)
                         if available_left_hand_controlboard and robot == '/teo':
                             self.leftHandIPWMControl.setRefDutyCycle(0, -50)             
-                        print("State 6: Wait 8 seconds...")
+                        print("State 7: Wait 8 seconds...")
                         yarp.delay(8.0)
-                        print("State 6: Lets move up")
+                        print("State 7: Lets move up")
                         # TODO CHANGE UP MOTION
                         if available_left_hand_controlboard:
                             self.leftArmIPositionControl.positionMove(2, -40)
@@ -719,7 +873,7 @@ class DemoSharon(yarp.RFModule):
                     self.d = self.d+self.up_distance/40.0
                     if self.d > self.up_distance:
                         self.firstInState = True
-                        self.state = 7
+                        self.state = 8
                     else:
                         v = PyKDL.Vector(self.frame_tcp_trunk.p)
                         v.z(v[2]+self.d)
@@ -744,7 +898,7 @@ class DemoSharon(yarp.RFModule):
                             self.rightArmIEncoders.getEncoders(armCurrentQ)
                             for j in range(0, self.numRightArmJoints):
                                 current_Q[j+2] = armCurrentQ[j]
-                            print(current_Q)
+                            # print(current_Q)
                             
                             if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
                                 for joint in range(0, self.numRightArmJoints, 1):
@@ -762,16 +916,16 @@ class DemoSharon(yarp.RFModule):
                             self.LeftArmIEncoders.getEncoders(armCurrentQ)
                             for j in range(0, self.numLeftArmJoints):
                                 current_Q[j+2] = armCurrentQ[j]
-                            print(current_Q)
+                            # print(current_Q)
                             
                             if(self.trunkLeftArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
                                 for joint in range(0, self.numLeftArmJoints, 1):
                                     self.leftArmIPositionControl.positionMove(joint, desire_Q[joint+2])
                                 for joint in range(self.numTrunkJoints):
                                     self.trunkIPositionControl.positionMove(joint, desire_Q[joint])
-            if self.state == 7:
+            if self.state == 8:
                 if(self.firstInState):
-                    print("State 7: Object is up and graspped. Press [enter] to open the hand and release the object")
+                    print("State 8: Object is up and graspped. Press [enter] to open the hand and release the object")
                     with keyboard.Events() as events:
                         # Block at most one second
                         event = events.get(0.1)
@@ -783,7 +937,7 @@ class DemoSharon(yarp.RFModule):
                         pass
                     elif event.key == keyboard.Key.enter:
                         print('Received event {}'.format(event))
-                        print("State 7: Waiting 8 seconds to open the hand. ")
+                        print("State 8: Waiting 8 seconds to open the hand. ")
                         yarp.delay(8.0)
                         if self.rightArm:
                             if available_right_hand_controlboard  and robot == '/teoSim':
@@ -797,9 +951,9 @@ class DemoSharon(yarp.RFModule):
                                 self.leftHandIPositionControl.positionMove(0, 1200)
                             print("State 7: Wait left hand to be open...")
                             yarp.delay(8.0)
-                        self.state = 8
-            if self.state == 8:
-                print("State 8: Position the object again in the table. Then, Press [enter] to start again the demo.")
+                        self.state = 9
+            if self.state == 9:
+                print("State 9: Position the object again in the table. Then, Press [enter] to start again the demo.")
                 with keyboard.Events() as events:
                     # Block at most one second
                     event = events.get(1.0)
@@ -839,6 +993,46 @@ class DemoSharon(yarp.RFModule):
         x.append(rotVector.y())
         x.append(rotVector.z())
         return x
+    
+    def computeTrajectoryToJointsPosition(self, rightArm, reachingJointsPosition):
+        if rightArm:
+            print("Selected right arm.")
+        else:
+            print("Selected left arm.")
+        
+        cmd = yarp.Bottle()
+        cmd.addString("Compute trajectory joints position")
+        goal = cmd.addList()
+        
+        for jointPosition in reachingJointsPosition:
+            goal.addDouble(jointPosition)
+        
+        response = yarp.Bottle()
+        jointsTrajectory = []
+        if rightArm:
+            self.rpcClientTrajectoryGenerationRight.write(cmd, response)
+        else:
+            self.rpcClientTrajectoryGenerationLeft.write(cmd, response)
+            
+        if response.get(0).asString() == 'Goal state NOT valid':
+            print(response.get(0).asString())
+        elif response.get(0).asString() == 'Solution Found':
+            bJointsTrajectory = response.get(1).asList()
+            print('Solution Found with ', bJointsTrajectory.size(), "points.")
+            for i in range(bJointsTrajectory.size()):
+                bJointsPosition = bJointsTrajectory.get(i).asList()
+                jointsPosition = []
+                for i in range(bJointsPosition.size()):
+                    jointsPosition.append(bJointsPosition.get(i).asDouble())
+                jointsTrajectory.append(jointsPosition)
+            print("JointsTrajectory")
+            return True, jointsTrajectory
+        elif response.get(0).asString() =='Solution NOT found':
+            return False, jointsTrajectory
+
+        return False, jointsTrajectory
+           
+            
 
     def computeTrajectoryToPose(self, rightArm, reachingPose):
         if rightArm:  # Compute the a feasible orientation for the rightArm
@@ -847,12 +1041,11 @@ class DemoSharon(yarp.RFModule):
             print("Selected left arm.")
             
         cmd = yarp.Bottle()
-        cmd.addString("Compute trajectory")
+        cmd.addString("Compute trajectory pose")
         goal = cmd.addList()
         goal.addDouble(reachingPose[0])
         goal.addDouble(reachingPose[1])
         goal.addDouble(reachingPose[2])
-        print("Compute trajectory to reaching pose")
         goal.addDouble(reachingPose[3])
         goal.addDouble(reachingPose[4])
         goal.addDouble(reachingPose[5])
@@ -906,7 +1099,11 @@ class DemoSharon(yarp.RFModule):
 
                     goal_vector = self.frameToVector(aux_frame_goal)
                     cmd = yarp.Bottle()
-                    cmd.addString("Check goal")
+                    cmd.addString("Check goal pose")
+                    # locationTCP[0] =  0.629151
+                    # locationTCP[1] = -0.248893
+                    # locationTCP[2] = 0.194516
+
                     goal = cmd.addList()
                     goal.addDouble(locationTCP[0])
                     goal.addDouble(locationTCP[1])
@@ -914,6 +1111,7 @@ class DemoSharon(yarp.RFModule):
                     goal.addDouble(goal_vector[3])
                     goal.addDouble(goal_vector[4])
                     goal.addDouble(goal_vector[5])
+                    print("check goal: ",locationTCP[0], locationTCP[1], locationTCP[2], goal_vector[3],goal_vector[4],goal_vector[5])
 
                     orientationTCP = [goal_vector[3],goal_vector[4], goal_vector[5]]
                     response = yarp.Bottle()
@@ -938,7 +1136,7 @@ class DemoSharon(yarp.RFModule):
                         reaching_pose = self.frameToVector(frame_reaching_base)
 
                         cmd.clear()
-                        cmd.addString("Check goal")
+                        cmd.addString("Check goal pose")
                         goal = cmd.addList()
                         for i in range(len(reaching_pose)):
                             goal.addDouble(reaching_pose[i])
@@ -1027,9 +1225,9 @@ class DemoSharon(yarp.RFModule):
 
             frame_object_camera = PyKDL.Frame()
             
-            frame_object_camera.p.x(objects_data.get(o).find("x").asDouble())
-            frame_object_camera.p.y(objects_data.get(o).find("y").asDouble())
-            frame_object_camera.p.z(objects_data.get(o).find("z").asDouble())
+            frame_object_camera.p.x(objects_data.get(o).find("mmX").asDouble())
+            frame_object_camera.p.y(objects_data.get(o).find("mmY").asDouble())
+            frame_object_camera.p.z(objects_data.get(o).find("mmZ").asDouble())
             
             frame_object_head = frame_camera_head*frame_object_camera
             frame_object_trunk = frame_head_trunk*frame_object_head
@@ -1038,9 +1236,9 @@ class DemoSharon(yarp.RFModule):
         else:
             frame_object_camera = PyKDL.Frame()
 
-            frame_object_camera.p.x(objects_data.get(o).find("z").asDouble())
-            frame_object_camera.p.y(objects_data.get(o).find("x").asDouble())
-            frame_object_camera.p.z(-objects_data.get(o).find("y").asDouble())
+            frame_object_camera.p.x(objects_data.get(o).find("mmZ").asDouble())
+            frame_object_camera.p.y(objects_data.get(o).find("mmX").asDouble())
+            frame_object_camera.p.z(-objects_data.get(o).find("mmY").asDouble())
 
             frame_object_trunk = frame_head_trunk*frame_object_camera
 
@@ -1082,14 +1280,25 @@ class DemoSharon(yarp.RFModule):
             jointsPosition = jointsTrajectory[self.numPointTrajectory]
             trunkJointsPosition = [jointsPosition[0], jointsPosition[1]]
             armJointsPosition = [jointsPosition[2], jointsPosition[3], jointsPosition[4], jointsPosition[5], jointsPosition[6], jointsPosition[7]]
-            if (self.checkJointsPosition(trunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(armJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
-                return True
+            if rightArm:            
+                if (self.checkJointsPosition(trunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(armJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
+                    print("followJointsTrajectory in goal position", self.numPointTrajectory, len(self.jointsTrajectory))
+                    return True
+                else:
+                    for joint in range(self.numTrunkJoints):
+                        self.trunkIPositionControl.positionMove(joint, trunkJointsPosition[joint])
+               
+                    for joint in range(self.numRightArmJoints):
+                        self.rightArmIPositionControl.positionMove(joint, armJointsPosition[joint])
             else:
-                for joint in range(self.numTrunkJoints):
-                    self.trunkIPositionControl.positionMove(joint, trunkJointsPosition[joint])                
-                for joint in range(self.numRightArmJoints):
-                    self.rightArmIPositionControl.positionMove(joint, armJointsPosition[joint])
-                return False
+                if (self.checkJointsPosition(trunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(armJointsPosition, self.leftArmIEncoders, self.numRightArmJoints)):
+                    return True
+                else:
+                    for joint in range(self.numTrunkJoints):
+                        self.trunkIPositionControl.positionMove(joint, trunkJointsPosition[joint])
+                    for joint in range(self.numRightArmJoints):
+                        self.leftArmIPositionControl.positionMove(joint, armJointsPosition[joint])
+            return False
     
     def on_release(self,key):
         if key == keyboard.Key.enter:
