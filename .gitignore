@@ -29,6 +29,7 @@ CMakeLists.txt.user
 **/build*/
 /.project
 /.cproject
+**/.vscode*/
 
 # Python files
 *.pyc
@@ -37,3 +38,7 @@ CMakeLists.txt.user
 # Other
 /external/
 /test_program/
+/programs/GenerateManipulationTrajectories/trajectories/
+/programs/EncryptedComms/ImagesReceivedSocket/
+
+*.hdf5

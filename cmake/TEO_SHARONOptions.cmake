@@ -6,6 +6,8 @@ option(ENABLE_CheckSelfCollisionLibrary "Choose if you want to compile CheckSelf
 # options: cpp programs
 option(ENABLE_cropSalientObject "Choose if you want to compile cropSalientObject" TRUE)
 
+option(ENABLE_getGraspingPoses "Choose if you want to compile getGraspingPoses" TRUE)
+
 # options: cpp programs
 option(ENABLE_trajectoryGeneration "Choose if you want to compile trajectoryGeneration" TRUE)
 

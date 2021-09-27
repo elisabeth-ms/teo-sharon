@@ -4,5 +4,6 @@
 
 add_subdirectory(CropSalientObject)
 add_subdirectory(TrajectoryGeneration)
-add_subdirectory(MapHumanHandTrajectoryToRobotEndEffector)
+add_subdirectory(GetGraspingPoses)
+#add_subdirectory(MapHumanHandTrajectoryToRobotEndEffector)
 #add_subdirectory(GenerateManipulationTrajectories)

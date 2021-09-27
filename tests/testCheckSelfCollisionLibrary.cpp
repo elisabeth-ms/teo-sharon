@@ -38,6 +38,8 @@ namespace sharon
         static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
         {
             const KDL::Joint rotZ(KDL::Joint::RotZ);
+            const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
+
             KDL::Chain chain;
             chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
             chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI / 2)));
@@ -47,6 +49,8 @@ namespace sharon
             chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, KDL::PI / 2, 0, 0)));
             chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0, -KDL::PI / 2, -0.215, 0)));
             chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(-0.09, 0, 0, -KDL::PI / 2)));
+            chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, KDL::PI / 2, 0, -KDL::PI / 2)));
+            chain.addSegment(KDL::Segment(fixed, KDL::Frame::DH(0, 0, 0.0975, 0)));
 
             return chain;
         }
@@ -79,7 +83,7 @@ namespace sharon
             fcl::Transform3f tfTest;
             CollisionGeometryPtr_t collisionGeometry{new fcl::Boxf{0, 0, 0}};
             fcl::CollisionObjectf collisionObject(collisionGeometry, tfTest);
-            int nOfCollisionObjects = 5;
+            int nOfCollisionObjects = 6;
             collisionObjects.reserve(nOfCollisionObjects);
             offsetCollisionObjects.reserve(nOfCollisionObjects);
             std::array<float, 3> offsetObject = {0, 0, 0};
@@ -130,7 +134,7 @@ namespace sharon
         checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
 
         ASSERT_EQ(checkSelfCollision->chain.getNrOfJoints(), 8);
-        ASSERT_EQ(checkSelfCollision->chain.getNrOfSegments(), 8);
+        ASSERT_EQ(checkSelfCollision->chain.getNrOfSegments(), 10);
         for (int i = 0; i < chain.getNrOfJoints(); i++)
         {
             ASSERT_EQ(checkSelfCollision->qmin(i), qmin(i));
@@ -201,10 +205,12 @@ namespace sharon
         ASSERT_THROW(new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision), std::runtime_error);
     }
 
+
+
     TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksCollide)
     {
         makeTeoTrunkRightArmChainAndLimits();
-        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+        CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.3, 0.25, 2.0}};
         fcl::Transform3f tfTest;
         fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
@@ -220,7 +226,11 @@ namespace sharon
         CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
         fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
-        int nOfCollisionObjects = 5;
+
+        CollisionGeometryPtr_t teoEndEffector{new fcl::Boxf{0.0,0.0,0.0}};
+        fcl::CollisionObjectf collisionObject6{teoEndEffector, tfTest};
+
+        int nOfCollisionObjects = 6;
         collisionObjects.clear();
         collisionObjects.reserve(nOfCollisionObjects);
         collisionObjects.emplace_back(collisionObject1);
@@ -228,6 +238,7 @@ namespace sharon
         collisionObjects.emplace_back(collisionObject3);
         collisionObjects.emplace_back(collisionObject4);
         collisionObjects.emplace_back(collisionObject5);
+        collisionObjects.emplace_back(collisionObject6);
 
         offsetCollisionObjects[0][2] = -0.2;
 
@@ -237,19 +248,46 @@ namespace sharon
         offsetCollisionObjects[4][1] = 0.055;
 
 
-
-
         checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
         KDL::JntArray q(8);
         q(0) = 0;
-        q(1) = -8;
+        q(1) = 0;
+        q(2) = 0;
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 1));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 2));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 3));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 4));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 5));
+        
+
+       
+        q(0) = -0.0367917881081746347971;
+        q(1) = 14.2365087575865114644;
+        q(2) = 27.8665735645256624764;
+        q(3) = -10.6261833845321103098;
+        q(4) = 14.4323992893486110489;
+        q(5) = -58.9686125917134518204;
+        q(6) = 39.974431579071165288;
+        q(7) = -19.9670119544058799477;
+
+        checkSelfCollision->updateCollisionObjectsTransform(q);
+        ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 1));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 2));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 3));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 4));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 5));
+
+
 
         q(0) = 0;
         q(1) = 0;
         q(2) = 0;
         q(3) = 15;
+        q(4) = 0;
+        q(5) = 0.0;
+        q(6) = 0.0;
+        q(7) = 0.0;
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 1, 2));
 
@@ -309,12 +347,13 @@ namespace sharon
         q(0) = 0;
         q(1) = 0;
         q(2) = -18;
-        q(3) = 10;
+        q(3) = -10;
         q(4) = 60;
         q(5) = -60;
 
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 3));
+        ASSERT_FALSE(checkSelfCollision->twoLinksCollide(q, 0, 4));
 
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 3, 4));
@@ -357,6 +396,8 @@ namespace sharon
         ASSERT_TRUE(checkSelfCollision->twoLinksCollide(q, 0, 4));
 
     }
+
+/**
 
  TEST_F(CheckSelfCollisionTest, CheckSelfCollision)
     {
@@ -422,6 +463,7 @@ namespace sharon
 
 
     }
+
 TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
     {
         makeTeoTrunkRightArmChainAndLimits();
@@ -555,7 +597,7 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
 
 
     }
-
+**/
     TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTable)
     {
         makeTeoTrunkRightArmChainAndLimits();
@@ -565,6 +607,7 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
 
         CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
         fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
+        
 
         CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{0.10,0.10,0.32901}};//{new fcl::Box{0.15, 0.15, 0.32901}};
         fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
@@ -575,7 +618,12 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
         CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.2, 0.20, 0.2}};
         fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
-        int nOfCollisionObjects = 5;
+        CollisionGeometryPtr_t teoEndEffector{new fcl::Boxf{0.1,0.1,0.23}};
+        fcl::CollisionObjectf collisionObject6{teoEndEffector, tfTest};
+
+
+
+        int nOfCollisionObjects = 6;
         collisionObjects.clear();
         collisionObjects.reserve(nOfCollisionObjects);
         collisionObjects.emplace_back(collisionObject1);
@@ -583,6 +631,7 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
         collisionObjects.emplace_back(collisionObject3);
         collisionObjects.emplace_back(collisionObject4);
         collisionObjects.emplace_back(collisionObject5);
+        collisionObjects.emplace_back(collisionObject6);
 
         offsetCollisionObjects[0][2] = -0.2;
 
@@ -591,10 +640,10 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
 
         offsetCollisionObjects[4][1] = 0.055;
 
-        CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.5,0.9}};
+        CollisionGeometryPtr_t table{new fcl::Boxf{1.0,1.0,0.9}};
         fcl::CollisionObjectf collisionObjectTable{table, tfTest};
         fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
-        fcl::Vector3f translation(0.6, 0.0, -0.45);
+        fcl::Vector3f translation(0.8, 0.0, -0.45);
         collisionObjectTable.setTransform(rotation, translation);
         tableCollision.clear();
         tableCollision.reserve(1);
@@ -608,33 +657,42 @@ TEST_F(CheckSelfCollisionTest, CheckSelfCollisionTwoLinksDistance)
         q(2) = -40;
         checkSelfCollision->updateCollisionObjectsTransform(q);
         ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,1));
-        ASSERT_TRUE(checkSelfCollision->linkTableCollide(q,3));
+        ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,3));
 
-        q(2) = -30;
-        q(5) = -20;
-        checkSelfCollision->updateCollisionObjectsTransform(q);
-        ASSERT_TRUE(checkSelfCollision->linkTableCollide(q,3));
+        // q(2) = -30;
+        // q(5) = -20;
+        // checkSelfCollision->updateCollisionObjectsTransform(q);
+        // ASSERT_TRUE(checkSelfCollision->linkTableCollide(q,3));
 
-        q(2) = -30;
-        q(5) = -10;
+        // q(2) = -30;
+        // q(5) = -10;
+        // checkSelfCollision->updateCollisionObjectsTransform(q);
+        // ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,3));
+        // ASSERT_TRUE(checkSelfCollision->linkTableCollide(q,4));
+
+
+
+        q(0) = 0;
+        q(1) = 15.15;
+        q(2) = 10.63;
+        q(3) = 0;
+        q(4) = 0;
+        q(5) = -70.04;
+        q(6) = 80.003;
+        q(7) = 0.93;
         checkSelfCollision->updateCollisionObjectsTransform(q);
+
+        
+        ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,0));
+        ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,1));
+        ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,2));
         ASSERT_FALSE(checkSelfCollision->linkTableCollide(q,3));
         ASSERT_TRUE(checkSelfCollision->linkTableCollide(q,4));
 
 
-
-        // q(0) = 0;
-        // q(1) = 0;
-        // q(2) = 0;
-        // q(3) = 0;
-        // q(4) = 80;
-        // q(5) = -20;
-        // q(6) = 0;
-        // q(7) = 0;
-
-        // checkSelfCollision->updateCollisionObjectsTransform(q);
         // ASSERT_TRUE(checkSelfCollision->selfCollision());
 
 
     }
+    
 } // namespace sharon

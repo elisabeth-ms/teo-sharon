@@ -53,7 +53,7 @@ namespace sharon
                 KDL::Frame frameJoint;
                 kinematics_status = fksolver.JntToCart(qRad, frameJoint, centerLinksWrtJoints[i].first);
                 //printf("kinematic status %d\n", kinematics_status);
-                //printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
+                // printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
 
                 KDL::Frame frameCenterLink = frameJoint * centerLinksWrtJoints[i].second;
                 fcl::Vector3f translation(frameCenterLink.p[0], frameCenterLink.p[1], frameCenterLink.p[2]);
@@ -89,15 +89,18 @@ namespace sharon
     bool CheckSelfCollision::linkTableCollide(const KDL::JntArray &q, int link){
         fcl::CollisionRequestf requestType;
         fcl::CollisionResultf collisionResult;
-        printf("linksTableCollide %f %f %f\n",tableCollision[0].getTranslation()[0], tableCollision[0].getTranslation()[1], tableCollision[0].getTranslation()[2]);
-        printf("Volume: %f\n",tableCollision[0].getCollisionGeometry()->computeVolume());
+        // printf("linksTableCollide %f %f %f\n",tableCollision[0].getTranslation()[0], tableCollision[0].getTranslation()[1], tableCollision[0].getTranslation()[2]);
+        // printf("Volume: %f\n",tableCollision[0].getCollisionGeometry()->computeVolume());
         fcl::Quaternionf quat = tableCollision[0].getQuatRotation();
-        printf("linksTableCollide %f %f %f %f\n", quat.x(), quat.y(), quat.z(), quat.w());
-
+        // printf("linksTableCollide %f %f %f %f\n", quat.x(), quat.y(), quat.z(), quat.w());
+        // printf("link %d %f %f %f\n",link, collisionObjects[link].getTranslation()[0],collisionObjects[link].getTranslation()[1],collisionObjects[link].getTranslation()[2]);
+        quat = collisionObjects[link].getQuatRotation();
+        // printf("link %d %f %f %f %f\n",link, quat.x(), quat.y(), quat.z(), quat.w());
+        
         fcl::collide(&collisionObjects[link], &tableCollision[0], requestType, collisionResult);
         if (collisionResult.isCollision())
         {
-            printf("collsion betwenn link %d and table\n", link);
+            // printf("collsion betwenn link %d and table\n", link);
             return true;
         }
         return false;
@@ -109,29 +112,28 @@ namespace sharon
         // printf("SelfCollision()\n");
         fcl::CollisionRequestf requestType;
         fcl::CollisionResultf collisionResult;
-        for (int link1 = 0; link1<collisionObjects.size(); link1++)
+        for (int link1 = 0; link1<collisionObjects.size()-1; link1++)
         {
             int link2 = link1 + 2;
             fcl::collide(&collisionObjects[link1], &tableCollision[0], requestType, collisionResult);
             if (collisionResult.isCollision())
             {
-                printf("collsion betwenn links %d and table\n", link1);
+                // printf("collsion betwenn links %d and table\n", link1);
                 return true;
             }
-            while (link2 < collisionObjects.size())
-            {   //printf("Lets check links %d and %d\n", link1, link2);
+            while (link2 < collisionObjects.size()-1)
+            {   
+                // printf("Lets check links %d and %d\n", link1, link2);
 
                 fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
                 if (collisionResult.isCollision())
                 {
-                    //printf("collsion betwenn links %d and %d\n", link1, link2);
+                    // printf("collsion betwenn links %d and %d\n", link1, link2);
                     return true;
                 }
                 link2++;
             }
         }
-
-        
         //printf("SelfCollision() not collide\n");
         return false;
     }
@@ -148,7 +150,9 @@ namespace sharon
             while (link2 < collisionObjects.size())
             {   
                 fcl::distance(&collisionObjects[link1],&collisionObjects[link2], request, distanceResult);
+                printf("link %d %d minDistance: %f", link1, link2, distanceResult.min_distance);
                 if(distanceResult.min_distance<minDistance){
+                    
                     minDistance = distanceResult.min_distance;
                 }
                 link2++;

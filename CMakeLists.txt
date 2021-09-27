@@ -14,13 +14,14 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake
                               ${CMAKE_SOURCE_DIR}/cmake/find-modules)
 
 # Hard dependencies.
-find_package(YARP 3.3 REQUIRED COMPONENTS os dev)
+find_package(YARP 3.4 REQUIRED COMPONENTS os dev)
 find_package(YCM 0.11 REQUIRED)
 find_package(COLOR_DEBUG REQUIRED)
 find_package(ROBOTICSLAB_VISION REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(orocos_kdl 1.4 QUIET)
 find_package(ROBOTICSLAB_KINEMATICS_DYNAMICS REQUIRED)
-
+find_package(PCL REQUIRED)
 # Soft dependencies.
 find_package(Doxygen QUIET)
 find_package(GTestSources 1.6.0 QUIET)

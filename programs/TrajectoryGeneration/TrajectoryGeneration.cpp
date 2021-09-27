@@ -205,7 +205,6 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         double min, max;
         armIControlLimits->getLimits(joint, &min, &max);
         if(numArmJoints == 8 && joint == 1){ // we don't want the frontal joint tilt so much
-            min = - 10;
             max = 20.0;
         }
         qrMin.addDouble(min);
@@ -284,17 +283,18 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     CollisionGeometryPtr_t teoElbow{new fcl::Boxf{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
     fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
     
-    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{FRONTAL_WRIST_LINK_RADIUS, 0.24, 0.15}};
+    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.15, 0.26, 0.15}};
     fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
-    CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.1,0.1,0.1}};
+    CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.0,0.0,0.0}};
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
     CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.5,0.9}};
     fcl::CollisionObjectf collisionObjectTable{table, tfTest};
-    fcl::Vector3f translation(0.6, -0.0, -0.45);
-    collisionObjectTable.setTranslation(translation);
+    fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
+    fcl::Vector3f translation(0.65, 0.0, -0.43);
+    collisionObjectTable.setTransform(rotation, translation);
     tableCollision.clear();
     tableCollision.push_back(collisionObjectTable);
 
@@ -700,8 +700,8 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
 
     auto plannerRRT = (new og::RRTstar(si));
-    plannerRRT->setRange(1.0);
-    plannerRRT->setPruneThreshold(1.5);
+    plannerRRT->setRange(1.5);
+    plannerRRT->setPruneThreshold(2.0);
     plannerRRT->setTreePruning(true);
     plannerRRT->setInformedSampling(true);
 
@@ -752,7 +752,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     pdef->clearSolutionPaths();
 
 
-    bool solutionFound = planner->solve(15.0);
+    bool solutionFound = planner->solve(5.0);
 
 
     if (solutionFound == true)
@@ -1012,8 +1012,8 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         }
                 
 
-        if (command.get(0).toString() == "Check goal"){
-            yInfo()<<"Check goal";
+        if (command.get(0).toString() == "Check goal pose"){
+            yInfo()<<"Check goal pose";
             Bottle * bGoal = command.get(1).asList();
             std::vector<double> xGoal(6);
             for (int i = 0; i < 6; i++)
@@ -1056,8 +1056,8 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 }
             }
         }
-        else if (command.get(0).toString() == "Compute trajectory"){
-            yInfo()<<"Compute trajectory";
+        else if (command.get(0).toString() == "Compute trajectory pose"){
+            yInfo()<<"Compute trajectory pose";
             Bottle * bGoal = command.get(1).asList();
             std::vector<double> xGoal(6);
             for (int i = 0; i < 6; i++)
@@ -1126,6 +1126,54 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 }
 
             }
+        }
+        else if (command.get(0).toString() == "Compute trajectory joints position"){
+            Bottle * bGoal = command.get(1).asList();
+            
+            std::vector<double> qGoal(numArmJoints);
+            for (int i = 0; i < numArmJoints; i++)
+                qGoal[i] = bGoal->get(i).asDouble();
+             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+            for(unsigned int j=0; j<numArmJoints; j++){
+                goal[j] = qGoal[j];
+            }
+            pdef->clearGoal();
+            pdef->setGoalState(goal);
+
+            std::vector<std::vector<double>>jointsTrajectory;
+            bool validStartState, validGoalState;
+            bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+            
+             if (solutionFound)
+            {
+                yInfo() << "Solution Found";
+                reply.addString("Solution Found");
+                Bottle bJointsTrajectory;
+                for(int i=0; i<jointsTrajectory.size(); i++){
+                    Bottle bJointsPosition;
+                    for(int j = 0; j<numArmJoints; j++){
+                        bJointsPosition.addDouble(jointsTrajectory[i][j]);
+                    }
+                    bJointsTrajectory.addList() = bJointsPosition;
+                }
+                reply.addList() =bJointsTrajectory;
+            }
+            else{
+                if(!validStartState)
+                {
+                    yInfo() <<"Start state NOT valid";
+                    reply.addString("Start state NOT valid");
+                }
+                if(!validGoalState){
+                    yInfo() <<"Goal state NOT valid";
+                    reply.addString("Goal state NOT valid"); 
+                }
+                if(validStartState && validGoalState){
+                    yInfo() << "Solution NOT found";
+                    reply.addString("Solution NOT found");
+                }
+            }
+
         }
         else{
             yWarning()<<"command not available";
