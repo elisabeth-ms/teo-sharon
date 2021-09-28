@@ -23,11 +23,17 @@ from numpy.random import rand
 def get_frames_fixations_from_pkl(fixationsFileStr):
     with open(fixationsFileStr, 'rb') as f:
         data = pickle.load(f)
+    print(data)
     frames = data['frames']
     fixations = data['fixations']
-    action_level = data['action_level']
+    print(fixations[0])
+    
+    labels = data['labels']
+    # print(labels)
+    print(fixations)
+    action_level = data['action_labels']
     print(action_level)
-    return frames, fixations, action_level
+    return frames, fixations, action_level, labels
 
 
 ### ----------------- Just for the example ----------------------##
@@ -100,14 +106,15 @@ class ClientProtocol:
 
 if __name__ == '__main__':
     
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 4:
         print(sys.argv[1])
         path_images = sys.argv[1]
-        number_frames = sys.argv[2]
-        fixations_file_str = path_images+'/fixations.pkl'
+        from_frame = sys.argv[2]
+        number_frames = sys.argv[3]
+        fixations_file_str = path_images+'/annotation.pkl'
         
 
-        frames, fixations, action_level = get_frames_fixations_from_pkl(fixations_file_str)
+        frames, fixations, action_level, labels = get_frames_fixations_from_pkl(fixations_file_str)
         for i in range(len(frames)):
             print(frames[i], action_level[i])
         categories = np.load(sys.path[0]+'/../demoSharon/'+'/categories.npy')
@@ -123,7 +130,7 @@ if __name__ == '__main__':
         print('Selected category:', selected_category, selected_index_category)
 
         
-        frame_number = 0
+        frame_number = int(from_frame)
     
         cp = ClientProtocol()
         cp.create_cipher_encrypt_decrypt()
@@ -134,7 +141,7 @@ if __name__ == '__main__':
         
         while frame_number<int(number_frames):
             try:
-                with open(path_images+"/"+frames[frame_number], 'rb') as fp:
+                with open(path_images+"/Frames/"+frames[frame_number]+".png", 'rb') as fp:
                 #with open('1.png', 'rb') as fp:
                     image_data = fp.read()
                     print("Lets send the new image")
@@ -147,13 +154,15 @@ if __name__ == '__main__':
                         probability_vector[0] = aux_prob[0]
                     else:
                         print(frames[frame_number])
-                        probability_vector[selected_index_category] = aux_prob[0]
+                        probability_vector[labels[frame_number]] = aux_prob[0]
                     #print(probability_vector)
-                    
-                    cp.send_data(image_data, fixations[frame_number], probability_vector)
+                    #print(np.array([fixations[frame_number][0], fixations[frame_number][1]]))
+                    x = float(fixations[frame_number][0])
+                    y = float(fixations[frame_number][1])
+                    cp.send_data(image_data, np.array([x,y]), probability_vector)
                     print("Image, fixation point and probability vector sent")
                 frame_number=frame_number+1
-                time.sleep(0.01)
+                time.sleep(0.1)
             except KeyboardInterrupt:
                 break
         cp.close()

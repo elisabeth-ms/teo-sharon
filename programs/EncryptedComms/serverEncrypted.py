@@ -176,6 +176,8 @@ class ServerProtocol(yarp.RFModule):
                     ok, fixation_data = self.receive_and_decrypt_array(length_fixation_data) # Receive and decipher the received fixation data 
                     if ok:
                         print("Fixation point received")
+                        new_fixation_x = square_length*fixation_data[0]/width
+                        new_fixation_y = square_length*fixation_data[1]/height
                         print(fixation_data)
                     
                     ok, length_probability_vector = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
@@ -188,8 +190,8 @@ class ServerProtocol(yarp.RFModule):
                         bdata_fixation = yarp.Bottle()
                         bdata_fixation.addString("fixation_point")
                         bpoint = bdata_fixation.addList()
-                        bpoint.addDouble(fixation_data[0])
-                        bpoint.addDouble(fixation_data[1])
+                        bpoint.addDouble(new_fixation_x)
+                        bpoint.addDouble(new_fixation_y)
                         bdata_fixation.addString("probability_vector")
                         bprob = bdata_fixation.addList()
                         for prob in probability_vector:

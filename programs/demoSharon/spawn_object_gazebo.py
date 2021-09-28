@@ -4,10 +4,30 @@ import random
 import numpy as np
 import random
 from PIL import Image
-from pynput import keyboard
 import os
+import kinematics_dynamics
+import PyKDL
+import numpy as np
 
-import cv2 as cv
+# Trunk device
+trunkOptions = yarp.Property()
+trunkDevice = None
+trunkIEncoders = None
+numTrunkJoints = 2
+trunkIPositionControl = None
+        
+# Head device
+headOptions = yarp.Property()
+headDevice = None
+headIEncoders = None
+numHeadJoints = 2
+headIPositionControl = None
+trunkHeadIControlLimits = None
+
+ # Trunk and head solver device
+trunkHeadSolverOptions = yarp.Property()
+trunkHeadSolverDevice = None
+        
 
 simulation_data_directory = "/home/elisabeth/data/simulation_data/"
 
@@ -15,6 +35,32 @@ absolute_width = 640
 absolute_height = 480
 just_move = True
 
+
+def transformObjWrtWorldToWrtCamera(trunkIEncoders, numTrunkJoints, headIEncoders, numHeadJoints, trunkHeadICartesianSolver):
+    trunkCurrentQ = yarp.DVector(numTrunkJoints)
+    trunkIEncoders.getEncoders(trunkCurrentQ)
+        
+    headCurrentQ = yarp.DVector(numHeadJoints)
+    headIEncoders.getEncoders(headCurrentQ)
+            
+            
+    current_Q = yarp.DVector(numTrunkJoints+numHeadJoints)       
+    for j in range(0, self.numHeadJoints):
+        current_Q[j+2] = headCurrentQ[j]
+    for j in range(self.numTrunkJoints):
+        current_Q[j] = trunkCurrentQ[j]
+        
+    print(current_Q[0],current_Q[1], current_Q[2], current_Q[3])
+        
+    x_head_trunk = yarp.DVector(6)
+    trunkHeadICartesianSolver.fwdKin(current_Q, x_head_trunk)
+        
+    print(x_head_trunk[0], x_head_trunk[1], x_head_trunk[2], x_head_trunk[3], x_head_trunk[4], x_head_trunk[5])
+    # TODO: transform to kdl frame head_wrt_trunk and object xyz -> object_xyz_wrt_trunk
+        
+    frame_head_trunk = vectorToFrame(x_head_trunk)
+    
+    return frame_head_trunk
 
 if __name__ == "__main__":
     print("main")
@@ -42,6 +88,93 @@ if __name__ == "__main__":
     world_interface_client = yarp.RpcClient()
     world_interface_client.open("/test/world_interface")
     world_interface_client.addOutput("/world_input_port")
+    
+    # Open trunk device
+    trunkOptions.put('device', 'remote_controlboard')
+    trunkOptions.put('remote', robot+'/trunk')
+    trunkOptions.put('local', robot+'/trunk')
+
+    trunkDevice = yarp.PolyDriver(trunkOptions)
+    trunkDevice.open(trunkOptions)
+    if not trunkDevice.isValid():
+        print('Cannot open trunk device!')
+        raise SystemExit
+
+    # Open head device
+    headOptions.put('device', 'remote_controlboard')
+    headOptions.put('remote', robot+'/head')
+    headOptions.put('local', robot+'/head')
+
+    headDevice = yarp.PolyDriver(headOptions)
+    headDevice.open(headOptions)
+    if not headDevice.isValid():
+        print('Cannot open head device!')
+        raise SystemExit
+    
+    
+    trunkIEncoders = trunkDevice.viewIEncoders()
+
+    if trunkIEncoders == []:
+        print("Trunk Encoder interface NOT available.")
+        raise SystemExit
+    else:
+        print("Trunk Encoder interface available.")
+
+    numTrunkJoints = trunkIEncoders.getAxes()
+
+    # Trunk position control interface
+    trunkIPositionControl = trunkDevice.viewIPositionControl()
+
+    if trunkIPositionControl == []:
+        print("Trunk position control interface NOT available")
+        raise SystemExit
+    else:
+        print("Trunk position control interface available.")
+    
+    headIEncoders = headDevice.viewIEncoders()
+
+    if headIEncoders == []:
+        print("Head Encoder interface NOT available.")
+        raise SystemExit
+    else:
+        print("Head Encoder interface available.")
+    numHeadJoints = headIEncoders.getAxes()
+        
+    # Head position control interface
+    headIPositionControl = headDevice.viewIPositionControl()
+
+    if headIPositionControl == []:
+        print("Head position control interface NOT available")
+        raise SystemExit
+    else:
+        print("Head position control interface available.")
+    
+    
+     # trunk and head solver device
+    trunkHeadKinPath = rf.findFileByName("teo-trunk-head.ini")
+    trunkHeadSolverOptions.fromConfigFile(trunkHeadKinPath)
+    trunkHeadSolverOptions.put("device", "KdlSolver")
+    trunkHeadSolverOptions.put("ik", "nrjl")
+    trunkHeadSolverOptions.fromString("(mins (-20 -10.8 -70 -29))", False)
+    trunkHeadSolverOptions.fromString("(maxs (20 10.1 70 8.4))", False)
+    trunkHeadSolverDevice = yarp.PolyDriver(trunkHeadSolverOptions)  # calls open -> connects
+    trunkHeadSolverDevice.open(trunkHeadSolverOptions)
+        
+    if trunkHeadSolverDevice == []:
+        print("trunk head  solver device interface NOT available")
+    else:
+        print("trunk head solver device interface available.")
+        
+    # Trunk and head cartesian solver
+    trunkHeadICartesianSolver = kinematics_dynamics.viewICartesianSolver(trunkHeadSolverDevice)
+    if trunkHeadICartesianSolver == []:
+        print("Trunk head cartesian solver interface NOT available")
+    else:
+        print("Trunk head cartesian solver interface available.")
+    
+    frame_head_trunk = transformObjWrtWorldToWrtCamera(trunkIEncoders, numTrunkJoints, headIEncoders, numHeadJoints, trunkHeadICartesianSolver)
+    
+    
     if not just_move:
         global start
         start = int(startImage)
@@ -99,9 +232,6 @@ if __name__ == "__main__":
                         inRgbPort.read(yarp_image)
                         inDepthPort.read(yarpImgDepth)
                         
-                        vis0 = cv.fromarray(depthImgArray)
-                        cv.imshow("test", vis0)
-                        cv.waitKey(0)
                         #input_port.read(color_detection_data)
                     
                         

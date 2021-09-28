@@ -2,8 +2,6 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib
 import random
-import tensorflow_datasets as tfds
-import seaborn as sns
 print('TensorFlow version:', tf.__version__)
  
 import numpy as np         # dealing with arrays
@@ -13,11 +11,11 @@ import h5py
 from PIL import Image, ImageDraw
 from keras import backend as K
 from keras.models import Model
-from keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam
 from keras.layers import Input, Dense, Dropout, Lambda, Convolution2D, MaxPooling2D, Flatten
 from keras.losses import categorical_crossentropy
 from keras.callbacks import ModelCheckpoint, EarlyStopping
-from keras.applications.resnet50 import ResNet50, preprocess_input
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import yarp
 import logging
@@ -27,7 +25,7 @@ import sys
 
 
 robot= '/teoSim'
-maxMinDistance = 1.8
+maxMinDistance = 1.2
 
 class MatchingGlassesTeoImages(yarp.RFModule):
     
@@ -46,7 +44,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.glassesImageArray =  np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)
         self.minConfidenceDetection = 0.5
         self.triggerProb = 0.7
-        self.cropsResolution = (120,120)
+        self.cropsResolution = (150,150)
         
         self.glassesDataPort = yarp.BufferedPortBottle()
         
@@ -325,7 +323,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         for i, layer in enumerate(embeddingModel.layers):
             print(i, layer.name, layer.trainable)
   
-        inputShape = (200, 200, 3)
+        inputShape = (15, 150, 3)
         anchorInput = Input(inputShape, name='anchor_input')
         positiveInput = Input(inputShape, name='positive_input')
         negativeInput = Input(inputShape, name='negative_input')
@@ -421,7 +419,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
             if vectorProbs.size == self.categories.size:
                 if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
                     print("We have data from both cameras and detections")
-                    
+                    print(vectorProbs)
                     if np.argmax(vectorProbs)!=0 and np.max(vectorProbs)>= self.triggerProb: # Glasses detected an object
                         glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
                     
