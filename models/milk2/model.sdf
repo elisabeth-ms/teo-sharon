@@ -20,11 +20,11 @@
       <kinematic>0</kinematic>
       <enable_wind>0</enable_wind>
       <visual name='visual'>
-        <pose frame=''>-0.025 -0.0 -0.105 0 -0 0</pose>
+        <pose frame=''>-0.025 0.001 -0.105 0 -0 0</pose>
         <geometry>
           <mesh>
           <uri>model:///milk2/meshes/milk2.dae</uri>
-	  <scale>0.01 0.01 0.01</scale>
+	  <scale>0.01 0.01 0.0106</scale>
         </mesh>
         </geometry>
         <material>
@@ -48,7 +48,7 @@
         <pose frame=''>0 0 0 0 -0 0</pose>
         <geometry>
           <box>
-            <size>0.064 0.074 0.21</size>
+            <size>0.064 0.074 0.225</size>
           </box>
         </geometry>
         <surface>

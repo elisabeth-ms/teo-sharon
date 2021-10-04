@@ -31,7 +31,7 @@
   	<!-- Use the following lines in your model -->  
   	<gazebo>
     	<plugin name="world_interface" filename="libgazebo_yarp_worldinterface.so">
-    		<yarpConfigurationFile>model://worldInterface/conf/worldInterface.ini</yarpConfigurationFile>
+    	<yarpConfigurationFile>model://targetSphere/targetSphere.ini</yarpConfigurationFile>
     	</plugin>
   	</gazebo>
 	</robot>
@@ -81,6 +81,6 @@
     </link>
     <static>0</static>
     <allow_auto_disable>1</allow_auto_disable>
-    <plugin name='pose publisher' filename='libgazebo_yarp_modelposepublisher.so'></plugin>
+    <!--plugin name='pose publisher' filename='libgazebo_yarp_modelposepublisher.so'></plugin-->
   </model-->
 
