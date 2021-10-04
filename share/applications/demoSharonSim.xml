@@ -6,8 +6,8 @@
 		<node>localhost</node>
 	</module>
 	<module>
-		<name>rgbdDetection</name>
-		<parameters>--RGBDRemote /teoSim/camera --detector ObjectDetection2DOpencvDnn --context ObjectDetection2DOpencvDnn --from ObjectDetection2DOpencvDnnSimulation.ini</parameters>
+		<name>rgbdObjectDetection</name>
+		<parameters>--sensorRemote /teoSim/camera --detector DnnDetector --context DnnDetector --from DnnDetectorSimulation.ini</parameters>
 		<node>localhost</node>
 	</module>
 
@@ -94,12 +94,12 @@
 
     <module>
         <name>yarpview</name>
-        <parameters>--name /yarpview/rgbdDetection/img:i</parameters>
+        <parameters>--name /yarpview/rgbdObjectDetection/img:i</parameters>
         <node>localhost</node>
     </module>
     <connection>
-        <from>/rgbdDetection/teoSim/camera/img:o </from>
-        <to>/yarpview/rgbdDetection/img:i</to>
+        <from>/rgbdObjectDetection/img:o </from>
+        <to>/yarpview/rgbdObjectDetection/img:i</to>
     </connection>
 
     <module>
