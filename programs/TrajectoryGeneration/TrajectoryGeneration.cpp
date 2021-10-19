@@ -205,7 +205,7 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         double min, max;
         armIControlLimits->getLimits(joint, &min, &max);
         if(numArmJoints == 8 && joint == 1){ // we don't want the frontal joint tilt so much
-            max = 20.0;
+            max = 30.0;
         }
         qrMin.addDouble(min);
         qrMax.addDouble(max);
@@ -457,7 +457,8 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             yError() << "fwdKin failed";
             return false;
         }
-        yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
+
+        // yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
 
         bool computeInvKin = true;
 
@@ -486,7 +487,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
                 return false;
             }
         
-            yInfo()<<"desireQ: "<<desireQ;
+            // yInfo()<<"desireQ: "<<desireQ;
         
             KDL::JntArray jointpositions = KDL::JntArray(8);
 
@@ -496,28 +497,29 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             }
             checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
             bool selfCollide = checkSelfCollision->selfCollision();
-            if(selfCollide == true)
-                yInfo()<<"Collide";
-            yInfo()<<selfCollide;
+            // if(selfCollide == true)
+            //     yInfo()<<"Collide";
+            // yInfo()<<selfCollide;
             return !selfCollide;
         }
         return true;
     }
     else{ // joint space
-        yInfo()<<"joint space isValid()";
+        // yInfo()<<"joint space isValid()";
+        
         const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
         KDL::JntArray jointpositions = KDL::JntArray(numArmJoints);
 
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
             jointpositions(i) = jointState->values[i];
-            yInfo()<<jointpositions(i);
+            // yInfo()<<jointpositions(i);
 
         }
         checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
         bool selfCollide = checkSelfCollision->selfCollision();
-        if(selfCollide == true)
-            yInfo()<<"Collide";
+        // if(selfCollide == true)
+        //     yInfo()<<"Collide";
         return !selfCollide;
 
     }
@@ -699,11 +701,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     // pdef->addStartState(start);
 
 
-    auto plannerRRT = (new og::RRTstar(si));
-    plannerRRT->setRange(1.5);
-    plannerRRT->setPruneThreshold(2.0);
-    plannerRRT->setTreePruning(true);
-    plannerRRT->setInformedSampling(true);
+    auto plannerRRT = (new og::RRTConnect(si));
+    plannerRRT->setRange(2.5);
+    // plannerRRT->setPruneThreshold(1.0);
+    // plannerRRT->setTreePruning(true);
+    // plannerRRT->setInformedSampling(true);
 
     ob::PlannerPtr planner = ob::PlannerPtr(plannerRRT);
 
@@ -729,7 +731,6 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
 
 
-
     if (isValid(goalState)){
         yInfo() << "Valid goal state";
         validGoalState = true;
@@ -742,9 +743,9 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     }
 
     ob::RealVectorBounds bounds = space->as<ob::RealVectorStateSpace>()->getBounds();
-    for(unsigned int j=0; j<numArmJoints; j++){
-        yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
-    }
+    // for(unsigned int j=0; j<numArmJoints; j++){
+    //     yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
+    // }
 
     planner->setProblemDefinition(pdef);
 
@@ -752,7 +753,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     pdef->clearSolutionPaths();
 
 
-    bool solutionFound = planner->solve(5.0);
+    bool solutionFound = planner->solve(15.0);
 
 
     if (solutionFound == true)
@@ -850,6 +851,17 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     }
 
     yInfo() << "currentQ: " << currentQ;
+
+    std::vector<double> xStart;
+
+    if (!armICartesianSolver->fwdKin(currentQ, xStart))
+    {
+        yError() << "fwdKin failed";
+        return false;
+    }
+        
+    yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
+
      
     if (planningSpace=="cartesian"){
 
