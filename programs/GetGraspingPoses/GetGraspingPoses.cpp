@@ -62,7 +62,7 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder & rf)
     yInfo("RGBDDevice ok view.\n");
 
     //-----------------OPEN LOCAL PORTS------------//
-    std::string portPrefix("/getGraspinPoses");
+    std::string portPrefix("/getGraspingPoses");
     portPrefix += strRGBDRemote;
     if(!outRgbImgPort.open(portPrefix + "/croppedImg:o"))
     {
@@ -81,18 +81,21 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder & rf)
         return false;
     }
 
+    // if(!inMarchingObjectDataPort.open(portPrefix + "/matching/object:i"))
+    // {
+    //     yError("Bad inMarchingObjectDataPort.open\n");
+    //     return false;
+    // }
 
-
-    if(!inMarchingObjectDataPort.open(portPrefix + "/matching/object:i"))
-    {
-        yError("Bad inMarchingObjectDataPort.open\n");
-        return false;
-    }
+    // if(!outGraspingPosesPort.open(portPrefix + "/graspingPoses:o")){
+    //     yError("Bad outGraspingPosesPort.open\n");
+    //     return false;
+    // }
 
     yarp::os::Property headOptions;
     headOptions.put("device","remote_controlboard");
     headOptions.put("remote",robot+"/head");
-    headOptions.put("local",robot+"/head");
+    headOptions.put("local","/getGraspingPoses"+robot+"/head");
     headDevice.open(headOptions);
 
     if( ! headDevice.isValid() )
@@ -119,7 +122,7 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder & rf)
     yarp::os::Property trunkOptions;
     trunkOptions.put("device","remote_controlboard");
     trunkOptions.put("remote",robot+"/trunk");
-    trunkOptions.put("local",robot+"/trunk");
+    trunkOptions.put("local","/getGraspingPoses"+robot+"/trunk");
     trunkDevice.open(trunkOptions);
 
     if( ! trunkDevice.isValid() )
@@ -186,17 +189,21 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder & rf)
     }
 
 
+    if (!rpcServer.open("/getGraspingPoses/rpc:s"))
+    {
+        yError() << "Unable to open RPC server port" << rpcServer.getName();
+        return false;
+    }
 
-
-
-    yarp::os::Network::connect("/matching/object:o", portPrefix + "/matching/object:i");
-
+    // yarp::os::Network::connect("/matching/object:o", portPrefix + "/matching/object:i");
 
     segmentorThread.setIRGBDSensor(iRGBDSensor);
     segmentorThread.setOutRgbImgPort(&outRgbImgPort);
     segmentorThread.setOutDepthImgPort(&outDepthImgPort);
-    segmentorThread.setInMarchingObjectDataPort(&inMarchingObjectDataPort);
+    // segmentorThread.setInMarchingObjectDataPort(&inMarchingObjectDataPort);
     segmentorThread.setOutPointCloudPort(&outPointCloudPort);
+    segmentorThread.setRpcServer(&rpcServer);
+    // segmentorThread.setOutGraspingPosesPort(&outGraspingPosesPort);
     segmentorThread.setHeadIEncoders(iHeadEncoders);
     segmentorThread.setTrunkIEncoders(iTrunkEncoders);
     segmentorThread.setICartesianSolver(trunkAndHeadSolverDeviceICartesianSolver);
@@ -234,6 +241,7 @@ bool GetGraspingPoses::interruptModule()
     outRgbImgPort.interrupt();
     outDepthImgPort.interrupt();
     inMarchingObjectDataPort.interrupt();
+
 
     dd.close();
     outRgbImgPort.close();
