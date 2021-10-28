@@ -887,6 +887,9 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             armDevice.close();
             trunkDevice.close();
             openDevices();
+            yInfo()<<"Wait a 2 seconds...";
+            yarp::os::Time::delay(2.0);
+            
         }
     }
 
