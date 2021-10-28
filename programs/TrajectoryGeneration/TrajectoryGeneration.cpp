@@ -106,23 +106,22 @@ static KDL::Chain makeTeoFixedTrunkAndLeftArmKinematicsFromDH(){
 
 /************************************************************************/
 
-bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
+bool TrajectoryGeneration::open(yarp::os::Searchable& config)
 {
-    resourceFinder = rf;
-    robot = rf.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
-    std::string prefix = rf.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
-    planningSpace = rf.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
-    deviceName = rf.check("deviceName", yarp::os::Value(DEFAULT_DEVICE_NAME), "device name").asString();
-    kinematicsConfig = rf.check("kinematicsConfig", yarp::os::Value(DEFAULT_KINEMATICS_CONFIG), "kinematics config").asString();
+    robot = config.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
+    std::string prefix = config.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
+    planningSpace = config.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
+    deviceName = config.check("deviceName", yarp::os::Value(DEFAULT_DEVICE_NAME), "device name").asString();
+    kinematicsConfig = config.check("kinematicsConfig", yarp::os::Value(DEFAULT_KINEMATICS_CONFIG), "kinematics config").asString();
+    
     printf("TrajectoryGeneration using robot: %s\n",robot.c_str());
     printf("TrajectoryGeneration using prefix: %s\n",prefix.c_str());
     printf("TrajectoryGeneration using planningSpace: %s\n",planningSpace.c_str());
     printf("TrajectoryGeneration using deviceName: %s\n",deviceName.c_str());
     printf("TrajectoryGeneration using kinematicsConfig: %s\n",kinematicsConfig.c_str());
 
-
     printf("--------------------------------------------------------------\n");
-    if (rf.check("help"))
+    if (config.check("help"))
     {
         printf("TrajectoryGeneration options:\n");
         printf("\t--help (this help)\t--from [file.ini]\t--context [path]\n");
@@ -136,76 +135,22 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         return false;
     }
 
-    // ------  ARM DEVICE -------
+    openDevices();
 
-    yarp::os::Property armOptions;
-    armOptions.put("device", "remote_controlboard");
-    armOptions.put("remote", "/"+robot+"/"+deviceName);
-    armOptions.put("local", "/" + robot + "/"+deviceName);
-    armDevice.open(armOptions);
-    if (!armDevice.isValid())
-    {
-        yError() << "Robot "<<deviceName<<" device not available";
-        armDevice.close();
-        yarp::os::Network::fini();
-        return false;
-    }
+  
 
-    // connecting our device with "IEncoders" interface
-    if (!armDevice.view(armIEncoders))
-    {
-        yError() << "Problems acquiring IEncoders interface in "<<deviceName;
-        return false;
-    }
-    else
-    {
-        yInfo() << "Acquired IEncoders interface in "<<deviceName;
-        if (!armIEncoders->getAxes(&numArmJoints))
-            yError() << "Problems acquiring numArmJoints";
-        else
-            yWarning() << "Number of joints:" << numArmJoints;
-    }
-
-    // connecting our device with "control mode" interface, initializing which control mode we want (position)
-    if (!armDevice.view(armIControlMode))
-    {
-        yError() << "Problems acquiring armIControlMode interface";
-        return false;
-    }
-    else
-        yInfo() << "Acquired armIControlMode interface";
-
-    // connecting our device with "PositionControl" interface
-    if (!armDevice.view(armIPositionControl))
-    {
-        yError() << "Problems acquiring armIPositionControl interface";
-        return false;
-    }
-    else
-        yInfo() << "Acquired armIPositionControl interface";
-
-    // ----- Configuring KDL Solver for device -----
-
-
-    if (!armDevice.view(armIControlLimits))
-    {
-        yError() << "Could not view iControlLimits in "<<deviceName;
-        return false;
-    }
 
     //  Getting the limits of each joint
-    printf("---- Joint limits of %s ----\n",deviceName.c_str());
+    printf("---- Joint limits of %s and %s----\n",trunkDeviceName.c_str(), rightArmDeviceName.c_str());
 
-    qmin.resize(numArmJoints);
-    qmax.resize(numArmJoints);
+    qmin.resize(numTrunkJoints+numArmJoints);
+    qmax.resize(numTrunkJoints+numArmJoints);
 
-
-    for (unsigned int joint = 0; joint < numArmJoints; joint++)
-    {
+    for(unsigned int joint = 0; joint < numTrunkJoints; joint++){
         double min, max;
-        armIControlLimits->getLimits(joint, &min, &max);
-        if(numArmJoints == 8 && joint == 1){ // we don't want the frontal joint tilt so much
-            max = 30.0;
+        trunkIControlLimits->getLimits(joint, &min, &max);
+        if(joint == 1){ // we don't want the frontal joint tilt so much
+            max = 15.0;
         }
         qrMin.addDouble(min);
         qrMax.addDouble(max);
@@ -215,6 +160,21 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
     }
 
 
+    for (unsigned int joint = 0; joint < numArmJoints; joint++)
+    {
+        double min, max;
+        armIControlLimits->getLimits(joint, &min, &max);
+        qrMin.addDouble(min);
+        qrMax.addDouble(max);
+        yInfo("Joint %d limits: [%f,%f]", joint, min, max);
+        qmin(joint+numTrunkJoints) = min;
+        qmax(joint+numTrunkJoints) = max;
+    }
+
+    // ----- Configuring KDL Solver for device -----
+
+    yarp::os::ResourceFinder rf;
+    rf.setDefaultContext("kinematics"); // context to find kinematic config files
     std::string kinPath = rf.findFileByName(kinematicsConfig);
     armSolverOptions.fromConfigFile(kinPath);
     armSolverOptions.put("device", "KdlSolver");
@@ -325,6 +285,8 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
 
     checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
     yInfo()<<"Check selfCollisionObject created";
+    
+    
     if(planningSpace == "cartesian"){ // cartesian space
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
         ob::RealVectorBounds bounds{3};
@@ -365,47 +327,143 @@ bool TrajectoryGeneration::configure(yarp::os::ResourceFinder &rf)
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
     }
 
-
+   
     rpcServer.setReader(*this);
 
     return true;
 }
 
-/************************************************************************/
+bool TrajectoryGeneration::openDevices(){
+    trunkDeviceName = "trunk";
+    yarp::os::Property trunkOptions;
+    trunkOptions.put("device", "remote_controlboard");
+    trunkOptions.put("remote", "/"+robot+"/"+trunkDeviceName);
+    trunkOptions.put("local", "/"+ robot + "/"+trunkDeviceName);
+    trunkDevice.open(trunkOptions);
+    if (!trunkDevice.isValid())
+    {
+        yError() << "Robot "<<trunkDeviceName<<" device not available";
+        trunkDevice.close();
+        yarp::os::Network::fini();
+        return false;
+    }
 
-bool TrajectoryGeneration::interruptModule()
-{
-    return true;
+    // connecting our device with "IEncoders" interface
+    if (!trunkDevice.view(trunkIEncoders))
+    {
+        yError() << "Problems acquiring IEncoders interface in "<<trunkDeviceName;
+        return false;
+    }
+    else
+    {
+        yInfo() << "Acquired IEncoders interface in "<<trunkDeviceName;
+        if (!trunkIEncoders->getAxes(&numTrunkJoints))
+            yError() << "Problems acquiring numTrunkJoints";
+        else
+            yWarning() << "Number of joints:" << numTrunkJoints;
+    }
+
+    if (!trunkDevice.view(trunkIControlLimits))
+    {
+        yError() << "Could not view iControlLimits in "<<trunkDeviceName;
+        return false;
+    }
+
+ // connecting our device with "control mode" interface, initializing which control mode we want (position)
+    if (!trunkDevice.view(trunkIControlMode))
+    {
+        yError() << "Problems acquiring trunkIControlMode interface";
+        return false;
+    }
+    else
+        yInfo() << "Acquired trunkIControlMode interface";
+
+    // connecting our device with "PositionControl" interface
+    if (!trunkDevice.view(trunkIPositionControl))
+    {
+        yError() << "Problems acquiring trunkIPositionControl interface";
+        return false;
+    }
+    else
+        yInfo() << "Acquired trunkIPositionControl interface";
+
+
+    // ------  ARM DEVICE -------
+    rightArmDeviceName = "rightArm";
+    yarp::os::Property armOptions;
+    armOptions.put("device", "remote_controlboard");
+    armOptions.put("remote", "/"+robot+"/"+rightArmDeviceName);
+    armOptions.put("local", "/" + robot + "/"+rightArmDeviceName);
+    armDevice.open(armOptions);
+    if (!armDevice.isValid())
+    {
+        yError() << "Robot "<<rightArmDeviceName<<" device not available";
+        armDevice.close();
+        yarp::os::Network::fini();
+        return false;
+    }
+
+    // connecting our device with "IEncoders" interface
+    if (!armDevice.view(armIEncoders))
+    {
+        yError() << "Problems acquiring IEncoders interface in "<<rightArmDeviceName;
+        return false;
+    }
+    else
+    {
+        yInfo() << "Acquired IEncoders interface in "<<rightArmDeviceName;
+        if (!armIEncoders->getAxes(&numArmJoints))
+            yError() << "Problems acquiring numArmJoints";
+        else
+            yWarning() << "Number of joints:" << numArmJoints;
+    }
+
+    if (!armDevice.view(armIControlLimits))
+    {
+        yError() << "Could not view iControlLimits in "<<rightArmDeviceName;
+        return false;
+    }
+     // connecting our device with "control mode" interface, initializing which control mode we want (position)
+    if (!armDevice.view(armIControlMode))
+    {
+        yError() << "Problems acquiring armIControlMode interface";
+        return false;
+    }
+    else
+        yInfo() << "Acquired armIControlMode interface";
+
+    // connecting our device with "PositionControl" interface
+    if (!armDevice.view(armIPositionControl))
+    {
+        yError() << "Problems acquiring armIPositionControl interface";
+        return false;
+    }
+    else
+        yInfo() << "Acquired armIPositionControl interface";
 }
 
-/************************************************************************/
 
-double TrajectoryGeneration::getPeriod()
-{
-    return 15.0; // Fixed, in seconds, the slow thread that calls updateModule below
-}
+bool TrajectoryGeneration::getCurrentQ(std::vector<double> & currentQ){
+        std::vector<double> currentQArm(numArmJoints);
+        if (!armIEncoders->getEncoders(currentQArm.data()))
+        {
+            yError() << "Failed getEncoders() of "<<rightArmDeviceName;
+            return false;
+        }
 
-/************************************************************************/
+        std::vector<double> currentQTrunk(numTrunkJoints);
+        if (!trunkIEncoders->getEncoders(currentQTrunk.data()))
+        {
+            yError() << "Failed getEncoders() of "<<trunkDeviceName;
+            return false;
+        }
 
-bool TrajectoryGeneration::updateModule()
-{
+        for(unsigned int j = 0; j< numTrunkJoints; j++)
+            currentQ[j] = currentQTrunk[j];
+        for(unsigned int j = 0; j< numArmJoints; j++)
+            currentQ[j+numTrunkJoints] = currentQArm[j];    
+        return true;
 
-    return true;
-}
-
-/************************************************************************/
-
-bool TrajectoryGeneration::threadInit()
-{
-    initTime = Time::now();
-    return true;
-}
-
-/**************** Sending Thread *************************/
-
-void TrajectoryGeneration::run()
-{
-    yInfo() << "running";
 }
 
 
@@ -440,13 +498,12 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         std::vector<double> testAxisAngle = frameToVector(frame);
         // //yInfo() << testAxisAngle;
         // //yInfo() << testAxisAngle;
+        std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-        std::vector<double> currentQ(numArmJoints);
-        if (!armIEncoders->getEncoders(currentQ.data()))
-        {
-            yError() << "Failed getEncoders() of "<<deviceName;
+        if(!getCurrentQ(currentQ)){
             return false;
         }
+
 
         // Check if we are in the starting state
 
@@ -476,7 +533,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             computeInvKin = false;
         }
 
-        std::vector<double> desireQ(numArmJoints);
+        std::vector<double> desireQ(numArmJoints+numTrunkJoints);
 
 
         if (computeInvKin)
@@ -487,16 +544,20 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
                 return false;
             }
         
-            // yInfo()<<"desireQ: "<<desireQ;
         
             KDL::JntArray jointpositions = KDL::JntArray(8);
+            goalQ.clear();
 
             for (unsigned int i = 0; i < jointpositions.rows(); i++)
             {
                 jointpositions(i) = desireQ[i];
+                goalQ.push_back(desireQ[i]);
             }
+            yInfo()<<"desireQ: "<<desireQ;
+
             checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
             bool selfCollide = checkSelfCollision->selfCollision();
+
             // if(selfCollide == true)
             //     yInfo()<<"Collide";
             // yInfo()<<selfCollide;
@@ -505,10 +566,10 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         return true;
     }
     else{ // joint space
-        // yInfo()<<"joint space isValid()";
+        yInfo()<<"joint space isValid()";
         
         const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
-        KDL::JntArray jointpositions = KDL::JntArray(numArmJoints);
+        KDL::JntArray jointpositions = KDL::JntArray(numArmJoints+numTrunkJoints);
 
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
@@ -630,22 +691,15 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         frame.p = posKdl;
         std::vector<double> pose = frameToVector(frame);
         
-        std::vector<double> currentQ(numArmJoints);
-        if (!armIEncoders->getEncoders(currentQ.data()))
-        {
-            yError() << "Failed getEncoders() of "<<deviceName;
-            return false;
-        }
-        std::vector<double> xStart;
+        std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-        if (!armICartesianSolver->fwdKin(currentQ, xStart))
-        {
-            yError() << "fwdKin failed";
+        if(!getCurrentQ(currentQ)){
             return false;
         }
+
 
         bool computeInvKin = true;
-
+        std::vector<double>xStart;
         double diffSumSquare = 0;
         for (int i = 0; i < 6; i++)
         {
@@ -660,7 +714,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
             computeInvKin = false;
         }
 
-        std::vector<double> desireQ(numArmJoints);
+        std::vector<double> desireQ(numArmJoints+numTrunkJoints);
 
         if (computeInvKin)
         {
@@ -674,8 +728,8 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
                     bPose.addDouble(pose[i]);
                 }
                 std::vector<double> jointsPosition;
-                jointsPosition.reserve(numArmJoints);
-                for(int i = 0; i<numArmJoints; i++){
+                jointsPosition.reserve(numArmJoints+numTrunkJoints);
+                for(int i = 0; i<numArmJoints+numTrunkJoints; i++){
                     jointsPosition.emplace_back(desireQ[i]);
                 }
                 jointsTrajectory.push_back(jointsPosition);
@@ -780,8 +834,8 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
 
         std::vector<double> poseQ;
-        poseQ.reserve(numArmJoints);
-        for(unsigned int j=0; j<numArmJoints; j++)
+        poseQ.reserve(numArmJoints+numTrunkJoints);
+        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++)
             poseQ.emplace_back(jointState->values[j]);
 
         std::vector<double> pose;
@@ -818,22 +872,43 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     auto *writer = connection.getWriter();
 
 
-    if (!yarp::os::NetworkBase::exists("/"+robot+"/"+deviceName+"/rpc:i"))
+    if (!yarp::os::NetworkBase::exists("/"+robot+"/"+trunkDeviceName+"/rpc:i") || !yarp::os::NetworkBase::exists("/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
     {
-        yError()<<"Check if the device "<<deviceName<<" is open!";
+        yError()<<"Check if the device "<<trunkDeviceName<<" is open!";
         // configure(resourceFinder);
         reply.addString("Device not open");
         return reply.write(*writer);
     }
     else{
-        if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+deviceName+"/rpc:o", "/"+robot+"/"+deviceName+"/rpc:i"))
+        if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+trunkDeviceName+"/rpc:o", "/"+robot+"/"+trunkDeviceName+"/rpc:i") ||
+            !yarp::os::NetworkBase::isConnected("/"+robot+"/"+rightArmDeviceName+"/rpc:o", "/"+robot+"/"+rightArmDeviceName+"/rpc:i") )
         {
             yWarning()<<"Device not connected";
-            configure(resourceFinder);
-            reply.addString("Open device");
-            return reply.write(*writer);
+            armDevice.close();
+            trunkDevice.close();
+            openDevices();
         }
     }
+
+    // if (!yarp::os::NetworkBase::exists("/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
+    // {
+    //     yError()<<"Check if the device "<<rightArmDeviceName<<" is open!";
+    //     // configure(resourceFinder);
+    //     reply.addString("Device not open");
+    //     return reply.write(*writer);
+    // }
+    // else{
+    //     if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+rightArmDeviceName+"/rpc:o", "/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
+    //     {
+    //         yWarning()<<"Device not connected";
+    //         rightArmDeviceName = "rightArm";
+    //         openDevices();
+
+    //         reply.addString("Open device");
+    //         return reply.write(*writer);
+    //     }
+    // }
+
 
     yarp::os::Bottle command;
     if (!command.read(connection) || writer == nullptr)
@@ -844,11 +919,13 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
 
 
-    std::vector<double> currentQ(numArmJoints);
-    if (!armIEncoders->getEncoders(currentQ.data()))
-    {
-        yError() << "Failed getEncoders() of "<<deviceName;
+    std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+
+    if(!getCurrentQ(currentQ)){
+        yError()<<"error";
+        return false;
     }
+
 
     yInfo() << "currentQ: " << currentQ;
 
@@ -945,6 +1022,13 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             if(isValid(goalState)){
                 yInfo() << "Valid";
                 reply.addString("Valid");
+                Bottle bJointsPosition;
+
+                for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+                    yInfo()<<goalQ[j];
+                    bJointsPosition.addDouble(goalQ[j]);
+                }
+                reply.addList() = bJointsPosition;
             }
             else{
                 yInfo() << "Not Valid";
@@ -982,7 +1066,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 Bottle bJointsTrajectory;
                 for(int i=0; i<jointsTrajectory.size(); i++){
                     Bottle bJointsPosition;
-                    for(int j = 0; j<numArmJoints; j++){
+                    for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
                         bJointsPosition.addDouble(jointsTrajectory[i][j]);
                     }
                     bJointsTrajectory.addList() = bJointsPosition;
@@ -1010,7 +1094,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         yInfo("Joint space");
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
         ob::ScopedState<ob::RealVectorStateSpace> start(space);
-        for(unsigned int j=0; j<numArmJoints; j++){
+        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
             start[j] = currentQ[j];
         }
         pdef->clearStartStates();
@@ -1032,12 +1116,11 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 xGoal[i] = bGoal->get(i).asDouble();
             yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
-            std::vector<double> desireQ(numArmJoints);
+            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
 
-            std::vector<double> currentQ(numArmJoints);
-            if (!armIEncoders->getEncoders(currentQ.data()))
-            {
-                yError() << "Failed getEncoders() of "<<deviceName;
+            std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+
+            if(!getCurrentQ(currentQ)){
                 reply.addString("Not Valid");
             }
             else{
@@ -1049,7 +1132,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 else{   
                     yInfo()<<"desireQ: "<<desireQ;
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-                    for(unsigned int j=0; j<numArmJoints; j++){
+                    for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
                         goal[j] = desireQ[j];
                     }
                     pdef->clearGoal();
@@ -1060,6 +1143,11 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                     if(isValid(goalState)){
                         yInfo() << "Valid";
                         reply.addString("Valid");
+                        Bottle bJointsPosition;
+                        for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+                            bJointsPosition.addDouble(desireQ[j]);
+                        }
+                        reply.addList() = bJointsPosition;
                     }
                     else{
                         yInfo() << "Not Valid";
@@ -1075,12 +1163,11 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             for (int i = 0; i < 6; i++)
                 xGoal[i] = bGoal->get(i).asDouble();
 
-            std::vector<double> desireQ(numArmJoints);
-            std::vector<double> currentQ(numArmJoints);
+            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
+            std::vector<double> currentQ(numArmJoints+numTrunkJoints);
             yInfo()<<"getting encoders";
-            if (!armIEncoders->getEncoders(currentQ.data()))
-            {
-                yError() << "Failed getEncoders() of "<<deviceName;
+            
+            if(!getCurrentQ(currentQ)){
                 reply.addString("Not Valid");
             }
             
@@ -1094,7 +1181,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 else{   
                     yInfo()<<"desireQ: "<<desireQ;
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-                    for(unsigned int j=0; j<numArmJoints; j++){
+                    for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
                         goal[j] = desireQ[j];
                     }
                     pdef->clearGoal();
@@ -1112,7 +1199,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                         Bottle bJointsTrajectory;
                         for(int i=0; i<jointsTrajectory.size(); i++){
                             Bottle bJointsPosition;
-                            for(int j = 0; j<numArmJoints; j++){
+                            for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
                                 bJointsPosition.addDouble(jointsTrajectory[i][j]);
                             }
                             bJointsTrajectory.addList() = bJointsPosition;
@@ -1142,11 +1229,11 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         else if (command.get(0).toString() == "Compute trajectory joints position"){
             Bottle * bGoal = command.get(1).asList();
             
-            std::vector<double> qGoal(numArmJoints);
-            for (int i = 0; i < numArmJoints; i++)
+            std::vector<double> qGoal(numArmJoints+numTrunkJoints);
+            for (int i = 0; i < numArmJoints+numTrunkJoints; i++)
                 qGoal[i] = bGoal->get(i).asDouble();
              ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-            for(unsigned int j=0; j<numArmJoints; j++){
+            for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
                 goal[j] = qGoal[j];
             }
             pdef->clearGoal();
@@ -1163,7 +1250,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 Bottle bJointsTrajectory;
                 for(int i=0; i<jointsTrajectory.size(); i++){
                     Bottle bJointsPosition;
-                    for(int j = 0; j<numArmJoints; j++){
+                    for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
                         bJointsPosition.addDouble(jointsTrajectory[i][j]);
                     }
                     bJointsTrajectory.addList() = bJointsPosition;

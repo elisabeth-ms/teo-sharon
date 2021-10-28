@@ -5,7 +5,7 @@
 #include <yarp/dev/IAnalogSensor.h>
 #include "ICartesianSolver.h"
 #include "KinematicRepresentation.hpp"
-
+#include <yarp/dev/DeviceDriver.h>
 // #include <kdl/chain.hpp>
 // #include <kdl/chainfksolverpos_recursive.hpp>
 // #include <kdl/frames.hpp>
@@ -34,7 +34,7 @@
 // #include <fcl/shape/geometric_shapes_utility.h>
 
 
-#define DEFAULT_ROBOT "teoSim" // teo or teoSim (default teo)
+#define DEFAULT_ROBOT "teo" // teo or teoSim (default teo)
 #define DEFAULT_PLANNING_SPACE "joint" // joint or cartesian
 #define DEFAULT_MODE "keyboard"
 #define PT_MODE_MS 50
@@ -57,8 +57,7 @@ using namespace roboticslab;
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
-namespace sharon
-{
+
 
 /**
  * @ingroup teo-sharon_programs
@@ -66,19 +65,19 @@ namespace sharon
  * @brief Trajectory Generation Core.
  *
  */
-   class TrajectoryGeneration : public yarp::os::RFModule, private yarp::os::PortReader
+   class TrajectoryGeneration : public yarp::dev::DeviceDriver, public yarp::os::PortReader
     {        
         public:
         //TrajectoryGeneration();// constructor
-        virtual bool configure(yarp::os::ResourceFinder &rf);
+        bool open(yarp::os::Searchable &config) override;
         bool read(yarp::os::ConnectionReader & reader) override;
 
         protected:
           typedef std::shared_ptr<fcl::CollisionGeometryf> CollisionGeometryPtr_t;
-          CheckSelfCollision *checkSelfCollision;
+          sharon::CheckSelfCollision *checkSelfCollision;
 
         private:
-
+            bool openDevices();
             /** robot used (teo/teoSim) **/
             std::string robot;
             yarp::os::ResourceFinder resourceFinder;
@@ -99,31 +98,31 @@ namespace sharon
             
             std::vector<KDL::Frame> centerLinkWrtJoint;
 
-
-            /** RFModule interruptModule. */
-            virtual bool interruptModule();
-            /** RFModule getPeriod. */
-            virtual double getPeriod();
-            /** RFModule updateModule. */
-            virtual bool updateModule();
-
             /*-- Arm Device --*/
             /** Axes number **/
             int numArmJoints;
+            int numTrunkJoints;
             /** Device **/
             yarp::dev::PolyDriver armDevice;
+            yarp::dev::PolyDriver trunkDevice;
+
+            std::string rightArmDeviceName;
+            std::string trunkDeviceName;
             /** Encoders **/
             yarp::dev::IEncoders *armIEncoders;
-            /** Right Arm ControlMode2 Interface */
+            yarp::dev::IEncoders *trunkIEncoders;
+           /** ControlMode2 Interface */
+
             yarp::dev::IControlMode *armIControlMode;
-            /** Right Arm PositionControl2 Interface */
+            yarp::dev::IControlMode *trunkIControlMode;
+            /** PositionControl2 Interface */
             yarp::dev::IPositionControl *armIPositionControl;
-            /** Right Arm PositionDirect Interface */
-            yarp::dev::IPositionDirect *armIPositionDirect;
+            yarp::dev::IPositionControl *trunkIPositionControl;
+
             /** Right Arm ControlLimits2 Interface */
             yarp::dev::IControlLimits *armIControlLimits;
-            /** Right Arm RemoteVariables **/
-            yarp::dev::IRemoteVariables *armIRemoteVariables;
+            yarp::dev::IControlLimits *trunkIControlLimits;
+
 
             /** Solver device **/
             yarp::dev::PolyDriver armSolverDevice;
@@ -136,8 +135,6 @@ namespace sharon
 
             /****** FUNCTIONS ******/            
 
-            /** Execute trajectory using a thread and KdlTrajectory**/
-            bool executeTrajectory(std::vector<double> rx, std::vector<double> lx, std::vector<double> rxd, std::vector<double> lxd, double duration, double maxvel);
 
             /** movement finished */
             bool done;
@@ -146,10 +143,6 @@ namespace sharon
             double initTime;
 
 
-            /** Thread run */
-            virtual bool threadInit();
-            virtual void run();
-
             ob::SpaceInformationPtr si;
             ob::ProblemDefinitionPtr pdef;
             og::PathGeometric * pth;
@@ -157,9 +150,10 @@ namespace sharon
             yarp::os::RpcServer rpcServer;
             
             bool isValid(const ob::State *state);
+            bool getCurrentQ(std::vector<double> & currentQ);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
             bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
-
+            std::vector<double> goalQ;
             // bool followDiscretePath();
 
             ob::StateSpacePtr space;
@@ -172,4 +166,4 @@ namespace sharon
 
 
      }; // class TrajectoryGeneration
-}
+
