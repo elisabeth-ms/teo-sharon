@@ -20,7 +20,7 @@ from numpy.random import rand
 ### ----------------- Just for the example ----------------------###
 
 
-def get_frames_fixations_from_pkl(fixationsFileStr):
+def get_frames_fixations_action_from_pkl(fixationsFileStr):
     with open(fixationsFileStr, 'rb') as f:
         data = pickle.load(f)
     print(data)
@@ -38,7 +38,20 @@ def get_frames_fixations_from_pkl(fixationsFileStr):
 
 ### ----------------- Just for the example ----------------------##
 
-
+def get_frames_fixations_from_pkl(fixationsFileStr):
+    with open(fixationsFileStr, 'rb') as f:
+        data = pickle.load(f)
+    print(data)
+    frames = data['frames']
+    fixations = data['fixations']
+    print(fixations[0])
+    
+    labels = data['labels']
+    # print(labels)
+    print(fixations)
+    action_level = data['action_labels']
+    print(action_level)
+    return frames, fixations, action_level, labels
 
 class ClientProtocol:
 
@@ -66,7 +79,7 @@ class ClientProtocol:
         self.socket = None
 
 
-    def send_data(self, image_data, fixation, probability_vector):
+    def send_data(self, image_data, fixation, bbox, decision_vector):
 
         # use struct to make sure we have a consistent endianness on the length
         # Send the number of bytes in the image_data
@@ -88,14 +101,23 @@ class ClientProtocol:
         ciphered_bytes = self.cipher_encrypt.encrypt(fixation_data_encoded)
         self.socket.sendall(ciphered_bytes)
         
+        bbox_data_encoded = base64.b64encode(bbox)
+        length_bbox_data = pack('>Q', len(bbox_data_encoded))
+        ciphered_bytes = self.cipher_encrypt.encrypt(length_bbox_data)
+        self.socket.sendall(ciphered_bytes)
+        
+        ciphered_bytes = self.cipher_encrypt.encrypt(bbox_data_encoded)
+        self.socket.sendall(ciphered_bytes)
+        
+        
         # Send the number of bytes in the probability vector
-        probability_vector_data_encoded = base64.b64encode(probability_vector)
-        length_probability_vector_data = pack('>Q', len(probability_vector_data_encoded))
-        ciphered_bytes = self.cipher_encrypt.encrypt(length_probability_vector_data)
+        decision_vector_data_encoded = base64.b64encode(decision_vector)
+        length_decision_vector_data = pack('>Q', len(decision_vector_data_encoded))
+        ciphered_bytes = self.cipher_encrypt.encrypt(length_decision_vector_data)
         self.socket.sendall(ciphered_bytes)
         
         # Send the probability vector
-        ciphered_bytes = self.cipher_encrypt.encrypt(probability_vector_data_encoded)
+        ciphered_bytes = self.cipher_encrypt.encrypt(decision_vector_data_encoded)
         self.socket.sendall(ciphered_bytes)
         
         
@@ -114,10 +136,11 @@ if __name__ == '__main__':
         fixations_file_str = path_images+'/annotation.pkl'
         
 
-        frames, fixations, action_level, labels = get_frames_fixations_from_pkl(fixations_file_str)
+        frames, fixations, action_level, labels = get_frames_fixations_action_from_pkl(fixations_file_str)
         for i in range(len(frames)):
             print(frames[i], action_level[i])
         categories = np.load(sys.path[0]+'/../demoSharon/'+'/categories.npy')
+        print(categories)
 
         #Lets check the category of the graspped object in the video
         selected_index_category = None
@@ -139,27 +162,44 @@ if __name__ == '__main__':
 
         cp.connect(remote_ip, 55555)
         
+        width = 725
+        height = 720
         while frame_number<int(number_frames):
             try:
                 with open(path_images+"/Frames/"+frames[frame_number]+".png", 'rb') as fp:
                 #with open('1.png', 'rb') as fp:
                     image_data = fp.read()
                     print("Lets send the new image")
+                    
                     #print(rand(categories.size))
                     
-                    probability_vector = np.random.uniform(low=0.0, high=0.4, size=(categories.size,))
-                    aux_prob = np.random.uniform(low=0.8, high=1.0, size=(1,))
+                    decision_vector = np.zeros(categories.size)
                     
-                    if action_level[frame_number] == 0:
-                        probability_vector[0] = aux_prob[0]
-                    else:
-                        print(frames[frame_number])
-                        probability_vector[labels[frame_number]] = aux_prob[0]
+
+                    if action_level[frame_number] ==  1:
+                        print(frames[frame_number], action_level[frame_number] )
+                        #decision_vector[labels[frame_number]] = 1
+                        decision_vector[3] = 1
                     #print(probability_vector)
                     #print(np.array([fixations[frame_number][0], fixations[frame_number][1]]))
                     x = float(fixations[frame_number][0])
                     y = float(fixations[frame_number][1])
-                    cp.send_data(image_data, np.array([x,y]), probability_vector)
+                    bbox_width = 150
+                    bbox_height = 150
+                    tlx = x - bbox_width/2.0
+                    if tlx < 0:
+                        tlx = 0
+                    tly = y - bbox_height/2.0
+                    if tly < 0:
+                        tly = 0
+                    brx = x + bbox_width/2.0
+                    if brx > width:
+                        brx = width
+                    bry = y + bbox_height/2.0
+                    if bry > height:
+                        bry = height
+                    bbox = np.array([tlx, tly, brx, bry])
+                    cp.send_data(image_data, np.array([x,y]),bbox, decision_vector)
                     print("Image, fixation point and probability vector sent")
                 frame_number=frame_number+1
                 time.sleep(0.1)

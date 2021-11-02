@@ -54,7 +54,7 @@
 #include <math.h> 
 #define DEFAULT_RATE_MS 400
 #define BACKGROUND_CROP false
-constexpr auto DEFAULT_ROBOT = "/teoSim"; // teo or teoSim
+constexpr auto DEFAULT_ROBOT = "/teo"; // teo or teoSim
 using namespace std;
 using namespace cv;
 using namespace roboticslab::KinRepresentation;
@@ -109,7 +109,6 @@ public:
 private:
     void run() override; // The periodical function
 
-    yarp::dev::PolyDriver detectorDevice;
     yarp::sig::IntrinsicParams intrinsics;
 
     yarp::dev::IEncoders *iHeadEncoders;

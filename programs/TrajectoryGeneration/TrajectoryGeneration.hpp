@@ -80,6 +80,7 @@ namespace og = ompl::geometric;
             bool openDevices();
             /** robot used (teo/teoSim) **/
             std::string robot;
+            std::string prefix;
             yarp::os::ResourceFinder resourceFinder;
             /** (joint/cartesian) space to plan a trajectory **/
             std::string planningSpace;  

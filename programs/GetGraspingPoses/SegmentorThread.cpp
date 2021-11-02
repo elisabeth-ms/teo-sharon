@@ -5,15 +5,7 @@
 #include <iostream>
 using namespace saliency;
 using namespace std;
-bool less_by_x(const cv::Point& lhs, const cv::Point& rhs)
-{
-  return lhs.x < rhs.x;
-}
 
-bool less_by_y(const cv::Point& lhs, const cv::Point& rhs)
-{
-  return lhs.y < rhs.y;
-}
 
 // C++ program to find equation of a plane
 // passing through given 3 points.
@@ -24,10 +16,6 @@ bool less_by_y(const cv::Point& lhs, const cv::Point& rhs)
 #include <mutex>
 using namespace std;
  
-
-
-
-
 
 namespace sharon{
 
@@ -741,22 +729,48 @@ void SegmentorThread::addGraspingPointsAndNormalsToViewer(std::vector<pcl::Point
 
 bool SegmentorThread::transformPointCloud(const yarp::sig::PointCloud<yarp::sig::DataXYZ>& pc, pcl::PointCloud<pcl::PointXYZ>::Ptr & transformed_cloud){
 
+    if (!yarp::os::NetworkBase::exists("/"+robot+"/"+trunkDeviceName+"/rpc:i"))
+    {
+        yError()<<"Check if the device "<<trunkDeviceName<<" is open!";
+        // configure(resourceFinder);
+        reply.addString("Device not open");
+        return reply.write(*writer);
+    }
+    else{
+        if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+trunkDeviceName+"/rpc:o", "/"+robot+"/"+trunkDeviceName+"/rpc:i") )
+        {
+            yWarning()<<"Device not connected";
+            trunkDevice.close();
+            yInfo()<<"Wait a 2 seconds...";
+            yarp::os::Time::delay(2.0);
+            
+        }
+    }
 
+    yInfo()<<"Lets transform the point cloud";
     // yInfo()<<"Lets check if the head encoders are read";
-    int numHeadJoints;
-    iHeadEncoders->getAxes(&numHeadJoints);
+    int numHeadJoints = 2;
+    if(DEFAULT_ROBOT == "/teoSim")
+        iHeadEncoders->getAxes(&numHeadJoints);
 
     std::vector<double> currentHeadQ(numHeadJoints);
 
-    if (!iHeadEncoders->getEncoders(currentHeadQ.data()))
-    {
-        yError()<<"getEncoders() failed";
-        return false;
+    if(DEFAULT_ROBOT == "/teoSim"){
+        if (!iHeadEncoders->getEncoders(currentHeadQ.data()))
+        {
+            yError()<<"getEncoders() failed";
+            return false;
+        }
     }
-
+    currentHeadQ[0] = 0.0;
+    currentHeadQ[1] = 14.0;
 
     int numTrunkJoints;
-    iTrunkEncoders->getAxes(&numTrunkJoints);
+    if(!iTrunkEncoders->getAxes(&numTrunkJoints)){
+        yError()<<"getAxes() failed";
+        return false;
+    }
+    
 
     std::vector<double> currentTrunkQ(numTrunkJoints);
 
@@ -765,6 +779,9 @@ bool SegmentorThread::transformPointCloud(const yarp::sig::PointCloud<yarp::sig:
         yError()<<"getEncoders() failed";
         return false;
     }
+    yInfo()<<"CurrentTrunkQ: "<<currentTrunkQ[0]<<" "<<currentTrunkQ[1];
+
+    /** --------------------------------------------------------------------------- **/
 
     std::vector<double> currentQ(numTrunkJoints+numHeadJoints);
     for(int i=0; i<numTrunkJoints; i++){
@@ -792,13 +809,14 @@ bool SegmentorThread::transformPointCloud(const yarp::sig::PointCloud<yarp::sig:
     KDL::Frame frame;
 
     if(DEFAULT_ROBOT == "/teo"){
-        yInfo()<<"Selected teo";
         KDL::Frame frame_camera_head;
         frame_camera_head  = frame_camera_head*KDL::Frame(KDL::Vector(0, 0, 0.059742));
+        frame_camera_head = frame_camera_head*KDL::Frame(KDL::Vector(0.10, 0, 0.0));
         // frame_camera_head = frame_camera_head*KDL::Frame(KDL::Rotation::RotZ(-M_PI_2));
         // frame_camera_head = frame_camera_head*KDL::Frame(KDL::Rotation::RotX(-M_PI_2));
         frame_camera_head  = frame_camera_head*KDL::Frame(KDL::Vector(0.0, +0.018+0.026, 0.0));
         frame = frame_head_trunk*frame_camera_head;
+
     }
     else if(DEFAULT_ROBOT == "/teoSim"){
         frame = frame_head_trunk;
@@ -809,16 +827,21 @@ bool SegmentorThread::transformPointCloud(const yarp::sig::PointCloud<yarp::sig:
 
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    yarp::pcl::toPCL<yarp::sig::DataXYZ, pcl::PointXYZ>(pc, *cloud);
+    if(yarp::pcl::toPCL<yarp::sig::DataXYZ, pcl::PointXYZ>(pc, *cloud)){
 
-    pcl::VoxelGrid<pcl::PointXYZ> sor;
-    sor.setInputCloud (cloud);
-    sor.setLeafSize (0.02f, 0.02f, 0.02f);
-    sor.filter(*cloud);
+        pcl::VoxelGrid<pcl::PointXYZ> sor;
+        sor.setInputCloud (cloud);
+        sor.setLeafSize (0.01f, 0.01f, 0.01f);
+        sor.filter(*cloud);
 
+    
+        pcl::transformPointCloud (*cloud, *transformed_cloud, transform);
+        return true;
 
-    pcl::transformPointCloud (*cloud, *transformed_cloud, transform);
-
+    }else{
+        yError()<<"Could not transform pointcloud";
+        return false;
+    }
 
 }
 
@@ -877,7 +900,7 @@ bool SegmentorThread::read(yarp::os::ConnectionReader &connection)
 
     for (size_t i = 0, u = min_x; u < max_x; i++, u ++){
         for (size_t j = 0, v = min_y; v < max_y; j++, v ++) {
-            if( depthFrame.pixel(u, v)<1.4){ // TODO: PARAMETER MAX DISTANCE FILTER
+            if( depthFrame.pixel(u, v)<1.3){ // TODO: PARAMETER MAX DISTANCE FILTER
                 pcFiltered(i, j).x = depthFrame.pixel(u, v); 
                 pcFiltered(i, j).y = -(u - intrinsics.principalPointX) / intrinsics.focalLengthX * depthFrame.pixel(u, v);
                 pcFiltered(i, j).z = -(v - intrinsics.principalPointY) / intrinsics.focalLengthY * depthFrame.pixel(u, v);
@@ -888,62 +911,13 @@ bool SegmentorThread::read(yarp::os::ConnectionReader &connection)
 
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr crop_transformed_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
-    transformPointCloud(pcFiltered, crop_transformed_cloud);
-
+   
+    if( !transformPointCloud(pcFiltered, crop_transformed_cloud)){
+        yError()<<"Could NOT transform the pointcloud";
+        reply.addString("Could not transform the pointcloud");
+    }
+    else{
     
-
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    // yarp::pcl::toPCL<yarp::sig::DataXYZ, pcl::PointXYZ>(pcFiltered, *cloud);
-
-
-
-    // // Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-
-  
-    // pcl::transformPointCloud (*cloud, *transformed_cloud, transform);
-
-
-
-
-    // // Visualization
-    // printf(  "\nPoint cloud colors :  white  = original point cloud\n"
-    //     "                        red  = transformed point cloud\n");
-
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud_copy (new pcl::PointCloud<pcl::PointXYZ> ());
-    // pcl::copyPointCloud(*transformed_cloud, *transformed_cloud_copy);
-
-    // pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> transformed_cloud_color_handler (transformed_cloud_copy, 230, 20, 20); // Red
-    // if (viewer->contains("transformed_cloud")){
-    //     viewer->updatePointCloud (transformed_cloud_copy, transformed_cloud_color_handler, "transformed_cloud");
-    // }
-    // else{
-    //     viewer->addPointCloud (transformed_cloud_copy, transformed_cloud_color_handler, "transformed_cloud");
-    // }
-
-
-    // // To save in pcd files
-
-    // yarp::sig::PointCloud<yarp::sig::DataXYZ> yarpCloud;
-
-
-    // pOutPointCloudPort->prepare() = yarpCloud;
-
-
-    // pOutPointCloudPort->write();
-
-    // const string filename("pcl.pcd");
-
-    // int result = yarp::pcl::savePCD< yarp::sig::DataXYZ, pcl::PointXYZ>(filename, yarpCloud);
-
-    // const string filename1("pclNotTransformed.pcd");
-
-    // result = yarp::pcl::savePCD< yarp::sig::DataXYZ, pcl::PointXYZ>(filename1, pcFiltered);
-
-
-
-
-    
-    // yarp::pcl::fromPCL<pcl::PointXYZ, yarp::sig::DataXYZ>(*, yarpCloud);
 
     pcl::PCLPointCloud2::Ptr cloud_filtered_blob (new pcl::PCLPointCloud2);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>), cloud_p (new pcl::PointCloud<pcl::PointXYZ>), cloud_f (new pcl::PointCloud<pcl::PointXYZ>);
@@ -1038,40 +1012,6 @@ bool SegmentorThread::read(yarp::os::ConnectionReader &connection)
             }
 
             rosComputeGraspingPosesArrowAndSend("map", points, normals);
-            // addGraspingPointsAndNormalsToViewer(points, normals, viewer);
-
-            
-            
-            // printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
-
-            // for(int i=0; i<normals.size(); i++){
-            //     printf("Normals %d: %f %f %f\n", i, normals[i][0], normals[i][1], normals[i][2]);
-            //     float lengthArrow = 0.2;
-            //     KDL::Vector auxV1 = normals[i]*lengthArrow;
-
-            //     pcl::PointXYZ auxCentroid = points[i];
-            //     auxCentroid.x -= auxV1[0];
-            //     auxCentroid.y -= auxV1[1];
-            //     auxCentroid.z -= auxV1[2];
-
-            //     std::string id_centroid("sphere");
-            //     id_centroid +=std::to_string(i);
-
-            //     std::string id_normal("normal");
-            //     id_normal += std::to_string(i);
-            //     if (viewer->contains(id_centroid)){
-            //         viewer->updateSphere(points[i],0.01,255,0,0,id_centroid);
-            //     }
-            //     else{
-            //         viewer->addSphere(points[i],0.01,255,0,0,id_centroid);
-            //     }
-            //     if(viewer->contains(id_normal)){
-            //         viewer->removeShape(id_normal);
-            //     }
-            //     viewer->addArrow(points[i],auxCentroid, 0, 0, 255,false,id_normal);
-                    
-            // }
-
     }
     else{ // milk and cereals
 
@@ -1089,7 +1029,7 @@ bool SegmentorThread::read(yarp::os::ConnectionReader &connection)
         seg.setModelType (pcl::SACMODEL_PLANE);
         seg.setMethodType (pcl::SAC_RANSAC);
         seg.setMaxIterations (2000);
-        seg.setDistanceThreshold (0.0025);
+        seg.setDistanceThreshold (0.005);
 
         // Create the filtering object
         pcl::ExtractIndices<pcl::PointXYZ> extract;
@@ -1201,23 +1141,7 @@ bool SegmentorThread::read(yarp::os::ConnectionReader &connection)
         bGraspingPoses.addList() = bPose;
     }
     reply.addList() = bGraspingPoses;
-
-
-    // Mat depthImage = yarp::cv::toCvMat<yarp::sig::PixelFloat>(depthFrame);
-
-  
-
-    
-    // Mat cloneCroppedDepthImage = depthImage.clone();
-
-    // yarp::sig::ImageOf<yarp::sig::PixelFloat> outCroppedDepthImage = yarp::cv::fromCvMat<yarp::sig::PixelFloat>(cloneCroppedDepthImage);
-
-
-    // // Lets prepare the output cropped image
-    // yInfo()<<"Sending the cropped Rgb and depth Images through the yarp ports";
-
-    // pOutDepthImgPort->prepare() = outCroppedDepthImage;
-    // pOutDepthImgPort->write();
+    }
 
     return reply.write(*writer);
 }
@@ -1251,7 +1175,7 @@ void SegmentorThread::run()
 
     for (size_t i = 0, u = min_x; u < max_x; i++, u ++){
         for (size_t j = 0, v = min_y; v < max_y; j++, v ++) {
-            if( depthFrame.pixel(u, v)<1.4){ // TODO: PARAMETER MAX DISTANCE FILTER
+            if( depthFrame.pixel(u, v)<1.3){ // TODO: PARAMETER MAX DISTANCE FILTER
                 pcFiltered(i, j).x = depthFrame.pixel(u, v); 
                 pcFiltered(i, j).y = -(u - intrinsics.principalPointX) / intrinsics.focalLengthX * depthFrame.pixel(u, v);
                 pcFiltered(i, j).z = -(v - intrinsics.principalPointY) / intrinsics.focalLengthY * depthFrame.pixel(u, v);
@@ -1261,28 +1185,14 @@ void SegmentorThread::run()
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ> ());
 
-    transformPointCloud(pcFiltered, transformed_cloud);
+    if(transformPointCloud(pcFiltered, transformed_cloud)){
+        yInfo()<<"PointCloud transformed succesfully";
+        yarp::sig::PointCloud<yarp::sig::DataXYZ> yarpCloud;
+        yarp::pcl::fromPCL<pcl::PointXYZ, yarp::sig::DataXYZ>(*transformed_cloud, yarpCloud);
 
-    yarp::sig::PointCloud<yarp::sig::DataXYZ> yarpCloud;
-    yarp::pcl::fromPCL<pcl::PointXYZ, yarp::sig::DataXYZ>(*transformed_cloud, yarpCloud);
-
-    // yInfo()<<"Point cloud transformed";
-
-    rosComputeAndSendPc(yarpCloud, "map");
-
-    // rosComputeGraspingPosesArrowAndSend("map");
-
-    // mutexCloud.unlock();
-
-    // pOutPointCloudPort->prepare() = pcFiltered;
-
-
-    // pOutPointCloudPort->write();
-
-    // const string filename("pclNotTransformed.pcd");
-
-    // int result = yarp::pcl::savePCD< yarp::sig::DataXYZ, pcl::PointXYZ>(filename, pcFiltered);
-
+        // yInfo()<<"Point cloud transformed";
+        rosComputeAndSendPc(yarpCloud, "map");
+    }
 
 }
 }

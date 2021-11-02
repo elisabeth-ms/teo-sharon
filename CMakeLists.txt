@@ -42,6 +42,8 @@ include(TEO_SHARONSystem)
 # Setup build options.
 include(TEO_SHARONOptions)
 
+
+
 # Define and enter subdirectories.
 add_subdirectory(cmake)
 add_subdirectory(libraries)
@@ -55,6 +57,10 @@ include(TEO_SHARONDescribe)
 
 # Invoke CPack from here.
 include(TEO_SHARONPackage)
+
+set(YARP_FORCE_DYNAMIC_PLUGINS TRUE CACHE INTERNAL "Force dynamic plugins")
+yarp_configure_external_installation(teo-sharon WITH_PLUGINS)
+
 
 # Generate a report of enabled/disabled features.
 feature_summary(WHAT ALL)

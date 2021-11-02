@@ -31,8 +31,8 @@ int main(int argc, char ** argv)
 {
     yarp::os::ResourceFinder rf;
     rf.setVerbose(true);
-    rf.setDefaultContext("GetGraspingPoses");
     rf.setDefaultConfigFile("GetGraspingPoses.ini");
+    rf.setDefaultContext("kinematics"); // context to find kinematic config files
     rf.configure(argc, argv);
 
     sharon::GetGraspingPoses mod;

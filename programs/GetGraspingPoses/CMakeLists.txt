@@ -36,8 +36,7 @@ endif()
 add_executable(${KEYWORD} main.cpp
                           GetGraspingPoses.cpp
                           GetGraspingPoses.hpp
-                          SegmentorThread.cpp
-                          SegmentorThread.hpp)
+                          )
 
 # Link external libraries.
 target_link_libraries(${KEYWORD} YARP::YARP_OS

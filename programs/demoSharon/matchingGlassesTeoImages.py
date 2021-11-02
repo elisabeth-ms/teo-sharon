@@ -24,9 +24,9 @@ import sys
 
 
 
-robot= '/teoSim'
+robot= '/teo'
 maxMinDistance = 1.4
-numberFrames = 24
+numberFrames = 1
 maxTimeToGroupData = 1.0 
 
 class MatchingGlassesTeoImages(yarp.RFModule):
@@ -257,7 +257,16 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                 mmzCropImages.append(mmz)
 
         return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages
-        
+    
+    def getGlassesCropImageBBox(self, bottleData):
+        tlx =  int(bottleData.get(3).asList().get(0).asFloat32())
+        tly =  int(bottleData.get(3).asList().get(1).asFloat32())
+        brx =  int(bottleData.get(3).asList().get(2).asFloat32())
+        bry =  int(bottleData.get(3).asList().get(3).asFloat32())
+
+        return self.glassesImageArray[tly:bry, tlx:brx, :]
+
+
 
     
     def getGlassesCropImageCenterFixation(self,bottleData):
@@ -543,8 +552,12 @@ class MatchingGlassesTeoImages(yarp.RFModule):
 
             fixationPoint = (self.bottleData.get(1).asList().get(0).asFloat32(), self.bottleData.get(1).asList().get(1).asFloat32())
             print(fixationPoint)
+            
+            bbox = (self.bottleData.get(3).asList().get(0).asFloat32(), self.bottleData.get(3).asList().get(1).asFloat32(), 
+                    self.bottleData.get(3).asList().get(2).asFloat32(), self.bottleData.get(3).asList().get(3).asFloat32()) # tlx, tly, brx, bry
+            
             vectorProbs = []
-            listProbs = self.bottleData.get(3).asList()
+            listProbs = self.bottleData.get(5).asList()
             for i in range(listProbs.size()):
                 vectorProbs.append(listProbs.get(i).asFloat32())
             vectorProbs=np.asarray(vectorProbs)
@@ -557,8 +570,9 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                 if not np.array_equal(self.xtionImageArray,  np.zeros((self.xtionResolution[1], self.xtionResolution[0], 3), dtype=np.uint8)) and not np.array_equal(self.glassesImageArray,np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)):
                     print("We have data from both cameras and detections")
                     print(vectorProbs)
-                    if np.argmax(vectorProbs)!=0 and np.max(vectorProbs)>= self.triggerProb: # Glasses detected an object
-                        glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
+                    if np.argmax(vectorProbs)!=0 and np.max(vectorProbs)>= 1: # Glasses detected an object
+                        #glassesCropImage = self.getGlassesCropImageCenterFixation(self.bottleData)
+                        glassesCropImage = self.getGlassesCropImageBBox(self.bottleData)
                         glassesCategory = self.categories[np.argmax(vectorProbs)]
                         if glassesCategory != self.previous_category:
                             self.glassesCropImages = []

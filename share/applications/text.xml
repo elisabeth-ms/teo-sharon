@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE robot PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
+
+<robot name="test_controlboard_nws" build="2" portprefix="test" xmlns:xi="http://www.w3.org/2001/XInclude">
+
+    <device name="cbw_yarp" type="controlBoard_nws_yarp">
+        <param name="name"> /foo/head </param>
+        <action phase="startup" level="5" type="attach">
+            <param name="device"> cbwl </param>
+        </action>
+        <action phase="shutdown" level="5" type="detach" />
+    </device>
+
+    <device name="cbw_ros" type="controlBoard_nws_ros">
+        <param name="nodeName"> /zot </param>
+        <param name="topicName"> /top </param>
+        <action phase="startup" level="5" type="attach">
+            <param name="device"> /teoSim/trunkAndRightArm </param>
+        </action>
+        <action phase="shutdown" level="5" type="detach" />
+    </device>
+
+</robot>

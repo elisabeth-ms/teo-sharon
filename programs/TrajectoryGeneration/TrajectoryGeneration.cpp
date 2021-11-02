@@ -18,7 +18,7 @@ using namespace roboticslab::KdlVectorConverter;
 using namespace sharon;
 
 #define DEFAULT_MAX_DIFF_INV 0.0000001
-#define DEFAULT_PREFIX "/trajectoryGeneration"
+#define DEFAULT_PREFIX "/trajectoryGeneration/"
 #define DEFAULT_DEVICE_NAME "trunkAndRightArm"
 #define DEFAULT_KINEMATICS_CONFIG "teo-trunk-rightArm-fetch.ini"
 #define DEFAULT_RANGE_RRT 0.1
@@ -109,7 +109,7 @@ static KDL::Chain makeTeoFixedTrunkAndLeftArmKinematicsFromDH(){
 bool TrajectoryGeneration::open(yarp::os::Searchable& config)
 {
     robot = config.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
-    std::string prefix = config.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
+    prefix = config.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
     planningSpace = config.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
     deviceName = config.check("deviceName", yarp::os::Value(DEFAULT_DEVICE_NAME), "device name").asString();
     kinematicsConfig = config.check("kinematicsConfig", yarp::os::Value(DEFAULT_KINEMATICS_CONFIG), "kinematics config").asString();
@@ -338,7 +338,7 @@ bool TrajectoryGeneration::openDevices(){
     yarp::os::Property trunkOptions;
     trunkOptions.put("device", "remote_controlboard");
     trunkOptions.put("remote", "/"+robot+"/"+trunkDeviceName);
-    trunkOptions.put("local", "/"+ robot + "/"+trunkDeviceName);
+    trunkOptions.put("local", prefix+ robot + "/"+trunkDeviceName);
     trunkDevice.open(trunkOptions);
     if (!trunkDevice.isValid())
     {
@@ -393,7 +393,7 @@ bool TrajectoryGeneration::openDevices(){
     yarp::os::Property armOptions;
     armOptions.put("device", "remote_controlboard");
     armOptions.put("remote", "/"+robot+"/"+rightArmDeviceName);
-    armOptions.put("local", "/" + robot + "/"+rightArmDeviceName);
+    armOptions.put("local",  "/"+robot + "/"+rightArmDeviceName);
     armDevice.open(armOptions);
     if (!armDevice.isValid())
     {
@@ -440,21 +440,27 @@ bool TrajectoryGeneration::openDevices(){
     }
     else
         yInfo() << "Acquired armIPositionControl interface";
+    
+    yInfo()<<"Devices open";
+    return true;
 }
 
 
 bool TrajectoryGeneration::getCurrentQ(std::vector<double> & currentQ){
-        std::vector<double> currentQArm(numArmJoints);
-        if (!armIEncoders->getEncoders(currentQArm.data()))
-        {
-            yError() << "Failed getEncoders() of "<<rightArmDeviceName;
-            return false;
-        }
+
 
         std::vector<double> currentQTrunk(numTrunkJoints);
         if (!trunkIEncoders->getEncoders(currentQTrunk.data()))
         {
             yError() << "Failed getEncoders() of "<<trunkDeviceName;
+            return false;
+        }
+
+
+        std::vector<double> currentQArm(numArmJoints);
+        if (!armIEncoders->getEncoders(currentQArm.data()))
+        {
+            yError() << "Failed getEncoders() of "<<rightArmDeviceName;
             return false;
         }
 
@@ -500,9 +506,9 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         // //yInfo() << testAxisAngle;
         std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-        if(!getCurrentQ(currentQ)){
-            return false;
-        }
+        // if(!getCurrentQ(currentQ)){
+        //     return false;
+        // }
 
 
         // Check if we are in the starting state
@@ -566,7 +572,6 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         return true;
     }
     else{ // joint space
-        yInfo()<<"joint space isValid()";
         
         const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
         KDL::JntArray jointpositions = KDL::JntArray(numArmJoints+numTrunkJoints);
@@ -888,7 +893,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             trunkDevice.close();
             openDevices();
             yInfo()<<"Wait a 2 seconds...";
-            yarp::os::Time::delay(2.0);
+            yarp::os::Time::delay(4.0);
             
         }
     }
@@ -924,13 +929,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-    if(!getCurrentQ(currentQ)){
-        yError()<<"error";
-        return false;
-    }
 
-
-    yInfo() << "currentQ: " << currentQ;
 
     std::vector<double> xStart;
 

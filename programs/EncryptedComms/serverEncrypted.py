@@ -1,7 +1,7 @@
 import os
 from socket import *
 from struct import unpack
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
@@ -9,6 +9,7 @@ import base64
 import numpy as np
 import yarp
 import sys
+
 
 class ServerProtocol(yarp.RFModule):
 
@@ -24,6 +25,7 @@ class ServerProtocol(yarp.RFModule):
         self.imageWidth = 0
         self.imageHeight = 0
         self.glasses_images_port = yarp.BufferedPortImageRgb() # Create a port
+        self.glasses_images_bbox_port = yarp.BufferedPortImageRgb()
         self.glasses_data_port = yarp.Port()
         self.wait_for_connection = True
         self.server_ip = '127.0.0.1'#'163.117.150.88' #'2.2.2.109'
@@ -34,6 +36,8 @@ class ServerProtocol(yarp.RFModule):
         
         # Open the yarp ports in the yarp network
         self.glasses_images_port.open("/glassesServer/images:o") # Give name to the port in the yarp network
+        self.glasses_images_bbox_port.open("/glassesServer/bboxImages:o") # Give name to the port in the yarp network
+
         self.glasses_data_port.open("/glassesServer/data:o") 
         self.create_cipher_encrypt_decrypt()
             
@@ -169,7 +173,12 @@ class ServerProtocol(yarp.RFModule):
                         img.resize(square_length, square_length)
                         img.setExternal(img_array.data, square_length, square_length) # Wrap yarp image around the numpy array  
                         yarp_img.copy(img)
-                        self.glasses_images_port.write()                    
+                        self.glasses_images_port.write()
+                        
+
+                        
+                        
+                                      
                     
                     ok, length_fixation_data = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the fixation data occupy
     
@@ -179,23 +188,57 @@ class ServerProtocol(yarp.RFModule):
                         new_fixation_x = square_length*fixation_data[0]/width
                         new_fixation_y = square_length*fixation_data[1]/height
                         print(fixation_data)
+                        
+                    ok, length_bounding_box = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
+                    ok, bounding_box = self.receive_and_decrypt_array(length_bounding_box) # Receive and decipher the received probability vector
                     
-                    ok, length_probability_vector = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
+                    if ok:
+                        print("Bounding box received: ", bounding_box)
+                        new_bbox = [square_length*bounding_box[0]/width, square_length*bounding_box[1]/height, square_length*bounding_box[2]/width, square_length*bounding_box[3]/height]
+                        print(new_bbox)
+                        
+                        img_copy = image.copy()
 
-                    ok, probability_vector = self.receive_and_decrypt_array(length_probability_vector) # Receive and decipher the received probability vector
+                        img1 = ImageDraw.Draw(img_copy)
+                        shape = [(new_bbox[0],new_bbox[1]), (new_bbox[2], new_bbox[3])]
+                        img1.rectangle(shape, outline ="red")
+                        bbox_img_array = np.asarray(img_copy)
+      
+                        
+                        
+                        yarp_img_bbox = self.glasses_images_bbox_port.prepare() # Get a place to store the image to be sent
+            
+                        img_bbox = yarp.ImageRgb()
+                        img_bbox.resize(square_length, square_length)
+                        img_bbox.setExternal(bbox_img_array.data, square_length, square_length) # Wrap yarp image around the numpy array  
+                        yarp_img_bbox.copy(img_bbox)
+                        self.glasses_images_bbox_port.write()
+                        
+                    
+                    ok, length_decision = self.receive_and_decrypt_length_data(8) # Receive and decipher the number of bytes that the probability vector data occupy
+
+                    ok, decision = self.receive_and_decrypt_array(length_decision) # Receive and decipher the received probability vector
                     if ok:            
-                        print("Probability vector received")
-                        print(probability_vector)
+                        print("decision vector received")
+                        print(decision)
                     
                         bdata_fixation = yarp.Bottle()
                         bdata_fixation.addString("fixation_point")
                         bpoint = bdata_fixation.addList()
                         bpoint.addDouble(new_fixation_x)
                         bpoint.addDouble(new_fixation_y)
-                        bdata_fixation.addString("probability_vector")
+                        
+                        bdata_fixation.addString("bbox")
+                        bbox_coords = bdata_fixation.addList()
+                        bbox_coords.addInt(int(new_bbox[0]))
+                        bbox_coords.addInt(int(new_bbox[1]))
+                        bbox_coords.addInt(int(new_bbox[2]))
+                        bbox_coords.addInt(int(new_bbox[3]))
+                        
+                        bdata_fixation.addString("decision_vector")
                         bprob = bdata_fixation.addList()
-                        for prob in probability_vector:
-                            bprob.addDouble(prob)
+                        for decision_elemenent in decision:
+                            bprob.addDouble(decision_elemenent)
                     
                         self.glasses_data_port.write(bdata_fixation)
 
