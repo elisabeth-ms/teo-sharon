@@ -261,7 +261,12 @@ class DemoSharon(yarp.RFModule):
             else:
                 print("Right arm control mode interface available.")
                 
-
+            armCurrentQ = yarp.DVector(self.numRightArmJoints)
+            self.rightArmIEncoders.getEncoders(armCurrentQ)
+            for j in range(0, self.numRightArmJoints):
+                print(armCurrentQ[j])
+            
+            self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)
             
             self.rightArmIRemoteVariables = self.rightArmDevice.viewIRemoteVariables()
             if self.rightArmIRemoteVariables == []:
@@ -400,6 +405,7 @@ class DemoSharon(yarp.RFModule):
                 print("Trunk remote variables interface available.")
                 
             
+
 
             # p = yarp.Property()
             # p.put('enable', True)
@@ -570,7 +576,12 @@ class DemoSharon(yarp.RFModule):
         self.listener.start()
 
         print("demo_sharon Module initialized...")
+        print(self.numRightArmJoints)
+        self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)
+        self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints)
         self.run()
+        
+        
         return True
 
     def interruptModel(self):
@@ -591,11 +602,10 @@ class DemoSharon(yarp.RFModule):
                         if (self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
                             print("State 0: Trunk and right arm are in the init position")
                             self.state = 1
-                            self.firstInState = True
+                            self.firstInState = False
                         else:
                             initTrunkAndRightArmPosition = self.initTrunkJointsPosition + \
                                 self.initRightArmJointsPosition
-                            print(initTrunkAndRightArmPosition)
                             self.jointsTrajectory = []
                             found, self.jointsTrajectory = self.computeTrajectoryToJointsPosition(
                                 self.rightArm, initTrunkAndRightArmPosition)
@@ -890,7 +900,7 @@ class DemoSharon(yarp.RFModule):
                                 self.rightArmIEncoders.getEncoders(armCurrentQ)
                                 for j in range(0, self.numRightArmJoints):
                                     current_Q[j+2] = armCurrentQ[j]
-                                # print(current_Q)
+                                print(current_Q)
 
                                 if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
                                     for joint in range(0, self.numRightArmJoints, 1):
@@ -1006,7 +1016,7 @@ class DemoSharon(yarp.RFModule):
             self.rpcClientTrajectoryGenerationRight.write(cmd, response)
         else:
             self.rpcClientTrajectoryGenerationLeft.write(cmd, response)
-        print(response.toString())
+        #print(response.toString())
         if response.get(0).asString() == 'Goal state NOT valid':
             print(response.get(0).toString())
         elif response.get(0).asString() == 'Solution Found':
@@ -1160,7 +1170,9 @@ class DemoSharon(yarp.RFModule):
     def checkJointsPosition(self, desiredJointsPosition, iEncoders, numJoints):
         currentQ = yarp.DVector(numJoints)
         iEncoders.getEncoders(currentQ)
+        print(list(currentQ))
         for joint in range(numJoints):
+            #print(currentQ[joint])
             if abs(currentQ[joint]-desiredJointsPosition[joint]) > self.jointsPositionError:
                 return False
         return True

@@ -338,7 +338,7 @@ bool TrajectoryGeneration::openDevices(){
     yarp::os::Property trunkOptions;
     trunkOptions.put("device", "remote_controlboard");
     trunkOptions.put("remote", "/"+robot+"/"+trunkDeviceName);
-    trunkOptions.put("local", prefix+ robot + "/"+trunkDeviceName);
+    trunkOptions.put("local", "/" +robot + "/"+trunkDeviceName);
     trunkDevice.open(trunkOptions);
     if (!trunkDevice.isValid())
     {
@@ -393,7 +393,7 @@ bool TrajectoryGeneration::openDevices(){
     yarp::os::Property armOptions;
     armOptions.put("device", "remote_controlboard");
     armOptions.put("remote", "/"+robot+"/"+rightArmDeviceName);
-    armOptions.put("local",  "/"+robot + "/"+rightArmDeviceName);
+    armOptions.put("local",  "/" +robot + "/"+rightArmDeviceName);
     armDevice.open(armOptions);
     if (!armDevice.isValid())
     {
@@ -877,26 +877,26 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     auto *writer = connection.getWriter();
 
 
-    if (!yarp::os::NetworkBase::exists("/"+robot+"/"+trunkDeviceName+"/rpc:i") || !yarp::os::NetworkBase::exists("/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
-    {
-        yError()<<"Check if the device "<<trunkDeviceName<<" is open!";
-        // configure(resourceFinder);
-        reply.addString("Device not open");
-        return reply.write(*writer);
-    }
-    else{
-        if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+trunkDeviceName+"/rpc:o", "/"+robot+"/"+trunkDeviceName+"/rpc:i") ||
-            !yarp::os::NetworkBase::isConnected("/"+robot+"/"+rightArmDeviceName+"/rpc:o", "/"+robot+"/"+rightArmDeviceName+"/rpc:i") )
-        {
-            yWarning()<<"Device not connected";
-            armDevice.close();
-            trunkDevice.close();
-            openDevices();
-            yInfo()<<"Wait a 2 seconds...";
-            yarp::os::Time::delay(4.0);
+    // if (!yarp::os::NetworkBase::exists("/"+robot+"/"+trunkDeviceName+"/rpc:i") || !yarp::os::NetworkBase::exists("/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
+    // {
+    //     yError()<<"Check if the device "<<trunkDeviceName<<" is open!";
+    //     // configure(resourceFinder);
+    //     reply.addString("Device not open");
+    //     return reply.write(*writer);
+    // }
+    // else{
+    //     if(!yarp::os::NetworkBase::isConnected("/"+robot+"/"+trunkDeviceName+"/rpc:o", "/"+robot+"/"+trunkDeviceName+"/rpc:i") ||
+    //         !yarp::os::NetworkBase::isConnected("/"+robot+"/"+rightArmDeviceName+"/rpc:o", "/"+robot+"/"+rightArmDeviceName+"/rpc:i") )
+    //     {
+    //         yWarning()<<"Device not connected";
+    //         armDevice.close();
+    //         trunkDevice.close();
+    //         openDevices();
+    //         yInfo()<<"Wait a 2 seconds...";
+    //         yarp::os::Time::delay(4.0);
             
-        }
-    }
+    //     }
+    // }
 
     // if (!yarp::os::NetworkBase::exists("/"+robot+"/"+rightArmDeviceName+"/rpc:i"))
     // {
@@ -1096,6 +1096,10 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         yInfo("Joint space");
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
         ob::ScopedState<ob::RealVectorStateSpace> start(space);
+
+        if(!getCurrentQ(currentQ)){
+            return false;
+        }
         for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
             start[j] = currentQ[j];
         }
