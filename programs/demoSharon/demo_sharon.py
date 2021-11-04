@@ -12,15 +12,16 @@ import numpy as np
 from scipy import interpolate
 from matplotlib.ticker import MaxNLocator
 
-robot = '/teo'
+robot = '/teoSim'
 prefix = '/demoSharon'
 
 available_right_hand_controlboard = True
 available_left_hand_controlboard = False
 available_right_arm_controlboard = True
 available_left_arm_controlboard = False
-available_head_controlboard = False
+available_head_controlboard = True
 available_trunk_controlboard = True
+available_speak_device = True
 
 
 class DemoSharon(yarp.RFModule):
@@ -86,6 +87,10 @@ class DemoSharon(yarp.RFModule):
 
         # Get Grasping poses client
         self.rpcClientGetGraspingPoses = yarp.RpcClient()
+        
+        # tts client
+        self.rpcClientTts = yarp.RpcClient()
+        
         # # Underactuated Hand rpc client
         # self.rpcClientRightHand = yarp.RpcClient()
         # self.rpcClientLeftHand = yarp.RpcClient()
@@ -96,7 +101,7 @@ class DemoSharon(yarp.RFModule):
         self.jointsPositionError = 2.5
 
         # Init Joints position for grasping
-        self.initTrunkJointsPosition = [0, 10.0]
+        self.initTrunkJointsPosition = [0, 14.0]
         self.initBackTrunkJointsPosition = [0, -9.0]
         self.initHeadJointsPosition = [0, 14.0]
 
@@ -152,7 +157,9 @@ class DemoSharon(yarp.RFModule):
         
         self.batch = True
         self.ipMode = "pt"
-
+        
+        self.dictonarySpeak = {"saludo": "Hoy tenemos para desayunar ... leche con cereales", "ordenACoger": " Qué pones antes la leche ... o los ,cereales", "cereales": "Vale, primero los cereales", "leche": "Vale, primero la leche"}
+        self.sayOnce = False
     def configure(self, rf):
         print("Configuring...")
 
@@ -562,6 +569,9 @@ class DemoSharon(yarp.RFModule):
         self.rpcClientGetGraspingPoses.open("/getGraspingPoses/xtion/rpc:c")
         yarp.Network.connect("/getGraspingPoses/xtion/rpc:c",
                              "/getGraspingPoses/xtion/rpc:s")
+        
+        self.rpcClientTts.open("/tts/rpc:c")
+        yarp.Network.connect("/tts/rpc:c", "/tts/rpc:s")
 
         # Open rpc client for rightHand
 
@@ -575,11 +585,17 @@ class DemoSharon(yarp.RFModule):
         self.listener = keyboard.Listener(on_release=self.on_release)
         self.listener.start()
 
+        # For testing the speak
+        
+        # self.say("saludo")
+
+
         print("demo_sharon Module initialized...")
         print(self.numRightArmJoints)
         self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)
         self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints)
         self.run()
+        
         
         
         return True
@@ -602,7 +618,8 @@ class DemoSharon(yarp.RFModule):
                         if (self.checkJointsPosition(self.initTrunkJointsPosition, self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition(self.initRightArmJointsPosition, self.rightArmIEncoders, self.numRightArmJoints)):
                             print("State 0: Trunk and right arm are in the init position")
                             self.state = 1
-                            self.firstInState = False
+                            self.firstInState = True
+                            self.sayOnce = True
                         else:
                             initTrunkAndRightArmPosition = self.initTrunkJointsPosition + \
                                 self.initRightArmJointsPosition
@@ -625,7 +642,13 @@ class DemoSharon(yarp.RFModule):
                         if (self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)):
                             self.state = 1
                             self.firstInState = True
+                            self.sayOnce = True
                 if self.state == 1:
+                    if self.sayOnce:
+                        print("saludo")
+                        self.say("saludo")
+                        self.sayOnce = False
+                    
                     if available_head_controlboard:
                         for joint in range(self.numHeadJoints):
                             self.headIPositionControl.positionMove(
@@ -634,7 +657,8 @@ class DemoSharon(yarp.RFModule):
                             print("State 1: Head joints are in the init position.")
                             self.state = 2
                             self.firstInState = True
-                            yarp.delay(5.0)
+                            self.sayOnce = True
+                            yarp.delay(1.0)
                         else:
                             if self.firstInState:
                                 print(
@@ -643,7 +667,14 @@ class DemoSharon(yarp.RFModule):
                     else:
                         self.state = 2
                         self.firstInState = True
+                        self.sayOnce = True
                 if self.state == 2:
+                    if self.sayOnce:
+                        self.say("ordenACoger")
+                        self.sayOnce = True
+                    self.state = 3
+                if self.state == 3:
+
                     if self.firstInState:
                         if not yarp.Network.isConnected(self.matching_object_output_port_name, self.demo_object_input_port_name):
                             print("Try to connect to",
@@ -653,7 +684,7 @@ class DemoSharon(yarp.RFModule):
                                 self.matching_object_output_port_name, self.demo_object_input_port_name)
 
                         else:
-                            print("State 5: Waiting for object location ...")
+                            print("State 3: Waiting for object location ...")
                             objectData = self.objectPositionPort.read(False)
                             print(objectData)
 
@@ -662,7 +693,15 @@ class DemoSharon(yarp.RFModule):
                                 yarp.Network.disconnect(
                                     self.matching_object_output_port_name, self.demo_object_input_port_name)
                                 self.objectData = objectData
+                                category = self.objectData.get(0).find("category").asString()
+                                print(category)
 
+                                if self.sayOnce:
+                                    if "milk" in category:
+                                        self.say("leche")
+                                    elif "cereals" in category:
+                                        self.say("cereales")
+                                    self.sayOnce = False
                                 cmd = self.objectData
                                 response = yarp.Bottle()
 
@@ -701,32 +740,32 @@ class DemoSharon(yarp.RFModule):
                                             #self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectory)
                                         else:
                                             print("Solution NOT found")
-                                            self.state = 2
+                                            self.state = 3
                                             self.firstInState = True
                                     else:
                                         print("solution not found")
-                                        self.state = 2
+                                        self.state = 3
                                         self.firstInState = True
                     else:
 
-                        print("State 2: Following path to the reaching pose.")
+                        print("State 3: Following path to the reaching pose.")
                         # Finished following the joints trajectory
                         if (self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)):
                             self.d = 0
-                            self.state = 3
+                            self.state = 4
                             self.firstInState = True
-                if self.state == 3:
+                if self.state == 4:
                     if self.firstInState:
                         if available_right_hand_controlboard and robot == '/teoSim':
                             self.rightHandIPositionControl.positionMove(0, 1200)
                         if available_right_hand_controlboard and robot == '/teo':
                             self.rightHandIPWMControl.setRefDutyCycle(0, 100)
                         yarp.delay(5.0)
-                        print("State 3: Hand Open")
+                        print("State 4: Hand Open")
                         self.firstInState = False
 
                     else:
-                        print("State 3: Move to towards object.")
+                        print("State 4: Move to towards object.")
                         period = 50
                         trunkModes = yarp.IVector(2,yarp.VOCAB_CM_POSITION_DIRECT)
                         if not self.trunkIControlMode.setControlModes(trunkModes):
@@ -745,7 +784,7 @@ class DemoSharon(yarp.RFModule):
                         
 
                         aproachingQs = []
-                        while self.d <= 0.7*self.reachingDistance:
+                        while self.d <= 0.8*self.reachingDistance:
                             print(self.d)
                             self.d = self.d + self.reachingDistance/100.0
 
@@ -1565,6 +1604,14 @@ class DemoSharon(yarp.RFModule):
         
         return False, graspingPose, reaching_pose
 
+    def say(self, key):
+        text = self.dictonarySpeak[key]
+        cmd = yarp.Bottle()
+        response = yarp.Bottle()
+        cmd.addString("say")
+        cmd.addString(text)
+        self.rpcClientTts.write(cmd, response)
+        print(response.toString())
 
 if __name__ == "__main__":
     print("main")
@@ -1585,3 +1632,5 @@ if __name__ == "__main__":
     demo_sharon.runModule(rf)
 
     sys.exit()
+
+
