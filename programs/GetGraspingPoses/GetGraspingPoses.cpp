@@ -112,8 +112,8 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder & rf)
     else{
         for (unsigned int joint = 0; joint < 2; joint++)
         {
-            qrMin.addDouble(-15);
-            qrMax.addDouble(15.0);
+            qrMin.addDouble(-29);
+            qrMax.addDouble(29.0);
         }
     }
     yarp::os::Property trunkAndHeadSolverOptions;
@@ -374,10 +374,11 @@ bool GetGraspingPoses::transformPointCloud(const yarp::sig::PointCloud<yarp::sig
             yError()<<"getEncoders() failed";
             return false;
         }
+        currentHeadQ[1] = -currentHeadQ[1];
     }
     else{
         currentHeadQ[0] = 0.0;
-        currentHeadQ[1] = -14.0;
+        currentHeadQ[1] = -28.0;
     }
 
     int numTrunkJoints;
@@ -429,7 +430,7 @@ bool GetGraspingPoses::transformPointCloud(const yarp::sig::PointCloud<yarp::sig
         frame_camera_head = frame_camera_head*KDL::Frame(KDL::Vector(0.10, 0, 0.0));
         // frame_camera_head = frame_camera_head*KDL::Frame(KDL::Rotation::RotZ(-M_PI_2));
         // frame_camera_head = frame_camera_head*KDL::Frame(KDL::Rotation::RotX(-M_PI_2));
-        frame_camera_head  = frame_camera_head*KDL::Frame(KDL::Vector(0.0, +0.018, 0.0));
+        frame_camera_head  = frame_camera_head*KDL::Frame(KDL::Vector(0.0, /*-0.018*/-0.026, 0.0));
         frame = frame_head_trunk*frame_camera_head;
 
     }

@@ -18,12 +18,14 @@ namespace sharon
         // }
         for (int i = 0; i < q.rows(); i++)
         {
-            //printf("%f %f %f \n", q(i), qmin(i), qmax(i));
+            printf("q: %f qmin: %f qmax: %f \n", q(i), qmin(i), qmax(i));
             if (q(i) < qmin(i) || q(i) > qmax(i))
             {
+                printf("Joints outside bounds\n");
                 return false;
             }
         }
+        printf("Joints inside bounds\n");
         return true;
     }
 
@@ -45,7 +47,7 @@ namespace sharon
         KDL::ChainFkSolverPos_recursive fksolver(chain);
         KDL::JntArray qRad = jointsDeg2Rad(q);
         //printf("\n");
-        if (jointsInsideBounds(qRad))
+        if (jointsInsideBounds(q))
         {
             //printf("jointsInsideBounds\n");
             for (int i = 0; i < centerLinksWrtJoints.size(); i++)
@@ -118,7 +120,7 @@ namespace sharon
             fcl::collide(&collisionObjects[link1], &tableCollision[0], requestType, collisionResult);
             if (collisionResult.isCollision())
             {
-                // printf("collsion betwenn links %d and table\n", link1);
+                printf("collsion betwenn links %d and table\n", link1);
                 return true;
             }
             while (link2 < collisionObjects.size()-1)
@@ -128,7 +130,7 @@ namespace sharon
                 fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
                 if (collisionResult.isCollision())
                 {
-                    // printf("collsion betwenn links %d and %d\n", link1, link2);
+                    printf("collsion betwenn links %d and %d\n", link1, link2);
                     return true;
                 }
                 link2++;

@@ -22,12 +22,24 @@ import logging
 import sys
 
 
-
-
 robot= '/teo'
 maxMinDistance = 1.4
 numberFrames = 1
-maxTimeToGroupData = 1.0 
+maxTimeToGroupData = 1.0
+
+
+gpus = tf.config.list_physical_devices('GPU')
+
+if gpus:
+    # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
+    try:
+        tf.config.set_logical_device_configuration(gpus[0],
+                    [tf.config.LogicalDeviceConfiguration(memory_limit=1024)])
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Virtual devices must be set before GPUs have been initialized
+        print(e)
 
 class MatchingGlassesTeoImages(yarp.RFModule):
     
@@ -101,18 +113,22 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.fixationObjectImagePort.open("/matching"+self.fixationObjectImagePortName+":o")
         self.glassesCropImagePort.open("/matching"+self.glassesCropImagePortName+":o")
         
-        #connect up the output port to our input port
-        yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i")
-        yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i")
         
-        yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i")
-        yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i")
+        styleConnection = yarp.ContactStyle()
+        styleConnection.persistent = True
+        #connect up the output port to our input port
+        yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i", styleConnection)
+        yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i", styleConnection)
+        
+        yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i", styleConnection)
+        yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i", styleConnection)
+        
 
-        gpus = tf.config.list_physical_devices('GPU')
-        config = tf.compat.v1.ConfigProto()
-        config.gpu_options.allow_growth = True
-        session = tf.compat.v1.Session(config=config)
-
+        # gpus = tf.config.list_physical_devices('GPU')
+        # config = tf.compat.v1.ConfigProto()
+        # config.gpu_options.allow_growth = True
+        # session = tf.compat.v1.Session(config=config)
+        print("getting model")
         self.embeddingModel, self.tripletModel = self.getModel()
 
         checkpoint_path = '/home/elisabeth/repos/teo-sharon/tfmodels/training_7objects_simulation/cp-0022.ckpt'
@@ -125,12 +141,23 @@ class MatchingGlassesTeoImages(yarp.RFModule):
     
     def interruptModel(self):
         print("Stopping the module")
+        
+       
+        
         self.xtionImagePort.interrupt()
         self.glassesImagePort.interrupt()
         self.xtionObjectDetectionsPort.interrupt()
         return True
     
     def close(self):
+        # print("Disconnect persistent connections")
+        # styleConnection = yarp.ContactStyle()
+        # styleConnection.persistent = True
+        # yarp.Network.disconnect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i", styleConnection)
+        # yarp.Network.disconnect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i", styleConnection)
+        
+        # yarp.Network.disconnect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i", styleConnection)
+        # yarp.Network.disconnect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i", styleConnection)
         self.xtionImagePort.close()
         self.glassesImagePort.close()
         self.xtionObjectDetectionsPort.close()
@@ -516,17 +543,22 @@ class MatchingGlassesTeoImages(yarp.RFModule):
     def updateModule(self):
         detectionsCropImages = []
         detectionsCropsLabels = [] 
+        # print("Update")
         
-        
-        if not self.areConnected():
-            print("Not all yarp ports are available...")
-            return True
-        
-        xtionYarpImage= self.xtionImagePort.read(False)
+        # if not self.areConnected():
+        #     print("Not all yarp ports are available...")
+        #     return True
+        if self.xtionImagePort.getInputCount()>0:
+            print("xtion")
+        xtionYarpImage= self.xtionImagePort.read(True)
         if xtionYarpImage:
             xtionYarpImage.setExternal(self.xtionImageArray.data, self.xtionImageArray.shape[1], self.xtionImageArray.shape[0])
-        glassesYarpImage = self.glassesImagePort.read(False)
+        
+        if self.glassesImagePort.getInputCount()>0:
+            print("glasses server")
+        glassesYarpImage = self.glassesImagePort.read(True)
         if glassesYarpImage:
+            print("glasses")
             glassesYarpImage.setExternal(self.glassesImageArray.data, self.glassesImageArray.shape[1], self.glassesImageArray.shape[0])
         
         detections = yarp.Bottle()
@@ -545,7 +577,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         if self.count_not_detections >= self.max_count_not_detections:
             self.detections = [] 
         
-        if bottleData and self.detections:
+        if bottleData and detections:
             self.timeToGrop = 0
             self.bottleData = bottleData
             print("fixation and detections")            

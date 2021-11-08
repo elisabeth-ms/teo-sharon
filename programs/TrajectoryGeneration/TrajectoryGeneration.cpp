@@ -150,7 +150,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         double min, max;
         trunkIControlLimits->getLimits(joint, &min, &max);
         if(joint == 1){ // we don't want the frontal joint tilt so much
-            max = 15.0;
+            max = 16.0;
         }
         qrMin.addDouble(min);
         qrMax.addDouble(max);
@@ -230,7 +230,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     yInfo() << "Number of segments: " << nl;
    
     yInfo() <<"Lets create the collision objects";
-    CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.25, 0.25, 0.6}};
+    CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.24, 0.24, 0.5}};
     fcl::Transform3f tfTest;
     fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
@@ -250,9 +250,10 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
-    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.5,0.9}};
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.2,0.9}};
     fcl::CollisionObjectf collisionObjectTable{table, tfTest};
     fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
+    // fcl::Vector3f translation(1.65, 0.0, -0.43);
     fcl::Vector3f translation(0.65, 0.0, -0.43);
     collisionObjectTable.setTransform(rotation, translation);
     tableCollision.clear();
@@ -559,6 +560,7 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
                 jointpositions(i) = desireQ[i];
                 goalQ.push_back(desireQ[i]);
             }
+            
             yInfo()<<"desireQ: "<<desireQ;
 
             checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
@@ -579,13 +581,12 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
             jointpositions(i) = jointState->values[i];
-            // yInfo()<<jointpositions(i);
-
+            yInfo()<<"Joint("<<i<<")="<<jointpositions(i);
         }
         checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
         bool selfCollide = checkSelfCollision->selfCollision();
-        // if(selfCollide == true)
-        //     yInfo()<<"Collide";
+        if(selfCollide == true)
+            yInfo()<<"Collide";
         return !selfCollide;
 
     }
@@ -756,9 +757,16 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState)
 {
 
-    // pdef->clearStartStates();
-    // pdef->addStartState(start);
+    pdef->clearStartStates();
+    pdef->addStartState(start);
 
+    printf("startttttt\n");
+    start.print();
+
+    ob::RealVectorBounds bounds = space->as<ob::RealVectorStateSpace>()->getBounds();
+    for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+        yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
+    }
 
     auto plannerRRT = (new og::RRTConnect(si));
     plannerRRT->setRange(2.5);
@@ -801,10 +809,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
         return false;
     }
 
-    ob::RealVectorBounds bounds = space->as<ob::RealVectorStateSpace>()->getBounds();
-    // for(unsigned int j=0; j<numArmJoints; j++){
-    //     yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
-    // }
+
 
     planner->setProblemDefinition(pdef);
 
@@ -930,20 +935,20 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
 
-
-    std::vector<double> xStart;
-
-    if (!armICartesianSolver->fwdKin(currentQ, xStart))
-    {
-        yError() << "fwdKin failed";
-        return false;
-    }
-        
-    yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
-
      
     if (planningSpace=="cartesian"){
+        std::vector<double> xStart;
+        if(!getCurrentQ(currentQ)){
+            return false;
+        }
 
+        if (!armICartesianSolver->fwdKin(currentQ, xStart))
+        {
+            yError() << "fwdKin failed";
+            return false;
+        }
+        
+        yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
         armSolverOptions.unput("mins");
         armSolverOptions.unput("maxs");
         yarp::os::Bottle qMin, qMax;
@@ -972,7 +977,6 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             yError() << "Could not view iCartesianSolver in KDLSolver";
             return false;
         }
-        std::vector<double> xStart;
 
         if (!armICartesianSolver->fwdKin(currentQ, xStart))
         {
@@ -1094,7 +1098,23 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     }
     else{ // joint space
         yInfo("Joint space");
+        int nj = numTrunkJoints+numArmJoints;
+        space = ob::StateSpacePtr(new ob::RealVectorStateSpace(nj));
+        ob::RealVectorBounds bounds{nj};
+        for(unsigned int j=0; j<nj; j++){
+            bounds.setLow(j, qmin(j));
+            bounds.setHigh(j, qmax(j));
+        }
+        space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
+
+        si = ob::SpaceInformationPtr(new ob::SpaceInformation(space));
+
+        si->setStateValidityChecker(std::bind(&TrajectoryGeneration::isValid, this, std::placeholders::_1));
+        si->setup();
+
+
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
+
         ob::ScopedState<ob::RealVectorStateSpace> start(space);
 
         if(!getCurrentQ(currentQ)){
@@ -1192,6 +1212,8 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                     }
                     pdef->clearGoal();
                     pdef->setGoalState(goal);
+
+
 
                     std::vector<std::vector<double>>jointsTrajectory;
                     bool validStartState, validGoalState;
