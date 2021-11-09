@@ -149,6 +149,10 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     for(unsigned int joint = 0; joint < numTrunkJoints; joint++){
         double min, max;
         trunkIControlLimits->getLimits(joint, &min, &max);
+        if(joint == 0){
+            min = -31;
+            max = 31;
+        }
         if(joint == 1){ // we don't want the frontal joint tilt so much
             max = 16.0;
         }

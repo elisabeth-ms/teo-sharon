@@ -451,9 +451,9 @@ class DemoSharon(yarp.RFModule):
         self.trunkRightArmSolverOptions.put("ik", "nrjl")
 
         self.trunkRightArmSolverOptions.fromString(
-            "(mins (-40 -10.0 -98.1 -75.5 -80.1 -99.6 -80.4 -115.4))", False)
+            "(mins (-30 -10.0 -98.1 -75.5 -80.1 -99.6 -80.4 -115.4))", False)
         self.trunkRightArmSolverOptions.fromString(
-            "(maxs (40 16.0 106 22.4 57 98.4 99.6 44.7))", False)
+            "(maxs (30 16.0 106 22.4 57 98.4 99.6 44.7))", False)
         print("mins")
         print(self.trunkRightArmSolverOptions.find("mins").toString())
         print("maxs")
@@ -729,7 +729,7 @@ class DemoSharon(yarp.RFModule):
                                     bGraspingPoses = response.get(1).asList()
                                     print(bGraspingPoses.size())
                                     if robot == "/teo":
-                                        self.reachingDistance = 0.15
+                                        self.reachingDistance = 0.16
                                     elif robot == "/teoSim":
                                         self.reachingDistance = 0.18
                                     feasible, self.graspingPose, self.reachingPose = self.getFeasibleGraspingPose(self.rightArm, bGraspingPoses, self.reachingDistance)
@@ -804,7 +804,7 @@ class DemoSharon(yarp.RFModule):
                         
 
                         aproachingQs = []
-                        while self.d <= 0.85*self.reachingDistance:
+                        while self.d <= 0.95*self.reachingDistance:
                             print(self.d)
                             self.d = self.d + self.reachingDistance/100.0
 
@@ -972,8 +972,9 @@ class DemoSharon(yarp.RFModule):
                                 if available_right_hand_controlboard and robot == "/teo":
                                     self.rightHandIPWMControl.setRefDutyCycle(
                                         0, -100)
-                            self.d += self.up_distance/10
-                            time.sleep(period * 0.001 - ((time.time() - start) % (period * 0.001)))
+                            self.d += self.up_distance/20
+                            yarp.delay(0.2)
+                            #time.sleep(period * 0.001 - ((time.time() - start) % (period * 0.001)))
                         
                         self.d = 0
                         self.state = 8
