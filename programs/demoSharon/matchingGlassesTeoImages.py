@@ -54,9 +54,9 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.xtionObjectDetectionsPort = yarp.BufferedPortBottle()
         
         self.glassesImagePort = yarp.BufferedPortImageRgb()
-        self.glassesResolution = (720,720)
+        self.glassesResolution = (1080,1080)
         self.glassesImageArray =  np.zeros((self.glassesResolution[1],self.glassesResolution[0],3), dtype=np.uint8)
-        self.minConfidenceDetection = 0.5
+        self.minConfidenceDetection = 0.9
         self.triggerProb = 0.7
         self.cropsResolution = (120,120)
         
@@ -73,6 +73,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.bottleData = yarp.Bottle()
         self.count_not_detections = 0
         self.max_count_not_detections = 10
+        self.rightObject = False
 
         if robot == '/teo':
             self.xtionImagePortName = "/xtion/rgbImage" 
@@ -114,14 +115,14 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         self.glassesCropImagePort.open("/matching"+self.glassesCropImagePortName+":o")
         
         
-        styleConnection = yarp.ContactStyle()
-        styleConnection.persistent = True
+        # styleConnection = yarp.ContactStyle()
+        # styleConnection.persistent = True
         #connect up the output port to our input port
-        yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i", styleConnection)
-        yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i", styleConnection)
+        yarp.Network.connect(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i")
+        yarp.Network.connect(self.xtionObjectDetectionPortName+":o", "/matching"+self.xtionObjectDetectionPortName+":i")
         
-        yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i", styleConnection)
-        yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i", styleConnection)
+        yarp.Network.connect(self.glassesImagePortName+":o", "/matching"+self.glassesImagePortName+":i")
+        yarp.Network.connect(self.glassesDataPortName+":o", "/matching"+self.glassesDataPortName+":i")
         
 
         # gpus = tf.config.list_physical_devices('GPU')
@@ -235,6 +236,8 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         mmxCropImages = []
         mmyCropImages = []
         mmzCropImages = []
+        tlx_max = 0
+        tlx_max_category = None
         
         for i in range(detections.size()):
             dictDetection = detections.get(i)
@@ -245,31 +248,15 @@ class MatchingGlassesTeoImages(yarp.RFModule):
             mmx = dictDetection.find("mmX").asFloat32()
             mmy = dictDetection.find("mmY").asFloat32()
             mmz = dictDetection.find("mmZ").asFloat32()
+            print(tlx)
 
-            # centerx = int((brx + tlx)/2.0)
-            # centery = int((bry + tly)/2.0)
-            # tlyCrop = int(centery-self.cropsResolution[1]/2)
-            # bryCrop = int(centery+self.cropsResolution[0]/2)
-            # if tlyCrop <=0:
-            #     tlyCrop = 0
-            #     bryCrop = self.cropsResolution[1]
-            # if bryCrop>=self.xtionResolution[1]:
-            #     bryCrop = self.xtionResolution[1]
-            #     tlyCrop = bryCrop - self.cropsResolution[1]
-                
-            # tlxCrop = int(centerx - self.cropsResolution[0]/2)
-            # brxCrop = int(centerx + self.cropsResolution[0]/2)
-            
-            # if tlxCrop <= 0:
-            #     tlxCrop = 0
-            #     brxCrop = self.cropsResolution[0]
-            # if brxCrop >= self.xtionResolution[0]:
-            #     brxCrop = self.xtionResolution[0]
-            #     tlxCrop = brxCrop - self.cropsResolution[0]
-                
             category = dictDetection.find("category").asString()
             confidence = dictDetection.find("confidence").asFloat32()
             
+            if tlx > tlx_max:
+                tlx_max_category = category
+                tlx_max = tlx
+                print(tlx_max_category, tlx, tlx_max)
             print("Detection ",i," ",category, confidence, glassesCategory in category)
             
             if confidence>=self.minConfidenceDetection and glassesCategory in category and category not in labelsCropImages:
@@ -282,8 +269,15 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                 mmxCropImages.append(mmx)
                 mmyCropImages.append(mmy)
                 mmzCropImages.append(mmz)
+                
+        if glassesCategory in tlx_max_category:
+            rightObject = True
+        else:
+            rightObject = False
 
-        return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages
+             
+
+        return cropImages, labelsCropImages, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages, rightObject
     
     def getGlassesCropImageBBox(self, bottleData):
         tlx =  int(bottleData.get(3).asList().get(0).asFloat32())
@@ -423,7 +417,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         imWithRect = np.asarray(im)
         return imWithRect
 
-    def areConnected(self):
+    def areConnected(self):            
         if not yarp.Network.isConnected(self.xtionImagePortName+":o","/matching"+self.xtionImagePortName+":i"):
             print("Try to connect to",self.xtionImagePortName+":o")
             print("Please check if the camera is publishing images.")
@@ -545,20 +539,19 @@ class MatchingGlassesTeoImages(yarp.RFModule):
         detectionsCropsLabels = [] 
         # print("Update")
         
-        # if not self.areConnected():
-        #     print("Not all yarp ports are available...")
-        #     return True
-        if self.xtionImagePort.getInputCount()>0:
-            print("xtion")
-        xtionYarpImage= self.xtionImagePort.read(True)
+        if not self.areConnected():
+            print("Not all yarp ports are available...")
+            return True
+        # if self.xtionImagePort.getInputCount()>0:
+        #     print("xtion")
+        xtionYarpImage= self.xtionImagePort.read(False)
         if xtionYarpImage:
             xtionYarpImage.setExternal(self.xtionImageArray.data, self.xtionImageArray.shape[1], self.xtionImageArray.shape[0])
         
-        if self.glassesImagePort.getInputCount()>0:
-            print("glasses server")
-        glassesYarpImage = self.glassesImagePort.read(True)
+        # if self.glassesImagePort.getInputCount()>0:
+        #     print("glasses server")
+        glassesYarpImage = self.glassesImagePort.read(False)
         if glassesYarpImage:
-            print("glasses")
             glassesYarpImage.setExternal(self.glassesImageArray.data, self.glassesImageArray.shape[1], self.glassesImageArray.shape[0])
         
         detections = yarp.Bottle()
@@ -616,7 +609,8 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                         self.glassesCropImages.append(glassesCropImage)
                         # detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages= self.createLabeledCropsFromDetections(self.detections)
                         
-                        detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages= self.getLabeledCropsSameCategory(self.detections, glassesCategory)
+                        
+                        detectionsCropImages, detectionsCropsLabels, tlxCropImages, tlyCropImages, brxCropImages, bryCropImages, mmxCropImages, mmyCropImages, mmzCropImages, self.rightObject= self.getLabeledCropsSameCategory(self.detections, glassesCategory)
                         self.allDetectionsInWindowFrames.append(detectionsCropImages)
                         self.allDetectionsLabelsInWindowFrames.append(detectionsCropsLabels)
                         print(self.allDetectionsLabelsInWindowFrames)
@@ -649,6 +643,7 @@ class MatchingGlassesTeoImages(yarp.RFModule):
                             dictObject.put("mmX", mmxCropImages[0])
                             dictObject.put("mmY", mmyCropImages[0])
                             dictObject.put("mmZ", mmzCropImages[0])
+                            dictObject.put("rightObject", self.rightObject)
                             self.fixationObjectPort.write(fixationObject)
                         
                         if len(self.glassesCropImages)==numberFrames+1:

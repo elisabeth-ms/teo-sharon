@@ -28,7 +28,7 @@ class ServerProtocol(yarp.RFModule):
         self.glasses_images_bbox_port = yarp.BufferedPortImageRgb()
         self.glasses_data_port = yarp.Port()
         self.wait_for_connection = True
-        self.server_ip = '127.0.0.1'#'163.117.150.88' #'2.2.2.109'
+        self.server_ip =  '2.2.2.109' #'163.117.150.88' #'2.2.2.109'
         
     def configure(self, rf):
         self.imageWidth = rf.find("width").asInt32()
@@ -38,7 +38,12 @@ class ServerProtocol(yarp.RFModule):
         self.glasses_images_port.open("/glassesServer/images:o") # Give name to the port in the yarp network
         self.glasses_images_bbox_port.open("/glassesServer/bboxImages:o") # Give name to the port in the yarp network
 
-        self.glasses_data_port.open("/glassesServer/data:o") 
+        self.glasses_data_port.open("/glassesServer/data:o")
+        yarp.Network.connect("/glassesServer/images:o", "/matching/glassesServer/images:i")
+        yarp.Network.connect("/glassesServer/data:o", "/matching/glassesServer/data:i")
+       
+        
+         
         self.create_cipher_encrypt_decrypt()
             
         self.listen(self.server_ip, 55555)
@@ -151,6 +156,7 @@ class ServerProtocol(yarp.RFModule):
                         #image.save("ImagesReceivedSocket/"+str(self.file_num)+".png", "PNG")
                         #image = Image.open("ImagesReceivedSocket/"+str(self.file_num)+".png")
                         width, height = image.size
+                        print("width:",width, "height: ", height)
                         
                         #yarpview has problems with the visualization of images of some resolutions. Since the images received are almost squared, we are 
                         # going to crop the image
@@ -239,6 +245,11 @@ class ServerProtocol(yarp.RFModule):
                         bprob = bdata_fixation.addList()
                         for decision_elemenent in decision:
                             bprob.addDouble(decision_elemenent)
+                            
+                        bdata_fixation.addString("size")
+                        bimage_size = bdata_fixation.addList()
+                        bimage_size.addInt(square_length)
+                        bimage_size.addInt(square_length)
                     
                         self.glasses_data_port.write(bdata_fixation)
 

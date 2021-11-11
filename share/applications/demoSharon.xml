@@ -47,6 +47,39 @@
 		<node>localhost</node>
 	</module-->
 	
+	 <module>
+        	<name>yarpview</name>
+        	<parameters>--name /yarpview/rgbdObjectDetection/img:i</parameters>
+        	<node>localhost</node>
+    	</module>
+    	<connection>
+        	<from>/rgbdObjectDetection/img:o</from>
+        	<to>/yarpview/rgbdObjectDetection/img:i</to>
+        	<!--protocol></protocol-->
+    	</connection>
+    	
+    	<module>
+        	<name>yarpview</name>
+        	<parameters>--name /yarpview/glassesServer/images:i</parameters>
+        	<node>localhost</node>
+    	</module>
+    	<connection>
+        	<from>/glassesServer/images:o</from>
+        	<to>/yarpview/glassesServer/images:i</to>
+        	<!--protocol></protocol-->
+    	</connection>
+    	
+    	<module>
+        	<name>yarpview</name>
+        	<parameters>--name /yarpview/glassesServer/bboxImages:i</parameters>
+        	<node>localhost</node>
+    	</module>
+    	<connection>
+        	<from>/glassesServer/bboxImages:o</from>
+        	<to> /yarpview/glassesServer/bboxImages:i</to>
+        	<!--protocol></protocol-->
+    	</connection>
+	
  	<module>
         <name>yarpview</name>
         <parameters>--name /yarpview/rgbd/rgbImage:i</parameters>
@@ -69,6 +102,15 @@
         <to>/yarpview/rgbd/depthImage:i</to>
         <protocol>udp+recv.portmonitor+type.dll+file.depthimage</protocol>
     </connection>
+    
+    <!--module>
+    	<name>yarpdatadumper</name>
+    	<parameters>--name /data/rgbImage:i --type image</parameters>
+    	<node>localhost</node>
+    </module>
+    <connection>
+    	<from>/xtion/rgbImage:o</from>
+    </connection-->
 	
 
 </application>

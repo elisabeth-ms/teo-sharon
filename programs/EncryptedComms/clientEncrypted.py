@@ -158,9 +158,10 @@ if __name__ == '__main__':
         cp = ClientProtocol()
         cp.create_cipher_encrypt_decrypt()
         image_data = None
-        remote_ip =  '127.0.0.1'#'163.117.150.88' 
-
+        remote_ip =  '2.2.2.109' #163.117.150.74' #'163.117.150.88' 
+        print("Lets connect")
         cp.connect(remote_ip, 55555)
+        print("connection done")
         
         width = 725
         height = 720
@@ -178,8 +179,8 @@ if __name__ == '__main__':
 
                     if action_level[frame_number] ==  1:
                         print(frames[frame_number], action_level[frame_number] )
-                        #decision_vector[labels[frame_number]] = 1
-                        decision_vector[3] = 1
+                        decision_vector[labels[frame_number]] = 1
+                        #decision_vector[3] = 1
                     #print(probability_vector)
                     #print(np.array([fixations[frame_number][0], fixations[frame_number][1]]))
                     x = float(fixations[frame_number][0])

@@ -154,7 +154,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
             max = 31;
         }
         if(joint == 1){ // we don't want the frontal joint tilt so much
-            max = 16.0;
+            max = 16.5;
         }
         qrMin.addDouble(min);
         qrMax.addDouble(max);
@@ -247,14 +247,14 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     CollisionGeometryPtr_t teoElbow{new fcl::Boxf{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
     fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
     
-    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.15, 0.26, 0.15}};
+    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.19, 0.29, 0.19}};
     fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
     CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.0,0.0,0.0}};
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
-    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.2,0.9}};
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.2,1.0}};
     fcl::CollisionObjectf collisionObjectTable{table, tfTest};
     fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
     // fcl::Vector3f translation(1.65, 0.0, -0.43);

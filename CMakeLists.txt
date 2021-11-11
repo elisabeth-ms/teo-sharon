@@ -59,7 +59,7 @@ include(TEO_SHARONDescribe)
 include(TEO_SHARONPackage)
 
 set(YARP_FORCE_DYNAMIC_PLUGINS TRUE CACHE INTERNAL "Force dynamic plugins")
-yarp_configure_external_installation(teo_sharon WITH_PLUGINS)
+yarp_configure_external_installation(teo-sharon WITH_PLUGINS)
 
 
 # Generate a report of enabled/disabled features.

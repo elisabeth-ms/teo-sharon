@@ -374,7 +374,6 @@ bool GetGraspingPoses::transformPointCloud(const yarp::sig::PointCloud<yarp::sig
             yError()<<"getEncoders() failed";
             return false;
         }
-        currentHeadQ[1] = -currentHeadQ[1];
     }
     else{
         currentHeadQ[0] = 0.0;
@@ -972,7 +971,7 @@ void GetGraspingPoses::computeGraspingPosesMilk(std::vector<KDL::Vector> & norma
     for(int i=0; i<previousLength;i++){
         for(int j=-10; j< 11; j++){
             pcl::PointXYZ p = centroids[i];
-            p.z+=float(j)/10*milkBoxShape[2]/4.0;
+            p.z+=float(j)/10*milkBoxShape[2]/5.0;
             centroids.push_back(p);
             normals.push_back(normals[i]);
             y_vectors.push_back(y_vectors[i]);
