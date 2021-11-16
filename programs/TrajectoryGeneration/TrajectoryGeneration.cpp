@@ -119,7 +119,6 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     printf("TrajectoryGeneration using planningSpace: %s\n",planningSpace.c_str());
     printf("TrajectoryGeneration using deviceName: %s\n",deviceName.c_str());
     printf("TrajectoryGeneration using kinematicsConfig: %s\n",kinematicsConfig.c_str());
-
     printf("--------------------------------------------------------------\n");
     if (config.check("help"))
     {
@@ -880,6 +879,45 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     return solutionFound;
 }
 
+bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<double> & desireQ){
+    yInfo()<<"Check goal pose";
+    std::vector<double> xGoal(6);
+    for (int i = 0; i < 6; i++)
+        xGoal[i] = bGoal->get(i).asDouble();
+    yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
+
+    std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+
+    if(!getCurrentQ(currentQ)){
+        return false;
+    }
+    else{
+        if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
+        {
+            return false;
+        }
+        else{   
+            yInfo()<<"desireQ: "<<desireQ;
+            ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+            for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+                goal[j] = desireQ[j];
+            }
+            pdef->clearGoal();
+
+            pdef->setGoalState(goal);
+
+            ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+            if(isValid(goalState)){
+                return true;
+            }
+            else{
+                return false;
+            }
+        }    
+    }
+}
+
+
 bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 {
     yarp::os::Bottle reply;
@@ -1136,7 +1174,33 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         else{
             yInfo()<<"Not valid start state";
         }
-                
+        
+        switch(command.get(0).asVocab()){
+            case VOCAB_HELP:{
+                yInfo() <<"help";
+                static auto usage = makeUsage();
+                reply.append(usage);
+            }break;
+            case VOCAB_CHECK_GOAL_POSE:
+                {yInfo() << "Check goal pose (x, y, z, rotx, roty, rotz)";
+                std::vector<double> desireQ(numArmJoints+numTrunkJoints);
+                if(!checkGoalPose(command.get(1).asList(), desireQ)){
+                    reply.addVocab(VOCAB_FAIL);
+                }
+                else{
+                    reply.addVocab(VOCAB_OK);
+                    Bottle bJointsPosition;
+                    for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+                        bJointsPosition.addDouble(desireQ[j]);
+                    }
+                    reply.addList() = bJointsPosition;
+                }
+                }break;
+            case VOCAB_CHECK_GOAL_JOINTS:
+                /** TODO: CHECK GOAL JOINTS **/
+                {yInfo() << "Check goal joints (j0, j1, ..., jn)";
+                }break;
+        }       
 
         if (command.get(0).toString() == "Check goal pose"){
             yInfo()<<"Check goal pose";
@@ -1146,9 +1210,9 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 xGoal[i] = bGoal->get(i).asDouble();
             yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
-            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
 
             std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
 
             if(!getCurrentQ(currentQ)){
                 reply.addString("Not Valid");

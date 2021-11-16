@@ -24,6 +24,7 @@
 #include <ompl/geometric/planners/rlrt/BiRLRT.h>
 
 #include "../../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
+#include <yarp/os/Vocab.h>
 
 // fcl
 // #include "fcl/octree.h"
@@ -58,6 +59,15 @@ using namespace roboticslab;
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
+
+constexpr auto VOCAB_CHECK_GOAL_POSE = yarp::os::createVocab('c','h','g','p');
+constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab('c','h','g','j');
+constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab('c','p','g','p');
+constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c','p','g','j');
+constexpr auto VOCAB_FAIL = yarp::os::createVocab('f','a','i','l');
+
+
+// constexpr auto VOCAB_HELP = yarp::os::createVocab('h','e','l','p');
 
 /**
  * @ingroup teo-sharon_programs
@@ -150,6 +160,7 @@ namespace og = ompl::geometric;
 
             yarp::os::RpcServer rpcServer;
             
+            bool checkGoalPose(yarp::os::Bottle *, std::vector<double> & desireQb);
             bool isValid(const ob::State *state);
             bool getCurrentQ(std::vector<double> & currentQ);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
@@ -163,6 +174,23 @@ namespace og = ompl::geometric;
             // Publish trajectory just for visualization
             yarp::os::BufferedPort<yarp::os::Bottle> outCartesianTrajectoryPort;
             #endif
+
+          yarp::os::Bottle makeUsage()
+          {
+            return {
+            yarp::os::Value(VOCAB_HELP, true),
+            yarp::os::Value("\tlist commands"),
+            yarp::os::Value(VOCAB_CHECK_GOAL_POSE, true),
+            yarp::os::Value("\tcheck if the robot collides in the goal pose (x, y, z, rotx, roty, rotz). If it does not collide it retrives the joints position."),
+            yarp::os::Value(VOCAB_CHECK_GOAL_JOINTS, true),
+            yarp::os::Value("\tcheck if the robot collides with the goal joints (j0, j1, ..., jn)"),
+            yarp::os::Value(VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS, true),
+            yarp::os::Value("\tcompute the joints path to the goal joints."),
+            yarp::os::Value(VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE, true),
+            yarp::os::Value("\tcompute the joints path to the goal pose."),
+        };
+}
+
 
 
 
