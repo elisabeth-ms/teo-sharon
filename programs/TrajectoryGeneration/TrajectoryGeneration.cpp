@@ -24,6 +24,15 @@ using namespace sharon;
 #define DEFAULT_RANGE_RRT 0.1
 #define DEFAULT_PRUNE_THRESHOLD 0.6
 
+namespace errorsTrajectoryGeneration{
+
+  const std::string goal_not_inv_kin ("invKin failed for goal pose");
+  const std::string goal_collision("robot collides at the goal configuration");
+  const std::string pose_6_elements("pose list must have 6 elements (x, y, z, rotx, roty, rotz)");
+  const std::string joints_elements("size of joints list is different than the number of joints");
+  const std::string start_collision("robot collides at the start configuration");
+  const std::string path_not_found("path NOT found");
+};
 
 
 static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
@@ -757,13 +766,13 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
 }
 
 
-bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState)
+bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory,
+                                                std::string & errorMessage)
 {
 
     pdef->clearStartStates();
     pdef->addStartState(start);
 
-    printf("startttttt\n");
     start.print();
 
     ob::RealVectorBounds bounds = space->as<ob::RealVectorStateSpace>()->getBounds();
@@ -783,14 +792,8 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
   
    
-    if (isValid(startState)){
-        yInfo() << "Valid starting state";
-        validStartState = true;
-    }
-    else
-    {
-        yInfo() << "Not valid starting state";
-        validStartState = false;
+    if (!isValid(startState)){
+        errorMessage = errorsTrajectoryGeneration::start_collision;
         return false;
     }
 
@@ -801,17 +804,10 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
 
 
-    if (isValid(goalState)){
-        yInfo() << "Valid goal state";
-        validGoalState = true;
-    }
-    else
-    {
-        yInfo() << "Not valid goal state";
-        validGoalState = false;
+    if (!isValid(goalState)){
+        errorMessage = errorsTrajectoryGeneration::goal_collision;
         return false;
     }
-
 
 
     planner->setProblemDefinition(pdef);
@@ -823,7 +819,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
     bool solutionFound = planner->solve(15.0);
 
 
-    if (solutionFound == true)
+    if (solutionFound)
     {
         yInfo() << "Sol";
         ob::PathPtr path = pdef->getSolutionPath();
@@ -831,57 +827,41 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
         path->print(std::cout);
         pth = path->as<og::PathGeometric>();
         yInfo() << pth->getStateCount();
-    }
 
-    // Send computed trajectory through the port for plotting
+        std::size_t iState = 0;
 
-//#ifdef SEND_TRAJECTORY_DATA
-    Bottle &out= outCartesianTrajectoryPort.prepare();
-    std::size_t iState = 0;
-
-    while (iState < pth->getStateCount())
-    {
-        ob::State *state = pth->getState(iState);
-
-        const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
-
-
-        std::vector<double> poseQ;
-        poseQ.reserve(numArmJoints+numTrunkJoints);
-        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++)
-            poseQ.emplace_back(jointState->values[j]);
-
-        std::vector<double> pose;
-
-        if (!armICartesianSolver->fwdKin(poseQ, pose))
+        while (iState < pth->getStateCount())
         {
-            yError() << "fwdKin failed";
-            return false;
-        }
+            ob::State *state = pth->getState(iState);
 
-        else{
-            Bottle bPose;
-            for(int i = 0; i < 6; i++){
-                bPose.addDouble(pose[i]);
-            }
+            const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
+            
+            std::vector<double> poseQ;
+            poseQ.reserve(numArmJoints+numTrunkJoints);
+            for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++)
+                poseQ.emplace_back(jointState->values[j]);
+
             jointsTrajectory.push_back(poseQ);
             yInfo()<<poseQ;
-            out.addList() = bPose;
+            
+            iState++;
         }
-        
-        iState++;
+        return true;
+    }else{
+        errorMessage == errorsTrajectoryGeneration::path_not_found;
+        return false;
     }
-    outCartesianTrajectoryPort.write(true);
 
-//#endif
-    // followDiscretePath();
 
-    return solutionFound;
 }
 
-bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<double> & desireQ){
+bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<double> & desireQ, std::string & errorMessage){
     yInfo()<<"Check goal pose";
     std::vector<double> xGoal(6);
+    if (bGoal->size() != 6){
+        errorMessage = errorsTrajectoryGeneration::pose_6_elements;
+        return false;
+    }
     for (int i = 0; i < 6; i++)
         xGoal[i] = bGoal->get(i).asDouble();
     yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
@@ -894,6 +874,7 @@ bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<d
     else{
         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
         {
+            errorMessage = errorsTrajectoryGeneration::goal_not_inv_kin;
             return false;
         }
         else{   
@@ -912,8 +893,35 @@ bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<d
             }
             else{
                 return false;
+                errorMessage = errorsTrajectoryGeneration::goal_collision;
             }
         }    
+    }
+}
+
+bool TrajectoryGeneration::checkGoalJoints(yarp::os::Bottle * bGoal, std::string & errorMessage){
+    if (bGoal->size() != numArmJoints+ numTrunkJoints){
+        yWarning()<<errorsTrajectoryGeneration::joints_elements;
+        errorMessage = errorsTrajectoryGeneration::joints_elements;
+        return false;
+    }
+    else{
+        ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+            goal[j] = bGoal->get(j).asDouble();
+        }
+        pdef->clearGoal();
+
+        pdef->setGoalState(goal);
+
+        ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+        if(isValid(goalState)){
+            return true;
+        }
+        else{
+            errorMessage = errorsTrajectoryGeneration::goal_collision;
+            return false;
+        }
     }
 }
 
@@ -1044,99 +1052,99 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         pdef->clearStartStates();
         pdef->addStartState(start);
 
-        if (command.get(0).toString() == "Check goal"){
-            yInfo()<<"Check goal";
-            Bottle * bGoal = command.get(1).asList();
-            std::vector<double> xGoal(6);
-            for (int i = 0; i < 6; i++)
-                xGoal[i] = bGoal->get(i).asDouble();
-            yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
+        // if (command.get(0).toString() == "Check goal"){
+        //     yInfo()<<"Check goal";
+        //     Bottle * bGoal = command.get(1).asList();
+        //     std::vector<double> xGoal(6);
+        //     for (int i = 0; i < 6; i++)
+        //         xGoal[i] = bGoal->get(i).asDouble();
+        //     yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
-            frame = vectorToFrame(xGoal);
-            frame.M.GetQuaternion(qx, qy, qz, qw);
-            ob::ScopedState<ob::SE3StateSpace> goal(space);
+        //     frame = vectorToFrame(xGoal);
+        //     frame.M.GetQuaternion(qx, qy, qz, qw);
+        //     ob::ScopedState<ob::SE3StateSpace> goal(space);
 
-            goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
-            goal->rotation().x = qx;
-            goal->rotation().y = qy;
-            goal->rotation().z = qz;
-            goal->rotation().w = qw;
+        //     goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
+        //     goal->rotation().x = qx;
+        //     goal->rotation().y = qy;
+        //     goal->rotation().z = qz;
+        //     goal->rotation().w = qw;
 
-            pdef->clearGoal();
+        //     pdef->clearGoal();
 
-            pdef->setGoalState(goal);
+        //     pdef->setGoalState(goal);
 
-            ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
-            if(isValid(goalState)){
-                yInfo() << "Valid";
-                reply.addString("Valid");
-                Bottle bJointsPosition;
+        //     ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+        //     if(isValid(goalState)){
+        //         yInfo() << "Valid";
+        //         reply.addString("Valid");
+        //         Bottle bJointsPosition;
 
-                for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                    yInfo()<<goalQ[j];
-                    bJointsPosition.addDouble(goalQ[j]);
-                }
-                reply.addList() = bJointsPosition;
-            }
-            else{
-                yInfo() << "Not Valid";
-                reply.addString("Not Valid");
-            }
-        }
+        //         for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+        //             yInfo()<<goalQ[j];
+        //             bJointsPosition.addDouble(goalQ[j]);
+        //         }
+        //         reply.addList() = bJointsPosition;
+        //     }
+        //     else{
+        //         yInfo() << "Not Valid";
+        //         reply.addString("Not Valid");
+        //     }
+        // }
 
-        else if (command.get(0).toString() == "Compute trajectory"){
-            Bottle * bGoal = command.get(1).asList();
-            std::vector<double> xGoal(6);
-            for (int i = 0; i < 6; i++)
-                xGoal[i] = bGoal->get(i).asDouble();
-            frame = vectorToFrame(xGoal);
-            frame.M.GetQuaternion(qx, qy, qz, qw);
-            ob::ScopedState<ob::SE3StateSpace> goal(space);
+        // else if (command.get(0).toString() == "Compute trajectory"){
+        //     Bottle * bGoal = command.get(1).asList();
+        //     std::vector<double> xGoal(6);
+        //     for (int i = 0; i < 6; i++)
+        //         xGoal[i] = bGoal->get(i).asDouble();
+        //     frame = vectorToFrame(xGoal);
+        //     frame.M.GetQuaternion(qx, qy, qz, qw);
+        //     ob::ScopedState<ob::SE3StateSpace> goal(space);
 
-            goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
-            goal->rotation().x = qx;
-            goal->rotation().y = qy;
-            goal->rotation().z = qz;
-            goal->rotation().w = qw;
+        //     goal->setXYZ(xGoal[0], xGoal[1], xGoal[2]);
+        //     goal->rotation().x = qx;
+        //     goal->rotation().y = qy;
+        //     goal->rotation().z = qz;
+        //     goal->rotation().w = qw;
 
-            pdef->clearGoal();
+        //     pdef->clearGoal();
 
-            pdef->setGoalState(goal);
-            std::vector<std::vector<double>>jointsTrajectory;
-            bool validStartState, validGoalState;
-            bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+        //     pdef->setGoalState(goal);
+        //     std::vector<std::vector<double>>jointsTrajectory;
+        //     bool validStartState, validGoalState;
+        //     bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
 
-            if (solutionFound)
-            {
-                // followDiscretePath();
-                yInfo() << "Solution Found";
-                reply.addString("Solution Found");
-                Bottle bJointsTrajectory;
-                for(int i=0; i<jointsTrajectory.size(); i++){
-                    Bottle bJointsPosition;
-                    for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                        bJointsPosition.addDouble(jointsTrajectory[i][j]);
-                    }
-                    bJointsTrajectory.addList() = bJointsPosition;
-                }
-                reply.addList() =bJointsTrajectory;
-            }
-            else{
-                if(!validStartState)
-                {
-                    yInfo() <<"Start state NOT valid";
-                    reply.addString("Start state NOT valid");
-                }
-                if(!validGoalState){
-                    yInfo() <<"Goal state NOT valid";
-                    reply.addString("Goal state NOT valid"); 
-                }
-                if(validStartState && validGoalState){
-                    yInfo() << "Solution NOT found";
-                    reply.addString("Solution NOT found");
-                }
-            }
-        }
+        //     if (solutionFound)
+        //     {
+        //         // followDiscretePath();
+        //         yInfo() << "Solution Found";
+        //         reply.addString("Solution Found");
+        //         Bottle bJointsTrajectory;
+        //         for(int i=0; i<jointsTrajectory.size(); i++){
+        //             Bottle bJointsPosition;
+        //             for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+        //                 bJointsPosition.addDouble(jointsTrajectory[i][j]);
+        //             }
+        //             bJointsTrajectory.addList() = bJointsPosition;
+        //         }
+        //         reply.addList() =bJointsTrajectory;
+        //     }
+        //     else{
+        //         if(!validStartState)
+        //         {
+        //             yInfo() <<"Start state NOT valid";
+        //             reply.addString("Start state NOT valid");
+        //         }
+        //         if(!validGoalState){
+        //             yInfo() <<"Goal state NOT valid";
+        //             reply.addString("Goal state NOT valid"); 
+        //         }
+        //         if(validStartState && validGoalState){
+        //             yInfo() << "Solution NOT found";
+        //             reply.addString("Solution NOT found");
+        //         }
+        //     }
+        // }
     }
     else{ // joint space
         yInfo("Joint space");
@@ -1184,8 +1192,10 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
             case VOCAB_CHECK_GOAL_POSE:
                 {yInfo() << "Check goal pose (x, y, z, rotx, roty, rotz)";
                 std::vector<double> desireQ(numArmJoints+numTrunkJoints);
-                if(!checkGoalPose(command.get(1).asList(), desireQ)){
-                    reply.addVocab(VOCAB_FAIL);
+                std::string errorMessage;
+                if(!checkGoalPose(command.get(1).asList(), desireQ, errorMessage)){
+                    reply.addVocab(VOCAB_FAILED);
+                    reply.addString(errorMessage);
                 }
                 else{
                     reply.addVocab(VOCAB_OK);
@@ -1197,101 +1207,75 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 }
                 }break;
             case VOCAB_CHECK_GOAL_JOINTS:
-                /** TODO: CHECK GOAL JOINTS **/
-                {yInfo() << "Check goal joints (j0, j1, ..., jn)";
-                }break;
-        }       
-
-        if (command.get(0).toString() == "Check goal pose"){
-            yInfo()<<"Check goal pose";
-            Bottle * bGoal = command.get(1).asList();
-            std::vector<double> xGoal(6);
-            for (int i = 0; i < 6; i++)
-                xGoal[i] = bGoal->get(i).asDouble();
-            yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
-
-
-            std::vector<double> currentQ(numArmJoints+numTrunkJoints);
-            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
-
-            if(!getCurrentQ(currentQ)){
-                reply.addString("Not Valid");
-            }
-            else{
-                if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
                 {
-                    yError() << "invKin() failed";
-                    reply.addString("Not Valid");
+                yInfo() << "Check goal joints (j0, j1, ..., jn)";
+                std::string errorMessage;
+                if(!checkGoalJoints(command.get(1).asList(), errorMessage)){
+                    reply.addVocab(VOCAB_FAILED);
+                    reply.addString(errorMessage);
                 }
-                else{   
-                    yInfo()<<"desireQ: "<<desireQ;
-                    ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-                    for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-                        goal[j] = desireQ[j];
-                    }
-                    pdef->clearGoal();
-
-                    pdef->setGoalState(goal);
-
-                    ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
-                    if(isValid(goalState)){
-                        yInfo() << "Valid";
-                        reply.addString("Valid");
-                        Bottle bJointsPosition;
-                        for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                            bJointsPosition.addDouble(desireQ[j]);
-                        }
-                        reply.addList() = bJointsPosition;
+                else{
+                    reply.addVocab(VOCAB_OK);
+                }
+                }break;
+            case VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE:
+                {
+                    yInfo()<<"Compute path in joint space to goal pose (x, y, z, rotx, roty, rotz";
+                    std::vector<double> desireQ(numArmJoints+numTrunkJoints);
+                    std::string errorMessage;
+                    if(!checkGoalPose(command.get(1).asList(), desireQ, errorMessage)){
+                        reply.addVocab(VOCAB_FAILED);
+                        reply.addString(errorMessage);
                     }
                     else{
-                        yInfo() << "Not Valid";
-                        reply.addString("Not Valid");
-                    }    
-                }
-            }
-        }
-        else if (command.get(0).toString() == "Compute trajectory pose"){
-            yInfo()<<"Compute trajectory pose";
-            Bottle * bGoal = command.get(1).asList();
-            std::vector<double> xGoal(6);
-            for (int i = 0; i < 6; i++)
-                xGoal[i] = bGoal->get(i).asDouble();
+                        ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+                        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+                            goal[j] = desireQ[j];
+                        }
+                        pdef->clearGoal();
+                        pdef->setGoalState(goal);
 
-            std::vector<double> desireQ(numArmJoints+numTrunkJoints);
-            std::vector<double> currentQ(numArmJoints+numTrunkJoints);
-            yInfo()<<"getting encoders";
-            
-            if(!getCurrentQ(currentQ)){
-                reply.addString("Not Valid");
-            }
-            
-            else{
-                yInfo()<<"getEncoders() of "<<deviceName<<" ok";
-                if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
-                {
-                    yError() << "invKin() failed";
-                    reply.addString("Not Valid");
+                        std::vector<std::vector<double>>jointsTrajectory;
+                        std::string errorMessage;
+                        bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, errorMessage);
+
+                        if (solutionFound){
+                            reply.addVocab(VOCAB_OK);
+                            Bottle bJointsTrajectory;
+                            for(int i=0; i<jointsTrajectory.size(); i++){
+                                Bottle bJointsPosition;
+                                for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+                                    bJointsPosition.addDouble(jointsTrajectory[i][j]);
+                                }
+                                bJointsTrajectory.addList() = bJointsPosition;
+                            }
+                            reply.addList() =bJointsTrajectory;
+                        }
+                        else{
+                            reply.addVocab(VOCAB_FAILED);
+                        }
+                    }
+                }break;
+            case VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS:
+                {yInfo()<<"Compute path in joint space to goal joints configuration (j0, j1, ..., jn)";
+                Bottle * bGoal = command.get(1).asList();
+                std::string errorMessage;
+                if (bGoal->size() != numArmJoints+ numTrunkJoints){
+                    reply.addVocab(VOCAB_FAILED);
+                    reply.addString(errorsTrajectoryGeneration::joints_elements);
                 }
-                else{   
-                    yInfo()<<"desireQ: "<<desireQ;
+                else{
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
                     for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-                        goal[j] = desireQ[j];
+                        goal[j] = bGoal->get(j).asDouble();
                     }
                     pdef->clearGoal();
                     pdef->setGoalState(goal);
 
-
-
                     std::vector<std::vector<double>>jointsTrajectory;
-                    bool validStartState, validGoalState;
-                    bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
-
-                    if (solutionFound)
-                    {
-                        // followDiscretePath();
-                        yInfo() << "Solution Found";
-                        reply.addString("Solution Found");
+                    bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, errorMessage);
+                    if (solutionFound){
+                        reply.addVocab(VOCAB_OK);
                         Bottle bJointsTrajectory;
                         for(int i=0; i<jointsTrajectory.size(); i++){
                             Bottle bJointsPosition;
@@ -1303,76 +1287,185 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                         reply.addList() =bJointsTrajectory;
                     }
                     else{
-                        if(!validStartState)
-                        {
-                            yInfo() <<"Start state NOT valid";
-                            reply.addString("Start state NOT valid");
-                        }
-                        if(!validGoalState){
-                            yInfo() <<"Goal state NOT valid";
-                            reply.addString("Goal state NOT valid"); 
-                        }
-                        if(validStartState && validGoalState){
-                            yInfo() << "Solution NOT found";
-                            reply.addString("Solution NOT found");
-                        }
+                        reply.addVocab(VOCAB_FAILED);
+                        reply.addString(errorMessage);
                     }
-
                 }
+                }break;
 
-            }
-        }
-        else if (command.get(0).toString() == "Compute trajectory joints position"){
-            Bottle * bGoal = command.get(1).asList();
+            }      
+
+        // if (command.get(0).toString() == "Check goal pose"){
+        //     yInfo()<<"Check goal pose";
+        //     Bottle * bGoal = command.get(1).asList();
+        //     std::vector<double> xGoal(6);
+        //     for (int i = 0; i < 6; i++)
+        //         xGoal[i] = bGoal->get(i).asDouble();
+        //     yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
+
+
+        //     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+        //     std::vector<double> desireQ(numArmJoints+numTrunkJoints);
+
+        //     if(!getCurrentQ(currentQ)){
+        //         reply.addString("Not Valid");
+        //     }
+        //     else{
+        //         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
+        //         {
+        //             yError() << "invKin() failed";
+        //             reply.addString("Not Valid");
+        //         }
+        //         else{   
+        //             yInfo()<<"desireQ: "<<desireQ;
+        //             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+        //             for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+        //                 goal[j] = desireQ[j];
+        //             }
+        //             pdef->clearGoal();
+
+        //             pdef->setGoalState(goal);
+
+        //             ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+        //             if(isValid(goalState)){
+        //                 yInfo() << "Valid";
+        //                 reply.addString("Valid");
+        //                 Bottle bJointsPosition;
+        //                 for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+        //                     bJointsPosition.addDouble(desireQ[j]);
+        //                 }
+        //                 reply.addList() = bJointsPosition;
+        //             }
+        //             else{
+        //                 yInfo() << "Not Valid";
+        //                 reply.addString("Not Valid");
+        //             }    
+        //         }
+        //     }
+        // }
+        // else if (command.get(0).toString() == "Compute trajectory pose"){
+        //     yInfo()<<"Compute trajectory pose";
+        //     Bottle * bGoal = command.get(1).asList();
+        //     std::vector<double> xGoal(6);
+        //     for (int i = 0; i < 6; i++)
+        //         xGoal[i] = bGoal->get(i).asDouble();
+
+        //     std::vector<double> desireQ(numArmJoints+numTrunkJoints);
+        //     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
+        //     yInfo()<<"getting encoders";
             
-            std::vector<double> qGoal(numArmJoints+numTrunkJoints);
-            for (int i = 0; i < numArmJoints+numTrunkJoints; i++)
-                qGoal[i] = bGoal->get(i).asDouble();
-             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-            for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-                goal[j] = qGoal[j];
-            }
-            pdef->clearGoal();
-            pdef->setGoalState(goal);
-
-            std::vector<std::vector<double>>jointsTrajectory;
-            bool validStartState, validGoalState;
-            bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+        //     if(!getCurrentQ(currentQ)){
+        //         reply.addString("Not Valid");
+        //     }
             
-             if (solutionFound)
-            {
-                yInfo() << "Solution Found";
-                reply.addString("Solution Found");
-                Bottle bJointsTrajectory;
-                for(int i=0; i<jointsTrajectory.size(); i++){
-                    Bottle bJointsPosition;
-                    for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                        bJointsPosition.addDouble(jointsTrajectory[i][j]);
-                    }
-                    bJointsTrajectory.addList() = bJointsPosition;
-                }
-                reply.addList() =bJointsTrajectory;
-            }
-            else{
-                if(!validStartState)
-                {
-                    yInfo() <<"Start state NOT valid";
-                    reply.addString("Start state NOT valid");
-                }
-                if(!validGoalState){
-                    yInfo() <<"Goal state NOT valid";
-                    reply.addString("Goal state NOT valid"); 
-                }
-                if(validStartState && validGoalState){
-                    yInfo() << "Solution NOT found";
-                    reply.addString("Solution NOT found");
-                }
-            }
+        //     else{
+        //         yInfo()<<"getEncoders() of "<<deviceName<<" ok";
+        //         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
+        //         {
+        //             yError() << "invKin() failed";
+        //             reply.addString("Not Valid");
+        //         }
+        //         else{   
+        //             yInfo()<<"desireQ: "<<desireQ;
+        //             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+        //             for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+        //                 goal[j] = desireQ[j];
+        //             }
+        //             pdef->clearGoal();
+        //             pdef->setGoalState(goal);
 
-        }
-        else{
-            yWarning()<<"command not available";
-        }
+
+
+        //             std::vector<std::vector<double>>jointsTrajectory;
+        //             bool validStartState, validGoalState;
+        //             bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+
+        //             if (solutionFound)
+        //             {
+        //                 // followDiscretePath();
+        //                 yInfo() << "Solution Found";
+        //                 reply.addString("Solution Found");
+        //                 Bottle bJointsTrajectory;
+        //                 for(int i=0; i<jointsTrajectory.size(); i++){
+        //                     Bottle bJointsPosition;
+        //                     for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+        //                         bJointsPosition.addDouble(jointsTrajectory[i][j]);
+        //                     }
+        //                     bJointsTrajectory.addList() = bJointsPosition;
+        //                 }
+        //                 reply.addList() =bJointsTrajectory;
+        //             }
+        //             else{
+        //                 if(!validStartState)
+        //                 {
+        //                     yInfo() <<"Start state NOT valid";
+        //                     reply.addString("Start state NOT valid");
+        //                 }
+        //                 if(!validGoalState){
+        //                     yInfo() <<"Goal state NOT valid";
+        //                     reply.addString("Goal state NOT valid"); 
+        //                 }
+        //                 if(validStartState && validGoalState){
+        //                     yInfo() << "Solution NOT found";
+        //                     reply.addString("Solution NOT found");
+        //                 }
+        //             }
+
+        //         }
+
+        //     }
+        // }
+        // else if (command.get(0).toString() == "Compute trajectory joints position"){
+        //     Bottle * bGoal = command.get(1).asList();
+            
+        //     std::vector<double> qGoal(numArmJoints+numTrunkJoints);
+        //     for (int i = 0; i < numArmJoints+numTrunkJoints; i++)
+        //         qGoal[i] = bGoal->get(i).asDouble();
+        //      ob::ScopedState<ob::RealVectorStateSpace> goal(space);
+        //     for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+        //         goal[j] = qGoal[j];
+        //     }
+        //     pdef->clearGoal();
+        //     pdef->setGoalState(goal);
+
+        //     std::vector<std::vector<double>>jointsTrajectory;
+        //     bool validStartState, validGoalState;
+        //     bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
+            
+        //      if (solutionFound)
+        //     {
+        //         yInfo() << "Solution Found";
+        //         reply.addString("Solution Found");
+        //         Bottle bJointsTrajectory;
+        //         for(int i=0; i<jointsTrajectory.size(); i++){
+        //             Bottle bJointsPosition;
+        //             for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+        //                 bJointsPosition.addDouble(jointsTrajectory[i][j]);
+        //             }
+        //             bJointsTrajectory.addList() = bJointsPosition;
+        //         }
+        //         reply.addList() =bJointsTrajectory;
+        //     }
+        //     else{
+        //         if(!validStartState)
+        //         {
+        //             yInfo() <<"Start state NOT valid";
+        //             reply.addString("Start state NOT valid");
+        //         }
+        //         if(!validGoalState){
+        //             yInfo() <<"Goal state NOT valid";
+        //             reply.addString("Goal state NOT valid"); 
+        //         }
+        //         if(validStartState && validGoalState){
+        //             yInfo() << "Solution NOT found";
+        //             reply.addString("Solution NOT found");
+        //         }
+        //     }
+
+        // }
+        // else{
+        //     yWarning()<<"command not available";
+        // }
     }
     return reply.write(*writer);
 }

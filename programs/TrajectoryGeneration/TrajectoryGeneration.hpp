@@ -25,7 +25,9 @@
 
 #include "../../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
 #include <yarp/os/Vocab.h>
+#include <yarp/dev/GenericVocabs.h>
 
+#include <string>
 // fcl
 // #include "fcl/octree.h"
 // #include "fcl/config.h"
@@ -64,10 +66,7 @@ constexpr auto VOCAB_CHECK_GOAL_POSE = yarp::os::createVocab('c','h','g','p');
 constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab('c','h','g','j');
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab('c','p','g','p');
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c','p','g','j');
-constexpr auto VOCAB_FAIL = yarp::os::createVocab('f','a','i','l');
 
-
-// constexpr auto VOCAB_HELP = yarp::os::createVocab('h','e','l','p');
 
 /**
  * @ingroup teo-sharon_programs
@@ -160,11 +159,13 @@ constexpr auto VOCAB_FAIL = yarp::os::createVocab('f','a','i','l');
 
             yarp::os::RpcServer rpcServer;
             
-            bool checkGoalPose(yarp::os::Bottle *, std::vector<double> & desireQb);
+            bool checkGoalPose(yarp::os::Bottle *, std::vector<double> & desireQb, std::string & errorMessage);
+            bool checkGoalJoints(yarp::os::Bottle * bGoal, std::string & errorMessage);
+
             bool isValid(const ob::State *state);
             bool getCurrentQ(std::vector<double> & currentQ);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
-            bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
+            bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, std::string & errorMessage);
             std::vector<double> goalQ;
             // bool followDiscretePath();
 
