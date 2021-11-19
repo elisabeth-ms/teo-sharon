@@ -6,12 +6,6 @@
 #include "ICartesianSolver.h"
 #include "KinematicRepresentation.hpp"
 #include <yarp/dev/DeviceDriver.h>
-// #include <kdl/chain.hpp>
-// #include <kdl/chainfksolverpos_recursive.hpp>
-// #include <kdl/frames.hpp>
-// #include <kdl/jntarray.hpp>
-// #include <kdl/joint.hpp>
-// #include <kdl/utilities/utility.h>
 
 #include <yarp/os/Semaphore.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
@@ -28,22 +22,11 @@
 #include <yarp/dev/GenericVocabs.h>
 
 #include <string>
-// fcl
-// #include "fcl/octree.h"
-// #include "fcl/config.h"
-// #include <fcl/collision.h>
-// #include <fcl/collision_object.h>
-// #include <fcl/shape/geometric_shapes.h>
-// #include <fcl/shape/geometric_shapes_utility.h>
-
+#include <ostream>
 
 #define DEFAULT_ROBOT "teo" // teo or teoSim (default teo)
 #define DEFAULT_PLANNING_SPACE "joint" // joint or cartesian
-#define DEFAULT_MODE "keyboard"
-#define PT_MODE_MS 50
-#define INPUT_READING_MS 10
-#define SEND_TRAJECTORY_DATA true
-
+#define DEFAULT_PLANNER "RRTConnect" //RRTCONNECT, RRTstar
 
 #define AXIAL_SHOULDER_LINK_LENGTH 0.305
 #define AXIAL_SHOULDER_LINK_RADIUS 0.075
@@ -62,10 +45,11 @@ namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 
-constexpr auto VOCAB_CHECK_GOAL_POSE = yarp::os::createVocab('c','h','g','p');
-constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab('c','h','g','j');
-constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab('c','p','g','p');
-constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c','p','g','j');
+constexpr auto VOCAB_CHECK_GOAL_POSE = yarp::os::createVocab32('c','h','g','p');
+constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab32('c','h','g','j');
+constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab32('c','p','g','p');
+constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('c','p','g','j');
+
 
 
 /**
@@ -92,7 +76,14 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c'
             std::string prefix;
             yarp::os::ResourceFinder resourceFinder;
             /** (joint/cartesian) space to plan a trajectory **/
-            std::string planningSpace;  
+            std::string planningSpace;
+
+            /** planner type**/
+            std::string plannerType;
+            ob::PlannerPtr planner;
+            double plannerRange;
+            double pruneThreshold;
+            double maxPlannerTime;
 
             /** device name to plan a trajectory **/
             std::string deviceName;
@@ -143,15 +134,13 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c'
             yarp::os::Bottle qrMin;
             yarp::os::Bottle qrMax;
 
-            /****** FUNCTIONS ******/            
-
-
             /** movement finished */
             bool done;
 
             /** Current time **/
             double initTime;
 
+            bool jointsInsideBounds;
 
             ob::SpaceInformationPtr si;
             ob::ProblemDefinitionPtr pdef;
@@ -159,22 +148,18 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab('c'
 
             yarp::os::RpcServer rpcServer;
             
+            void changeJointsLimitsFromConfigFile(KDL::JntArray & qlim, const yarp::os::Searchable& config, const std::string& mode);
             bool checkGoalPose(yarp::os::Bottle *, std::vector<double> & desireQb, std::string & errorMessage);
             bool checkGoalJoints(yarp::os::Bottle * bGoal, std::string & errorMessage);
+
 
             bool isValid(const ob::State *state);
             bool getCurrentQ(std::vector<double> & currentQ);
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
             bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, std::string & errorMessage);
             std::vector<double> goalQ;
-            // bool followDiscretePath();
-
             ob::StateSpacePtr space;
 
-            #ifdef SEND_TRAJECTORY_DATA
-            // Publish trajectory just for visualization
-            yarp::os::BufferedPort<yarp::os::Bottle> outCartesianTrajectoryPort;
-            #endif
 
           yarp::os::Bottle makeUsage()
           {

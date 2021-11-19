@@ -21,8 +21,13 @@ using namespace sharon;
 #define DEFAULT_PREFIX "/trajectoryGeneration/"
 #define DEFAULT_DEVICE_NAME "trunkAndRightArm"
 #define DEFAULT_KINEMATICS_CONFIG "teo-trunk-rightArm-fetch.ini"
-#define DEFAULT_RANGE_RRT 0.1
+#define DEFAULT_RANGE_RRT 2.0
 #define DEFAULT_PRUNE_THRESHOLD 0.6
+#define DEFAULT_MAX_PLANNER_TIME 2.0
+
+
+std::vector<std::string>availablePlanners = {"RRTConnect", "RRTStar"};
+
 
 namespace errorsTrajectoryGeneration{
 
@@ -32,6 +37,8 @@ namespace errorsTrajectoryGeneration{
   const std::string joints_elements("size of joints list is different than the number of joints");
   const std::string start_collision("robot collides at the start configuration");
   const std::string path_not_found("path NOT found");
+  const std::string joints_outside_bounds("joints outside bounds");
+  const std::string not_get_current_Q("could NOT get encoders values");
 };
 
 
@@ -113,21 +120,44 @@ static KDL::Chain makeTeoFixedTrunkAndLeftArmKinematicsFromDH(){
     return chain;
 }
 
+void TrajectoryGeneration::changeJointsLimitsFromConfigFile(KDL::JntArray & qlim, const yarp::os::Searchable& config, const std::string& mode){
+    if(!config.check(mode))
+    {
+        yInfo()<<"q"<<mode<<"limits NOT defined in config file. Continue with the limits defined in the IControlLimits devices.";
+    }else{
+        yarp::os::Bottle * qConfig = config.find(mode).asList();
+        for(int i=0; i<numArmJoints+numTrunkJoints; i++){
+            if(qConfig->get(i).asString()!= "D" && !qConfig->get(i).isNull()){
+                qlim(i) =std::stof(qConfig->get(i).asString());
+            }
+        }
+    }
+
+}
+
+
 /************************************************************************/
 
 bool TrajectoryGeneration::open(yarp::os::Searchable& config)
 {
     robot = config.check("robot", yarp::os::Value(DEFAULT_ROBOT), "name of /robot to be used").asString();
-    prefix = config.check("prefix", yarp::os::Value(DEFAULT_PREFIX), "port prefix").asString();
     planningSpace = config.check("planningSpace", yarp::os::Value(DEFAULT_PLANNING_SPACE), "planning space").asString();
     deviceName = config.check("deviceName", yarp::os::Value(DEFAULT_DEVICE_NAME), "device name").asString();
     kinematicsConfig = config.check("kinematicsConfig", yarp::os::Value(DEFAULT_KINEMATICS_CONFIG), "kinematics config").asString();
-    
+    plannerType = config.check("planner", yarp::os::Value(DEFAULT_PLANNER), "planner type").asString();
+    plannerRange = config.check("plannerRange", yarp::os::Value(DEFAULT_RANGE_RRT), "range the planner is supposed to use").asFloat64();
+    pruneThreshold = config.check("pruneThreshold", yarp::os::Value(DEFAULT_PRUNE_THRESHOLD), "prune theshold used for RRTStar").asFloat64();
+    maxPlannerTime = config.check("maxPlannerTime", yarp::os::Value(DEFAULT_MAX_PLANNER_TIME), "seconds the algorithm is allowed to spend planning").asFloat64();
+    prefix = "/trajectoryGeneration/"+deviceName;
     printf("TrajectoryGeneration using robot: %s\n",robot.c_str());
-    printf("TrajectoryGeneration using prefix: %s\n",prefix.c_str());
     printf("TrajectoryGeneration using planningSpace: %s\n",planningSpace.c_str());
     printf("TrajectoryGeneration using deviceName: %s\n",deviceName.c_str());
     printf("TrajectoryGeneration using kinematicsConfig: %s\n",kinematicsConfig.c_str());
+    printf("TrajectoryGeneration using plannerType: %s\n", plannerType.c_str());
+    printf("TrajectoryGeneration using plannerRange: %f\n", plannerRange);
+    printf("TrajectoryGeneration using pruneThreshold: %f\n", pruneThreshold);
+
+
     printf("--------------------------------------------------------------\n");
     if (config.check("help"))
     {
@@ -137,50 +167,37 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         ::exit(0);
     }
 
-    if (!outCartesianTrajectoryPort.open("/"+robot +"/"+deviceName+"/cartesianTrajectory:o"))
-    {
-        yError("Bad outCartesianTrajectoryPort.open\n");
-        return false;
-    }
-
     openDevices();
-
-  
 
 
     //  Getting the limits of each joint
     printf("---- Joint limits of %s and %s----\n",trunkDeviceName.c_str(), rightArmDeviceName.c_str());
-
     qmin.resize(numTrunkJoints+numArmJoints);
     qmax.resize(numTrunkJoints+numArmJoints);
 
     for(unsigned int joint = 0; joint < numTrunkJoints; joint++){
         double min, max;
         trunkIControlLimits->getLimits(joint, &min, &max);
-        if(joint == 0){
-            min = -31;
-            max = 31;
-        }
-        if(joint == 1){ // we don't want the frontal joint tilt so much
-            max = 16.5;
-        }
-        qrMin.addDouble(min);
-        qrMax.addDouble(max);
-        yInfo("Joint %d limits: [%f,%f]", joint, min, max);
         qmin(joint) = min;
         qmax(joint) = max;
     }
-
 
     for (unsigned int joint = 0; joint < numArmJoints; joint++)
     {
         double min, max;
         armIControlLimits->getLimits(joint, &min, &max);
-        qrMin.addDouble(min);
-        qrMax.addDouble(max);
-        yInfo("Joint %d limits: [%f,%f]", joint, min, max);
         qmin(joint+numTrunkJoints) = min;
         qmax(joint+numTrunkJoints) = max;
+    }
+
+    changeJointsLimitsFromConfigFile(qmin,config, "qmin");
+    changeJointsLimitsFromConfigFile(qmax,config, "qmax");
+
+
+    for(unsigned int joint =0; joint<numTrunkJoints+numArmJoints; joint++){
+        yInfo("Joint %d limits: [%f,%f]", joint, qmin(joint), qmax(joint));
+        qrMin.addFloat64(qmin(joint));
+        qrMax.addFloat64(qmax(joint));
     }
 
     // ----- Configuring KDL Solver for device -----
@@ -193,6 +210,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     armSolverOptions.put("mins", yarp::os::Value::makeList(qrMin.toString().c_str()));
     armSolverOptions.put("maxs", yarp::os::Value::makeList(qrMax.toString().c_str()));
     armSolverOptions.put("ik", "nrjl"); // to use screw theory IK
+    armSolverOptions.put("maxIter", 20000);
     armSolverDevice.open(armSolverOptions);
     if (!armSolverDevice.isValid())
     {
@@ -262,7 +280,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
-    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,1.2,1.0}};
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,0.8,1.0}};
     fcl::CollisionObjectf collisionObjectTable{table, tfTest};
     fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
     // fcl::Vector3f translation(1.65, 0.0, -0.43);
@@ -328,8 +346,8 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         space = ob::StateSpacePtr(new ob::RealVectorStateSpace(nj));
         ob::RealVectorBounds bounds{nj};
         for(unsigned int j=0; j<nj; j++){
-            bounds.setLow(j, qmin(j));
-            bounds.setHigh(j, qmax(j));
+            bounds.setLow(j, qmin(j)+MARGIN_BOUNDS);
+            bounds.setHigh(j, qmax(j)-MARGIN_BOUNDS);
         }
         space->as<ob::RealVectorStateSpace>()->setBounds(bounds);
         si = ob::SpaceInformationPtr(new ob::SpaceInformation(space));
@@ -339,6 +357,35 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
 
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
     }
+
+    bool availablePlannerSelected = false;
+    for (unsigned i=0; i<availablePlanners.size(); i++)
+        if(plannerType == availablePlanners[i]){
+            availablePlannerSelected = true;
+            break;
+        }
+    if (!availablePlannerSelected)
+    {
+        yWarning()<<"Selected NOT available planner. Using default planner: "<<DEFAULT_PLANNER;
+        plannerType = DEFAULT_PLANNER;
+    }
+
+
+    if (plannerType == "RRTConnect"){
+        auto plannerRRT = (new og::RRTConnect(si));
+        plannerRRT->setRange(plannerRange);
+        planner = ob::PlannerPtr(plannerRRT);
+    }else if (plannerType == "RRTStar")
+    {
+        auto plannerRRT = (new og::RRTstar(si));
+        plannerRRT->setRange(plannerRange);
+        plannerRRT->setPruneThreshold(1.0);
+        plannerRRT->setTreePruning(true);
+        plannerRRT->setInformedSampling(true);
+        planner = ob::PlannerPtr(plannerRRT);
+    }
+
+    
 
    
     rpcServer.setReader(*this);
@@ -500,28 +547,19 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         // extract the second component of the state and cast it to what we expect
         const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
 
-        // //yInfo() << pos->values[0] << " " << pos->values[1] << " " << pos->values[2];
 
         KDL::Frame frame;
 
         KDL::Rotation rotKdl = KDL::Rotation::Quaternion(rot->x, rot->y, rot->z, rot->w);
         KDL::Vector posKdl = KDL::Vector(pos->values[0], pos->values[1], pos->values[2]);
-        //frame.M.Quaternion(rot->x, rot->y, rot->z, rot->w);
         double x, y, z, w;
         rotKdl.GetQuaternion(x, y, z, w);
-        // //yInfo()<<"Pos: "<<pos->values[0]<<" "<< pos->values[1]<<" "<< pos->values[2];
-        // //yInfo() << "Quaterion" << x << " " << y << " "
-        // //        << " " << z << " " << w;
+
         frame.M = rotKdl;
         frame.p = posKdl;
         std::vector<double> testAxisAngle = frameToVector(frame);
-        // //yInfo() << testAxisAngle;
-        // //yInfo() << testAxisAngle;
-        std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-        // if(!getCurrentQ(currentQ)){
-        //     return false;
-        // }
+        std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
 
         // Check if we are in the starting state
@@ -534,7 +572,6 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             return false;
         }
 
-        // yInfo() << "Start:" << xStart[0] << " " << xStart[1] << " " << xStart[2] << " " << xStart[3] << " " << xStart[4] << " " << xStart[5];
 
         bool computeInvKin = true;
 
@@ -544,11 +581,9 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             diffSumSquare += (xStart[i] - testAxisAngle[i]) * (xStart[i] - testAxisAngle[i]);
         }
 
-        //yInfo() << "diffSumSquare: " << diffSumSquare;
 
         if (diffSumSquare < DEFAULT_MAX_DIFF_INV)
         {
-            //yInfo() << "Start state-> we do not calculate the inverse kinematics";
             computeInvKin = false;
         }
 
@@ -577,10 +612,6 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
 
             checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
             bool selfCollide = checkSelfCollision->selfCollision();
-
-            // if(selfCollide == true)
-            //     yInfo()<<"Collide";
-            // yInfo()<<selfCollide;
             return !selfCollide;
         }
         return true;
@@ -593,14 +624,19 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
             jointpositions(i) = jointState->values[i];
-            yInfo()<<"Joint("<<i<<")="<<jointpositions(i);
+            // yInfo()<<"Joint("<<i<<")="<<jointpositions(i);
         }
-        checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
-        bool selfCollide = checkSelfCollision->selfCollision();
-        if(selfCollide == true)
-            yInfo()<<"Collide";
-        return !selfCollide;
-
+        
+        jointsInsideBounds = checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
+        
+        if(jointsInsideBounds){
+            // yInfo()<<"eo: selfCollision"<<checkSelfCollision->selfCollision();
+            return !checkSelfCollision->selfCollision();
+        }
+        else{
+            // yInfo()<<"eo: joints outside bounds";
+            return false;
+        }
     }
 }
 
@@ -616,7 +652,6 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
     plannerRRT->setTreePruning(true);
     plannerRRT->setInformedSampling(true);
 
-    ob::PlannerPtr planner = ob::PlannerPtr(plannerRRT);
 
     ob::State *startState = pdef->getStartState(0);
 
@@ -664,11 +699,12 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         return false;
     }
 
+    planner->clear();
     planner->setProblemDefinition(pdef);
 
     planner->setup();
 
-    bool solutionFound = planner->solve(2.0);
+    bool solutionFound = planner->solve(maxPlannerTime);
 
     if (solutionFound == true)
     {
@@ -680,10 +716,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
         yInfo() << pth->getStateCount();
     }
 
-    // Send computed trajectory through the port for plotting
 
-//#ifdef SEND_TRAJECTORY_DATA
-    Bottle &out= outCartesianTrajectoryPort.prepare();
     std::size_t iState = 0;
 
     while (iState < pth->getStateCount())
@@ -743,7 +776,7 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
             else{
                 Bottle bPose;
                 for(int i = 0; i < 6; i++){
-                    bPose.addDouble(pose[i]);
+                    bPose.addFloat64(pose[i]);
                 }
                 std::vector<double> jointsPosition;
                 jointsPosition.reserve(numArmJoints+numTrunkJoints);
@@ -751,13 +784,11 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::SE3StateSpace
                     jointsPosition.emplace_back(desireQ[i]);
                 }
                 jointsTrajectory.push_back(jointsPosition);
-                out.addList() = bPose;
             }
         }
         
         iState++;
     }
-    outCartesianTrajectoryPort.write(true);
 
 //#endif
     // followDiscretePath();
@@ -780,20 +811,19 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
         yInfo()<<"Low: "<<bounds.low[j]<<" high: "<<bounds.high[j];
     }
 
-    auto plannerRRT = (new og::RRTConnect(si));
-    plannerRRT->setRange(2.5);
-    // plannerRRT->setPruneThreshold(1.0);
-    // plannerRRT->setTreePruning(true);
-    // plannerRRT->setInformedSampling(true);
 
-    ob::PlannerPtr planner = ob::PlannerPtr(plannerRRT);
 
     ob::State *startState = pdef->getStartState(0);
 
   
-   
+   yInfo()<<"Is startState valid?";
     if (!isValid(startState)){
-        errorMessage = errorsTrajectoryGeneration::start_collision;
+        yInfo()<<"Not valid start state";
+        if (si->satisfiesBounds(startState))
+            errorMessage = errorsTrajectoryGeneration::start_collision;
+        else{
+            errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+        }
         return false;
     }
 
@@ -803,21 +833,37 @@ bool TrajectoryGeneration::computeDiscretePath(ob::ScopedState<ob::RealVectorSta
 
     ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
 
+   yInfo()<<"Is goalState valid?";
 
     if (!isValid(goalState)){
-        errorMessage = errorsTrajectoryGeneration::goal_collision;
+        yInfo()<<"Not valid goal state";
+        if (si->satisfiesBounds(goalState))
+            errorMessage = errorsTrajectoryGeneration::goal_collision;
+        else{
+            errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+        }
         return false;
     }
+    yInfo()<<"goalState VALID";
 
 
+    
+    pdef->print();
+    planner->clear();
+    planner->printProperties(std::cout);
+    planner->printSettings(std::cout);
     planner->setProblemDefinition(pdef);
+    yInfo()<<"setProblemDefinition done";
 
     planner->setup();
+    yInfo()<<"setup done";
     pdef->clearSolutionPaths();
+    yInfo()<<"clearSolutionPaths done";
 
 
-    bool solutionFound = planner->solve(15.0);
-
+    yInfo()<<"solve";
+    bool solutionFound = planner->solve(maxPlannerTime);
+    printf("Solution Found: %d", solutionFound);
 
     if (solutionFound)
     {
@@ -863,22 +909,47 @@ bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<d
         return false;
     }
     for (int i = 0; i < 6; i++)
-        xGoal[i] = bGoal->get(i).asDouble();
+        xGoal[i] = bGoal->get(i).asFloat64();
     yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
 
     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
     if(!getCurrentQ(currentQ)){
+        errorMessage = errorsTrajectoryGeneration::not_get_current_Q;
         return false;
     }
     else{
+        // Lests add the start state, just for checking
+        ob::ScopedState<ob::RealVectorStateSpace> start(space);
+        for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
+            start[j] = currentQ[j];
+        }
+
+        pdef->clearStartStates();
+        pdef->addStartState(start);
+
+        start.print();
+
+
+        ob::State *startState = pdef->getStartState(0);
+
+  
+        if (!isValid(startState)){
+            if (si->satisfiesBounds(startState))
+                errorMessage = errorsTrajectoryGeneration::start_collision;
+            else{
+                errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+            }
+            return false;
+        }
+
+
         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
         {
             errorMessage = errorsTrajectoryGeneration::goal_not_inv_kin;
             return false;
         }
         else{   
-            yInfo()<<"desireQ: "<<desireQ;
             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
             for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
                 goal[j] = desireQ[j];
@@ -892,8 +963,12 @@ bool TrajectoryGeneration::checkGoalPose(yarp::os::Bottle * bGoal, std::vector<d
                 return true;
             }
             else{
+                if (si->satisfiesBounds(goalState))
+                    errorMessage = errorsTrajectoryGeneration::goal_collision;
+                else{
+                    errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+                }
                 return false;
-                errorMessage = errorsTrajectoryGeneration::goal_collision;
             }
         }    
     }
@@ -908,7 +983,7 @@ bool TrajectoryGeneration::checkGoalJoints(yarp::os::Bottle * bGoal, std::string
     else{
         ob::ScopedState<ob::RealVectorStateSpace> goal(space);
         for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-            goal[j] = bGoal->get(j).asDouble();
+            goal[j] = bGoal->get(j).asFloat64();
         }
         pdef->clearGoal();
 
@@ -919,7 +994,11 @@ bool TrajectoryGeneration::checkGoalJoints(yarp::os::Bottle * bGoal, std::string
             return true;
         }
         else{
-            errorMessage = errorsTrajectoryGeneration::goal_collision;
+            if (si->satisfiesBounds(goalState))
+                errorMessage = errorsTrajectoryGeneration::goal_collision;
+            else{
+                errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+            }
             return false;
         }
     }
@@ -984,9 +1063,8 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
 
-
      
-    if (planningSpace=="cartesian"){
+    if (planningSpace=="cartesian"){ //TODO: Cartesian
         std::vector<double> xStart;
         if(!getCurrentQ(currentQ)){
             return false;
@@ -1002,13 +1080,13 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         armSolverOptions.unput("mins");
         armSolverOptions.unput("maxs");
         yarp::os::Bottle qMin, qMax;
-        qMin.addDouble(currentQ[0]-2.5);
-        qMin.addDouble(currentQ[1]-2.5);
-        qMax.addDouble(currentQ[0]+0.5);
-        qMax.addDouble(currentQ[1]+0.5);
+        qMin.addFloat64(currentQ[0]-2.5);
+        qMin.addFloat64(currentQ[1]-2.5);
+        qMax.addFloat64(currentQ[0]+0.5);
+        qMax.addFloat64(currentQ[1]+0.5);
         for(int i=2; i<currentQ.size(); i++){
-            qMin.addDouble(qrMin.get(i).asDouble());
-            qMax.addDouble(qrMax.get(i).asDouble());
+            qMin.addFloat64(qrMin.get(i).asFloat64());
+            qMax.addFloat64(qrMax.get(i).asFloat64());
         }
         armSolverOptions.put("mins", yarp::os::Value::makeList(qMin.toString().c_str()));
         armSolverOptions.put("maxs", yarp::os::Value::makeList(qMax.toString().c_str()));
@@ -1148,7 +1226,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
     }
     else{ // joint space
         yInfo("Joint space");
-        int nj = numTrunkJoints+numArmJoints;
+        unsigned int nj = numTrunkJoints+numArmJoints;
         space = ob::StateSpacePtr(new ob::RealVectorStateSpace(nj));
         ob::RealVectorBounds bounds{nj};
         for(unsigned int j=0; j<nj; j++){
@@ -1173,17 +1251,9 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
         for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
             start[j] = currentQ[j];
         }
-        pdef->clearStartStates();
-        pdef->addStartState(start);
+
         
-        ob::State *startState = pdef->getStartState(0);
-        if(isValid(startState))
-            yInfo()<<"Valid start state";
-        else{
-            yInfo()<<"Not valid start state";
-        }
-        
-        switch(command.get(0).asVocab()){
+        switch(command.get(0).asVocab32()){
             case VOCAB_HELP:{
                 yInfo() <<"help";
                 static auto usage = makeUsage();
@@ -1194,14 +1264,14 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 std::vector<double> desireQ(numArmJoints+numTrunkJoints);
                 std::string errorMessage;
                 if(!checkGoalPose(command.get(1).asList(), desireQ, errorMessage)){
-                    reply.addVocab(VOCAB_FAILED);
+                    reply.addVocab32(VOCAB_FAILED);
                     reply.addString(errorMessage);
                 }
                 else{
-                    reply.addVocab(VOCAB_OK);
+                    reply.addVocab32(VOCAB_OK);
                     Bottle bJointsPosition;
                     for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                        bJointsPosition.addDouble(desireQ[j]);
+                        bJointsPosition.addFloat64(desireQ[j]);
                     }
                     reply.addList() = bJointsPosition;
                 }
@@ -1211,11 +1281,11 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 yInfo() << "Check goal joints (j0, j1, ..., jn)";
                 std::string errorMessage;
                 if(!checkGoalJoints(command.get(1).asList(), errorMessage)){
-                    reply.addVocab(VOCAB_FAILED);
+                    reply.addVocab32(VOCAB_FAILED);
                     reply.addString(errorMessage);
                 }
                 else{
-                    reply.addVocab(VOCAB_OK);
+                    reply.addVocab32(VOCAB_OK);
                 }
                 }break;
             case VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE:
@@ -1224,7 +1294,7 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                     std::vector<double> desireQ(numArmJoints+numTrunkJoints);
                     std::string errorMessage;
                     if(!checkGoalPose(command.get(1).asList(), desireQ, errorMessage)){
-                        reply.addVocab(VOCAB_FAILED);
+                        reply.addVocab32(VOCAB_FAILED);
                         reply.addString(errorMessage);
                     }
                     else{
@@ -1237,22 +1307,24 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
                         std::vector<std::vector<double>>jointsTrajectory;
                         std::string errorMessage;
+                        yInfo()<<"Lets compute the path";
                         bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, errorMessage);
 
                         if (solutionFound){
-                            reply.addVocab(VOCAB_OK);
+                            reply.addVocab32(VOCAB_OK);
                             Bottle bJointsTrajectory;
                             for(int i=0; i<jointsTrajectory.size(); i++){
                                 Bottle bJointsPosition;
                                 for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                                    bJointsPosition.addDouble(jointsTrajectory[i][j]);
+                                    bJointsPosition.addFloat64(jointsTrajectory[i][j]);
                                 }
                                 bJointsTrajectory.addList() = bJointsPosition;
                             }
                             reply.addList() =bJointsTrajectory;
                         }
                         else{
-                            reply.addVocab(VOCAB_FAILED);
+                            reply.addVocab32(VOCAB_FAILED);
+                            reply.addString(errorMessage);
                         }
                     }
                 }break;
@@ -1261,211 +1333,47 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 Bottle * bGoal = command.get(1).asList();
                 std::string errorMessage;
                 if (bGoal->size() != numArmJoints+ numTrunkJoints){
-                    reply.addVocab(VOCAB_FAILED);
+                    reply.addVocab32(VOCAB_FAILED);
                     reply.addString(errorsTrajectoryGeneration::joints_elements);
                 }
                 else{
                     ob::ScopedState<ob::RealVectorStateSpace> goal(space);
                     for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-                        goal[j] = bGoal->get(j).asDouble();
+                        goal[j] = bGoal->get(j).asFloat64();
                     }
                     pdef->clearGoal();
                     pdef->setGoalState(goal);
 
-                    std::vector<std::vector<double>>jointsTrajectory;
-                    bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, errorMessage);
-                    if (solutionFound){
-                        reply.addVocab(VOCAB_OK);
-                        Bottle bJointsTrajectory;
-                        for(int i=0; i<jointsTrajectory.size(); i++){
-                            Bottle bJointsPosition;
-                            for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-                                bJointsPosition.addDouble(jointsTrajectory[i][j]);
-                            }
-                            bJointsTrajectory.addList() = bJointsPosition;
-                        }
-                        reply.addList() =bJointsTrajectory;
+                    ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
+
+                    if (!si->satisfiesBounds(goalState)){
+                        errorMessage = errorsTrajectoryGeneration::joints_outside_bounds;
+                        return false;
                     }
                     else{
-                        reply.addVocab(VOCAB_FAILED);
-                        reply.addString(errorMessage);
+                        std::vector<std::vector<double>>jointsTrajectory;
+                        bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, errorMessage);
+                        if (solutionFound){
+                            reply.addVocab32(VOCAB_OK);
+                            Bottle bJointsTrajectory;
+                            for(int i=0; i<jointsTrajectory.size(); i++){
+                                Bottle bJointsPosition;
+                                for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
+                                    bJointsPosition.addFloat64(jointsTrajectory[i][j]);
+                                }
+                                bJointsTrajectory.addList() = bJointsPosition;
+                            }
+                            reply.addList() =bJointsTrajectory;
+                        }
+                        else{
+                            reply.addVocab32(VOCAB_FAILED);
+                            reply.addString(errorMessage);
+                        }
                     }
                 }
                 }break;
 
             }      
-
-        // if (command.get(0).toString() == "Check goal pose"){
-        //     yInfo()<<"Check goal pose";
-        //     Bottle * bGoal = command.get(1).asList();
-        //     std::vector<double> xGoal(6);
-        //     for (int i = 0; i < 6; i++)
-        //         xGoal[i] = bGoal->get(i).asDouble();
-        //     yInfo() <<"Goal: "<< xGoal[0] << " " << xGoal[1] << " " << xGoal[2] << " " << xGoal[3] << " " << xGoal[4] << " " << xGoal[5];
-
-
-        //     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
-        //     std::vector<double> desireQ(numArmJoints+numTrunkJoints);
-
-        //     if(!getCurrentQ(currentQ)){
-        //         reply.addString("Not Valid");
-        //     }
-        //     else{
-        //         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
-        //         {
-        //             yError() << "invKin() failed";
-        //             reply.addString("Not Valid");
-        //         }
-        //         else{   
-        //             yInfo()<<"desireQ: "<<desireQ;
-        //             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-        //             for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-        //                 goal[j] = desireQ[j];
-        //             }
-        //             pdef->clearGoal();
-
-        //             pdef->setGoalState(goal);
-
-        //             ob::State *goalState = pdef->getGoal()->as<ob::GoalState>()->getState();
-        //             if(isValid(goalState)){
-        //                 yInfo() << "Valid";
-        //                 reply.addString("Valid");
-        //                 Bottle bJointsPosition;
-        //                 for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-        //                     bJointsPosition.addDouble(desireQ[j]);
-        //                 }
-        //                 reply.addList() = bJointsPosition;
-        //             }
-        //             else{
-        //                 yInfo() << "Not Valid";
-        //                 reply.addString("Not Valid");
-        //             }    
-        //         }
-        //     }
-        // }
-        // else if (command.get(0).toString() == "Compute trajectory pose"){
-        //     yInfo()<<"Compute trajectory pose";
-        //     Bottle * bGoal = command.get(1).asList();
-        //     std::vector<double> xGoal(6);
-        //     for (int i = 0; i < 6; i++)
-        //         xGoal[i] = bGoal->get(i).asDouble();
-
-        //     std::vector<double> desireQ(numArmJoints+numTrunkJoints);
-        //     std::vector<double> currentQ(numArmJoints+numTrunkJoints);
-        //     yInfo()<<"getting encoders";
-            
-        //     if(!getCurrentQ(currentQ)){
-        //         reply.addString("Not Valid");
-        //     }
-            
-        //     else{
-        //         yInfo()<<"getEncoders() of "<<deviceName<<" ok";
-        //         if (!armICartesianSolver->invKin(xGoal, currentQ, desireQ))
-        //         {
-        //             yError() << "invKin() failed";
-        //             reply.addString("Not Valid");
-        //         }
-        //         else{   
-        //             yInfo()<<"desireQ: "<<desireQ;
-        //             ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-        //             for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-        //                 goal[j] = desireQ[j];
-        //             }
-        //             pdef->clearGoal();
-        //             pdef->setGoalState(goal);
-
-
-
-        //             std::vector<std::vector<double>>jointsTrajectory;
-        //             bool validStartState, validGoalState;
-        //             bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
-
-        //             if (solutionFound)
-        //             {
-        //                 // followDiscretePath();
-        //                 yInfo() << "Solution Found";
-        //                 reply.addString("Solution Found");
-        //                 Bottle bJointsTrajectory;
-        //                 for(int i=0; i<jointsTrajectory.size(); i++){
-        //                     Bottle bJointsPosition;
-        //                     for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-        //                         bJointsPosition.addDouble(jointsTrajectory[i][j]);
-        //                     }
-        //                     bJointsTrajectory.addList() = bJointsPosition;
-        //                 }
-        //                 reply.addList() =bJointsTrajectory;
-        //             }
-        //             else{
-        //                 if(!validStartState)
-        //                 {
-        //                     yInfo() <<"Start state NOT valid";
-        //                     reply.addString("Start state NOT valid");
-        //                 }
-        //                 if(!validGoalState){
-        //                     yInfo() <<"Goal state NOT valid";
-        //                     reply.addString("Goal state NOT valid"); 
-        //                 }
-        //                 if(validStartState && validGoalState){
-        //                     yInfo() << "Solution NOT found";
-        //                     reply.addString("Solution NOT found");
-        //                 }
-        //             }
-
-        //         }
-
-        //     }
-        // }
-        // else if (command.get(0).toString() == "Compute trajectory joints position"){
-        //     Bottle * bGoal = command.get(1).asList();
-            
-        //     std::vector<double> qGoal(numArmJoints+numTrunkJoints);
-        //     for (int i = 0; i < numArmJoints+numTrunkJoints; i++)
-        //         qGoal[i] = bGoal->get(i).asDouble();
-        //      ob::ScopedState<ob::RealVectorStateSpace> goal(space);
-        //     for(unsigned int j=0; j<numArmJoints+numTrunkJoints; j++){
-        //         goal[j] = qGoal[j];
-        //     }
-        //     pdef->clearGoal();
-        //     pdef->setGoalState(goal);
-
-        //     std::vector<std::vector<double>>jointsTrajectory;
-        //     bool validStartState, validGoalState;
-        //     bool solutionFound = computeDiscretePath(start, goal, jointsTrajectory, validStartState, validGoalState);
-            
-        //      if (solutionFound)
-        //     {
-        //         yInfo() << "Solution Found";
-        //         reply.addString("Solution Found");
-        //         Bottle bJointsTrajectory;
-        //         for(int i=0; i<jointsTrajectory.size(); i++){
-        //             Bottle bJointsPosition;
-        //             for(int j = 0; j<numArmJoints+numTrunkJoints; j++){
-        //                 bJointsPosition.addDouble(jointsTrajectory[i][j]);
-        //             }
-        //             bJointsTrajectory.addList() = bJointsPosition;
-        //         }
-        //         reply.addList() =bJointsTrajectory;
-        //     }
-        //     else{
-        //         if(!validStartState)
-        //         {
-        //             yInfo() <<"Start state NOT valid";
-        //             reply.addString("Start state NOT valid");
-        //         }
-        //         if(!validGoalState){
-        //             yInfo() <<"Goal state NOT valid";
-        //             reply.addString("Goal state NOT valid"); 
-        //         }
-        //         if(validStartState && validGoalState){
-        //             yInfo() << "Solution NOT found";
-        //             reply.addString("Solution NOT found");
-        //         }
-        //     }
-
-        // }
-        // else{
-        //     yWarning()<<"command not available";
-        // }
     }
     return reply.write(*writer);
 }

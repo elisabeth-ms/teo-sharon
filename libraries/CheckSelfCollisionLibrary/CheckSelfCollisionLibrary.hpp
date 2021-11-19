@@ -15,6 +15,8 @@
 #include <fcl/narrowphase/collision_object.h>
 #include <fcl/geometry/shape/box.h>
 #include <fcl/narrowphase/distance.h>
+
+#define MARGIN_BOUNDS 0.01
 namespace sharon
 {
 
@@ -66,9 +68,8 @@ public:
 
             }
         }
-
         if(centerLinksWrtJoints.size()!= collisionObjects.size()){
-            printf("%d %d", centerLinksWrtJoints.size(), collisionObjects.size());
+            printf("%lu %lu", centerLinksWrtJoints.size(), collisionObjects.size());
             throw std::runtime_error("Error in the number of collision objects");
         }
 

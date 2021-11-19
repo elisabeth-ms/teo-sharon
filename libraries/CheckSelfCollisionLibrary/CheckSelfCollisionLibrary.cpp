@@ -18,14 +18,14 @@ namespace sharon
         // }
         for (int i = 0; i < q.rows(); i++)
         {
-            printf("q: %f qmin: %f qmax: %f \n", q(i), qmin(i), qmax(i));
-            if (q(i) < qmin(i) || q(i) > qmax(i))
+            // printf("q: %f qmin: %f qmax: %f \n", q(i), qmin(i), qmax(i));
+            if (q(i) < (qmin(i)+MARGIN_BOUNDS) || q(i) > (qmax(i)-MARGIN_BOUNDS))
             {
-                printf("Joints outside bounds\n");
+                // printf("Joints outside bounds\n");
                 return false;
             }
         }
-        printf("Joints inside bounds\n");
+        // printf("Joints inside bounds\n");
         return true;
     }
 
@@ -49,7 +49,7 @@ namespace sharon
         //printf("\n");
         if (jointsInsideBounds(q))
         {
-            //printf("jointsInsideBounds\n");
+            // printf("jointsInsideBounds\n");
             for (int i = 0; i < centerLinksWrtJoints.size(); i++)
             {
                 KDL::Frame frameJoint;
@@ -67,7 +67,6 @@ namespace sharon
                 // printf("rot: %f %f %f %f\n", x, y, z, w);
                 collisionObjects[i].setTransform(rotation, translation);
             }
-
             return true;
         }
         return false;
@@ -120,7 +119,7 @@ namespace sharon
             fcl::collide(&collisionObjects[link1], &tableCollision[0], requestType, collisionResult);
             if (collisionResult.isCollision())
             {
-                printf("collsion betwenn links %d and table\n", link1);
+                // printf("collsion betwenn links %d and table\n", link1);
                 return true;
             }
             while (link2 < collisionObjects.size()-1)
@@ -130,13 +129,13 @@ namespace sharon
                 fcl::collide(&collisionObjects[link1], &collisionObjects[link2], requestType, collisionResult);
                 if (collisionResult.isCollision())
                 {
-                    printf("collsion betwenn links %d and %d\n", link1, link2);
+                    // printf("collsion betwenn links %d and %d\n", link1, link2);
                     return true;
                 }
                 link2++;
             }
         }
-        //printf("SelfCollision() not collide\n");
+        // printf("SelfCollision() not collide\n");
         return false;
     }
 
