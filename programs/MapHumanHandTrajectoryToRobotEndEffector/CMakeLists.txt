@@ -4,6 +4,8 @@
 
 if(ENABLE_mapHumanHandTrajectoryToRobotEndEffector)
 
+find_package (Eigen3 REQUIRED)
+
 set(KEYWORD "mapHumanHandTrajectoryToRobotEndEffector")
 
 # Retrieve a list of targets defined elsewhere.
@@ -22,11 +24,12 @@ target_link_libraries(${KEYWORD}
                                  CheckSelfCollisionLibrary
                                  nlopt
                                  ${orocos_kdl_LIBRARIES}
+                                 Eigen3::Eigen
                                  )
 
 target_include_directories(${KEYWORD} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-                                             ${orocos_kdl_INCLUDE_DIRS})
+                                             ${orocos_kdl_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
 
 endif(ENABLE_mapHumanHandTrajectoryToRobotEndEffector)

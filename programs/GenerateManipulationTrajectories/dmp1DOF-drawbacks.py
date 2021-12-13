@@ -14,13 +14,13 @@ def generateRandomColor():
     color = (r, g, b)
     return color
 dt = 0.001
-dmp = DMPs_discrete(dt=dt, n_dmps=1, n_bfs=20, w=np.zeros((1, 20)))
+dmp = DMPs_discrete(dt=dt, n_dmps=1, n_bfs=150, w=np.zeros((1, 20)))
 time = np.linspace(0,1.0, math.ceil(1.0/dt))
-path1 = np.sin(time*3*np.pi/2)             
+path1 =np.sin(time*3.5*np.pi/2)*15             
 dmp.imitate_path(y_des=np.array([path1]))
 
 # Adapt trajectory to a goal close to demonstrated trajectory goal                   
-dmp.goal[0] = -1.2
+dmp.goal[0] = np.sin(1.0*3.5*np.pi/2)*15
 y_track_good_goal, dy_track_good_goal, ddy_track_good_goal = dmp.rollout()
 
 # Adapt trajectory to a goal equal to start. First drawback, no movement generated if goal=x0                

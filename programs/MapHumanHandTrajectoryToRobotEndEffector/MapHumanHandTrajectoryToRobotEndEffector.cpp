@@ -20,13 +20,14 @@ std::vector<fcl::CollisionObjectf> collisionObjects;
 std::vector<std::array<float, 3>> offsetCollisionObjects;
 typedef std::shared_ptr<fcl::CollisionGeometryf> CollisionGeometryPtr_t;
 sharon::CheckSelfCollision *checkSelfCollision;
+std::vector<fcl::CollisionObjectf> tableCollision;
+
 
 /*** TODO: Include this functions in a common library ***/
 static KDL::Chain makeTeoTrunkAndRightArmKinematicsFromDH()
 {
     const KDL::Joint rotZ(KDL::Joint::RotZ);
     const KDL::Joint fixed(KDL::Joint::None); //Rigid Connection
-
     KDL::Chain chain;
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.0, -KDL::PI / 2, 0.1932, 0.0)));
     chain.addSegment(KDL::Segment(rotZ, KDL::Frame::DH(0.305, 0.0, -0.34692, -KDL::PI / 2)));
@@ -46,16 +47,16 @@ void makeQLimitsTeoTrunkAndRightArmKinematics(KDL::JntArray &qmin, KDL::JntArray
 {
     qmin.resize(8);
     qmax.resize(8);
-    qmin(0) = -59.3 * KDL::deg2rad;
-    qmin(1) = -15.4 * KDL::deg2rad;
+    qmin(0) = -31.0 * KDL::deg2rad;
+    qmin(1) = -10.1 * KDL::deg2rad;
     qmin(2) = -98.1 * KDL::deg2rad;
     qmin(3) = -75.5 * KDL::deg2rad;
     qmin(4) = -80.1 * KDL::deg2rad;
     qmin(5) = -99.6 * KDL::deg2rad;
     qmin(6) = -80.4 * KDL::deg2rad;
     qmin(7) = -115.1 * KDL::deg2rad;
-    qmax(0) = 46.3 * KDL::deg2rad;
-    qmax(1) = 10.1 * KDL::deg2rad;
+    qmax(0) = 31.0 * KDL::deg2rad;
+    qmax(1) = 20.5 * KDL::deg2rad;
     qmax(2) = 106.0 * KDL::deg2rad;
     qmax(3) = 22.4 * KDL::deg2rad;
     qmax(4) = 57.0 * KDL::deg2rad;
@@ -84,6 +85,15 @@ void createSelfCollisionObjects()
 
     CollisionGeometryPtr_t teoHand{new fcl::Boxf{0.01, 0.01, 0.01}};
     fcl::CollisionObjectf collisionObject6{teoHand, tfTest};
+
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.0,0.0,0.0}};
+    fcl::CollisionObjectf collisionObjectTable{table, tfTest};
+    fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
+    // fcl::Vector3f translation(1.65, 0.0, -0.43);
+    fcl::Vector3f translation(2.0, 2.0, 0.0);
+    collisionObjectTable.setTransform(rotation, translation);
+    tableCollision.clear();
+    tableCollision.push_back(collisionObjectTable);
 
     int nOfCollisionObjects = 6;
     collisionObjects.clear();
@@ -223,10 +233,18 @@ namespace sharon
         std::cout << "n: " << n / 7 << std::endl;
         for (unsigned int i = 0; i < (n / 7); i++) // this loops over the discrete poses
         {
-            for (unsigned int j = 0; j < 7; j++) // This loops over each discrete pose
+            for (unsigned int j = 0; j < 3; j++) // This loops over each discrete pose x, y, z
             {
                 sum += 10.0 * (x[i * 7 + j] - (*voidToVector)[i * 7 + j]) * (x[i * 7 + j] - (*voidToVector)[i * 7 + j]);
             }
+            Eigen::Quaterniond q_opt(x[i*7+6], x[i*7+3], x[i*7+4], x[i*7+5]);
+            Eigen::Quaterniond q_mocap((*voidToVector)[i*7+6], (*voidToVector)[i*7+3], (*voidToVector)[i*7+4], (*voidToVector)[i*7+5]);
+
+            Eigen::Quaterniond q_diff = q_mocap*q_opt.inverse();
+            double angle = 2*atan2(q_diff.vec().norm(), q_diff.w());
+
+            sum+=20*angle;
+
             std::cout << "x[" << i << "]: " << x[i * 7] << " " << x[i * 7 + 1] << " " << x[i * 7 + 2] << " " << x[i * 7 + 3] << " " << x[i * 7 + 4] << " " << x[i * 7 + 5] << " " << x[i * 7 + 6] << std::endl;
 
             KDL::Frame fGoal;
@@ -364,7 +382,7 @@ namespace sharon
 
 int main()
 {
-    for (int nDemo = 1; nDemo <= 10; nDemo++)
+    for (int nDemo = 1; nDemo <= 1; nDemo++)
     {
         std::string csvFile = "/home/elisabeth/repos/teo-sharon/programs/GenerateManipulationTrajectories/trajectories/test/test-right-arm-motion-smooth"+ std::to_string(nDemo) +"-reaching.csv";
         std::vector<std::array<double, 8>> desiredTrajectoryData = sharon::getTrajectoryFromCsvFile(csvFile);
@@ -393,7 +411,7 @@ int main()
 
         KDL::ChainFkSolverPos_recursive fksolver(chain);
         KDL::ChainIkSolverVel_pinv iksolverv(chain);
-        int solverMaxIter = 1000;
+        int solverMaxIter = 1500;
         iksolver = new KDL::ChainIkSolverPos_NR_JL(chain, qmin, qmax, fksolver, iksolverv, solverMaxIter, 1e-6);
 
         KDL::JntArray q(chain.getNrOfJoints());
@@ -405,14 +423,14 @@ int main()
 
         createSelfCollisionObjects();
 
-        checkSelfCollision = new sharon::CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects);
+        checkSelfCollision = new sharon::CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
 
         nlopt_opt opt;
         opt = nlopt_create(NLOPT_LN_COBYLA, n);
         nlopt_set_min_objective(opt, sharon::optimizationFunction, parameters);
         double lb[n];
         double ub[n];
-        double boundsDiscretePoses = 0.2;
+        double boundsDiscretePoses = 0.25;
 
         for (unsigned int i = 0; i < n; i++)
         {
@@ -425,8 +443,13 @@ int main()
             }
             else
             { // Bounds for quaternion elements [qx qy qz qw]
-                lb[i] = -1.0;
-                ub[i] = 1.0;
+                
+                lb[i] = desiredDiscretePoses[i] - 0.3;
+                if(lb[i] < -1)
+                    lb[i] = -1.0;
+                ub[i] = desiredDiscretePoses[i] + 0.3;
+                if(ub[i] > 1.0)
+                    ub[i] = 1.0;
             }
         }
 
@@ -448,7 +471,7 @@ int main()
         nlopt_add_equality_mconstraint(opt, m, sharon::quaternionConstraint, parameters, tolQuaternionConstraint);
         // nlopt_add_equality_mconstraint(opt, numPoses, sharon::noSelfCollisionConstraint, NULL, tol);
         nlopt_set_xtol_rel(opt, 1e-6);
-        double maxTime = 2000;
+        double maxTime = 4000;
         nlopt_set_maxtime(opt, maxTime);
 
         double minf;

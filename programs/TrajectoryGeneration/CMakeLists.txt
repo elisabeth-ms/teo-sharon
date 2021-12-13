@@ -69,6 +69,15 @@ yarp_install(
                 YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR}
                 )
 
+
+
+
+# add_executable(testTrajectoryGeneration main.cpp)
+# target_include_directories(testTrajectoryGeneration PRIVATE {trajectoryGeneration_INCLUDE_DIRS} ${orocos_kdl_INCLUDE_DIRS}  
+#                                                             ${OMPL_INCLUDE_DIRS}     
+#                                                             ${FCL_INCLUDE_DIRS})
+# target_link_libraries(testTrajectoryGeneration trajectoryGeneration)
+
 # set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
 # yarp_install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/trajectoryGeneration.ini"  DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})                                 
 # target_link_libraries(clientTrajectoryGenerationTargetPoseGazebo

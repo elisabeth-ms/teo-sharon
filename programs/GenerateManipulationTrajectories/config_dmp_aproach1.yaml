@@ -1,0 +1,42 @@
+---
+endAcceleration:
+- 0.0
+- 0.0
+- 0.0
+endPosition:
+- 0.0
+- 0.0
+- 0.0
+endRotation:
+- 0.0
+- 1.0
+- 0.0
+- 0.0
+endVelocity:
+- 0.0
+- 0.0
+- 0.0
+executionTime: 1.0
+name: Python CSDMP
+startAcceleration:
+- 0.0
+- 0.0
+- 0.0
+startAngularVelocity:
+- 0.0
+- 0.0
+- 0.0
+startPosition:
+- 0.0
+- 0.0
+- 0.0
+startRotation:
+- 0.0
+- 1.0
+- 0.0
+- 0.0
+startVelocity:
+- 0.0
+- 0.0
+- 0.0
+...

@@ -210,7 +210,7 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     armSolverOptions.put("mins", yarp::os::Value::makeList(qrMin.toString().c_str()));
     armSolverOptions.put("maxs", yarp::os::Value::makeList(qrMax.toString().c_str()));
     armSolverOptions.put("ik", "nrjl"); // to use screw theory IK
-    armSolverOptions.put("maxIter", 20000);
+    armSolverOptions.put("maxIter", 1000);
     armSolverDevice.open(armSolverOptions);
     if (!armSolverDevice.isValid())
     {

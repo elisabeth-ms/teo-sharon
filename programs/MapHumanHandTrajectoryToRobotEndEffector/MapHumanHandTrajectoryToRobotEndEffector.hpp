@@ -12,7 +12,8 @@
 #include "KinematicRepresentation.hpp"
 
 #include "CheckSelfCollisionLibrary.hpp"
-
+#include <eigen3/Eigen/Eigen>
+#include <eigen3/Eigen/Geometry>
 namespace sharon{
     /**
      * @brief Get the Trajectory From Csv File object.
