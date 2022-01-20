@@ -101,7 +101,7 @@ namespace sharon
         fcl::collide(&collisionObjects[link], &tableCollision[0], requestType, collisionResult);
         if (collisionResult.isCollision())
         {
-            // printf("collsion betwenn link %d and table\n", link);
+            printf("collsion betwenn link %d and table\n", link);
             return true;
         }
         return false;
@@ -170,7 +170,11 @@ namespace sharon
         request.enable_signed_distance = true;
         fcl::DistanceResultf distanceResult;
 
+        if(link2 == (link1+1))
+            return 0.0;
         fcl::distance(&collisionObjects[link1],&collisionObjects[link2], request, distanceResult);
+
+        // printf("%f\n",distanceResult.min_distance);
         // fcl::distance(collisionObjects[link1].computeAABB(), )
         // fcl::distance(&collisionObjects[link1], &collisionObjects[link2], requestType, distanceResult);
         return distanceResult.min_distance;
