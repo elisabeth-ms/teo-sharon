@@ -17,6 +17,10 @@
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl/geometric/planners/rlrt/BiRLRT.h>
 
+#include </usr/local/include/nlopt.hpp>
+#include "trac-ik/trac_ik/trac_ik.hpp"
+
+
 #include "../../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
 #include <yarp/os/Vocab.h>
 #include <yarp/dev/GenericVocabs.h>
@@ -40,6 +44,7 @@
 
 using namespace yarp::os;
 using namespace roboticslab;
+using namespace TRAC_IK;
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -103,26 +108,32 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('
             /** Axes number **/
             int numArmJoints;
             int numTrunkJoints;
+            int numJoints;
             /** Device **/
             yarp::dev::PolyDriver armDevice;
             yarp::dev::PolyDriver trunkDevice;
+            yarp::dev::PolyDriver device;
 
             std::string rightArmDeviceName;
             std::string trunkDeviceName;
             /** Encoders **/
             yarp::dev::IEncoders *armIEncoders;
             yarp::dev::IEncoders *trunkIEncoders;
+            yarp::dev::IEncoders *iEncoders;
            /** ControlMode2 Interface */
 
             yarp::dev::IControlMode *armIControlMode;
             yarp::dev::IControlMode *trunkIControlMode;
+            yarp::dev::IControlMode *iControlMode;
             /** PositionControl2 Interface */
             yarp::dev::IPositionControl *armIPositionControl;
             yarp::dev::IPositionControl *trunkIPositionControl;
+            yarp::dev::IPositionControl *iPositionControl;
 
             /** Right Arm ControlLimits2 Interface */
             yarp::dev::IControlLimits *armIControlLimits;
             yarp::dev::IControlLimits *trunkIControlLimits;
+            yarp::dev::IControlLimits *iControlLimits;
 
 
             /** Solver device **/
@@ -130,9 +141,12 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('
             ICartesianSolver *armICartesianSolver;
             yarp::os::Property armSolverOptions;
 
-            /** Joints limits **/
+            /** Joints limits modified**/
             yarp::os::Bottle qrMin;
             yarp::os::Bottle qrMax;
+            /** Joint limits modified in rads**/
+            KDL::JntArray qminRad;
+            KDL::JntArray qmaxRad;
 
             /** movement finished */
             bool done;
@@ -147,6 +161,19 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('
             og::PathGeometric * pth;
 
             yarp::os::RpcServer rpcServer;
+            
+            double timeout_in_secs =0.2; // TODO PASS TO THE CONSTRUCTOR
+
+            TRAC_IK::TRAC_IK * iksolver;
+            KDL::Twist boundsSolver = KDL::Twist::Zero();
+            // boundsSolver.pos.x(0.0001);
+            // boundsSolver.pos.y = 0.0001;
+            // boundsSolver.pos.z = 0.0001;
+            // boundsSolver.rot.x = 0.0001;
+            // boundsSolver.rot.y = 0.0001;
+            // boundsSolver.rot.z = 0.0001;
+
+            nlopt_opt opt;
             
             void changeJointsLimitsFromConfigFile(KDL::JntArray & qlim, const yarp::os::Searchable& config, const std::string& mode);
             bool checkGoalPose(yarp::os::Bottle *, std::vector<double> & desireQb, std::string & errorMessage);

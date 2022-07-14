@@ -19,7 +19,7 @@ namespace sharon
         for (int i = 0; i < q.rows(); i++)
         {
             // printf("q: %f qmin: %f qmax: %f \n", q(i), qmin(i), qmax(i));
-            if (q(i) < (qmin(i)+MARGIN_BOUNDS) || q(i) > (qmax(i)-MARGIN_BOUNDS))
+            if (q(i) < (qmin(i)) || q(i) > (qmax(i)))
             {
                 // printf("Joints outside bounds\n");
                 return false;
