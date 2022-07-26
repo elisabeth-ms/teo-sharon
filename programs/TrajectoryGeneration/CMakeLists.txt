@@ -67,6 +67,7 @@ target_link_libraries(TrajectoryGeneration PRIVATE
                                  ${nlopt_LIBRARIES}
                                  nlopt
                                  CheckSelfCollisionLibrary
+                                 ${PCL_LIBRARIES}
                                 trac_ik ${trac_ik_LIBRARIES})
 
 target_include_directories(TrajectoryGeneration PRIVATE 

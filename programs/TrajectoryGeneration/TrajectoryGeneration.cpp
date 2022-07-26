@@ -285,11 +285,11 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
-    CollisionGeometryPtr_t table{new fcl::Boxf{0.8,0.9,0.95}};
+    CollisionGeometryPtr_t table{new fcl::Boxf{0.6,1.3,0.95}};
     fcl::CollisionObjectf collisionObjectTable{table, tfTest};
     fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
     // fcl::Vector3f translation(1.65, 0.0, -0.43);
-    fcl::Vector3f translation(0.65, 0.0, -0.43);
+    fcl::Vector3f translation(0.77, 0.0, -0.43);
     collisionObjectTable.setTransform(rotation, translation);
     tableCollision.clear();
     tableCollision.push_back(collisionObjectTable);
@@ -325,12 +325,12 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     nlopt_opt opt_obo;
     opt_obo = nlopt_create(NLOPT_LN_BOBYQA, numJoints);
     iksolver = new  TRAC_IK::TRAC_IK(chain, qminRad, qmaxRad, timeout_in_secs, 0.002, TRAC_IK::Speed);  
-    boundsSolver.vel.x(0.0002);
-    boundsSolver.vel.y(0.0002);
-    boundsSolver.vel.z(0.0002);
-    boundsSolver.rot.x(0.02);
-    boundsSolver.rot.y(0.02);
-    boundsSolver.rot.z(0.02);
+    boundsSolver.vel.x(0.0005);
+    boundsSolver.vel.y(0.0005);
+    boundsSolver.vel.z(0.0005);
+    boundsSolver.rot.x(0.05);
+    boundsSolver.rot.y(0.05);
+    boundsSolver.rot.z(0.05);
 
 
 
@@ -404,6 +404,11 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     }
 
     
+    if(!inPort.open(prefix + "/pointCloud:i"))
+    {
+        yError()<<"Could not open"<<inPort.getName()<<"open";
+        return false;
+    }
 
    
     rpcServer.setReader(*this);
@@ -1274,10 +1279,26 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 
         
         switch(command.get(0).asVocab32()){
+
             case VOCAB_HELP:{
                 yInfo() <<"help";
                 static auto usage = makeUsage();
                 reply.append(usage);
+            }break;
+            case VOCAB_UPDATE_POINTCLOUD:{
+                yInfo() << "Update the pointcloud for collision checking";
+                if(!yarp::os::Network::connect("/rgbdObjectDetection/state:o", inPort.getName())){
+                    yError() << "Unable to connect /getGraspingPoses/xtion/pointCloud:o to "<<inPort.getName();
+                    reply.addString("Unable to connect to /pointcloud port");
+                }
+                inPort.read(inCloud);
+                yInfo()<<inCloud.size();
+                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+                if(yarp::pcl::toPCL<yarp::sig::DataXYZRGBA, pcl::PointXYZRGBA>(inCloud, *cloud)){
+                    yInfo()<<"Could store the yarp pointcloud in a pcl cloud";
+                }
+
+
             }break;
             case VOCAB_CHECK_GOAL_POSE:
                 {yInfo() << "Check goal pose (x, y, z, rotx, roty, rotz)";

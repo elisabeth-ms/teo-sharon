@@ -3,3 +3,4 @@
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
 add_subdirectory(CheckSelfCollisionLibrary)
+add_subdirectory(HumanHandToRobotJointsIK)

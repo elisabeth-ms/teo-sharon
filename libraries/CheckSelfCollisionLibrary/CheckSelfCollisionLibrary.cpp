@@ -2,6 +2,90 @@
 
 #include "CheckSelfCollisionLibrary.hpp"
 
+// std::shared_ptr<fcl::CollisionObject> createCollisionObject(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_ptr, const octomap::point3d& sensor_origin_wrt_world)
+// {
+//   // octomap octree settings
+//   const double resolution = 0.01;
+//   const double prob_hit = 0.9;
+//   const double prob_miss = 0.1;
+//   const double clamping_thres_min = 0.12;
+//   const double clamping_thres_max = 0.98;
+
+//   std::shared_ptr<octomap::OcTree> octomap_octree = std::make_shared<octomap::OcTree>(resolution);
+//   octomap_octree->setProbHit(prob_hit);
+//   octomap_octree->setProbMiss(prob_miss);
+//   octomap_octree->setClampingThresMin(clamping_thres_min);
+//   octomap_octree->setClampingThresMax(clamping_thres_max);
+
+//   octomap::KeySet free_cells;
+//   octomap::KeySet occupied_cells;
+
+// #if defined(_OPENMP)
+// #pragma omp parallel
+// #endif
+//   {
+// #if defined(_OPENMP)
+//     auto thread_id = omp_get_thread_num();
+//     auto thread_num = omp_get_num_threads();
+// #else
+//     int thread_id = 0;
+//     int thread_num = 1;
+// #endif
+//     int start_idx = static_cast<int>(pointcloud_ptr->size() / thread_num) * thread_id;
+//     int end_idx = static_cast<int>(pointcloud_ptr->size() / thread_num) * (thread_id + 1);
+//     if (thread_id == thread_num - 1)
+//     {
+//       end_idx = pointcloud_ptr->size();
+//     }
+
+//     octomap::KeySet local_free_cells;
+//     octomap::KeySet local_occupied_cells;
+
+//     for (auto i = start_idx; i < end_idx; i++)
+//     {
+//       octomap::point3d point((*pointcloud_ptr)[i].x, (*pointcloud_ptr)[i].y, (*pointcloud_ptr)[i].z);
+//       octomap::KeyRay key_ray;
+//       if (octomap_octree->computeRayKeys(sensor_origin_3d, point, key_ray))
+//       {
+//         local_free_cells.insert(key_ray.begin(), key_ray.end());
+//       }
+
+//       octomap::OcTreeKey tree_key;
+//       if (octomap_octree->coordToKeyChecked(point, tree_key))
+//       {
+//         local_occupied_cells.insert(tree_key);
+//       }
+//     }
+
+// #if defined(_OPENMP)
+// #pragma omp critical
+// #endif
+//     {
+//       free_cells.insert(local_free_cells.begin(), local_free_cells.end());
+//       occupied_cells.insert(local_occupied_cells.begin(), local_occupied_cells.end());
+//     }
+//   }
+
+//   // free cells only if not occupied in this cloud
+//   for (auto it = free_cells.begin(); it != free_cells.end(); ++it)
+//   {
+//     if (occupied_cells.find(*it) == occupied_cells.end())
+//     {
+//       octomap_octree->updateNode(*it, false);
+//     }
+//   }
+
+//   // occupied cells
+//   for (auto it = occupied_cells.begin(); it != occupied_cells.end(); ++it)
+//   {
+//     octomap_octree->updateNode(*it, true);
+//   }
+
+//   auto fcl_octree = std::make_shared<fcl::OcTree>(octomap_octree);
+//   std::shared_ptr<fcl::CollisionGeometry> fcl_geometry = fcl_octree;
+//   return std::make_shared<fcl::CollisionObject>(fcl_geometry);
+// }
+
 namespace sharon
 {
 

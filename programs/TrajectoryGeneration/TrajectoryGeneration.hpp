@@ -20,6 +20,9 @@
 #include </usr/local/include/nlopt.hpp>
 #include "trac-ik/trac_ik/trac_ik.hpp"
 
+#include <yarp/sig/PointCloud.h>
+#include <pcl/common/common.h>
+#include <yarp/pcl/Pcl.h>
 
 #include "../../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
 #include <yarp/os/Vocab.h>
@@ -54,6 +57,7 @@ constexpr auto VOCAB_CHECK_GOAL_POSE = yarp::os::createVocab32('c','h','g','p');
 constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab32('c','h','g','j');
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab32('c','p','g','p');
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('c','p','g','j');
+constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
 
 
 
@@ -166,6 +170,10 @@ constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('
 
             TRAC_IK::TRAC_IK * iksolver;
             KDL::Twist boundsSolver = KDL::Twist::Zero();
+
+            yarp::os::Port inPort;
+            yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> inCloud;
+
             // boundsSolver.pos.x(0.0001);
             // boundsSolver.pos.y = 0.0001;
             // boundsSolver.pos.z = 0.0001;
