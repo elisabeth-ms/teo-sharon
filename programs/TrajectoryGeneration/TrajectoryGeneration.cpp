@@ -328,9 +328,9 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     boundsSolver.vel.x(0.0005);
     boundsSolver.vel.y(0.0005);
     boundsSolver.vel.z(0.0005);
-    boundsSolver.rot.x(0.05);
-    boundsSolver.rot.y(0.05);
-    boundsSolver.rot.z(0.05);
+    boundsSolver.rot.x(0.01);
+    boundsSolver.rot.y(0.01);
+    boundsSolver.rot.z(0.01);
 
 
 
