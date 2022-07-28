@@ -351,8 +351,8 @@ bool GetGraspingPoses::updateModule()
                 yInfo()<<"Labeled cloud NOT empty";
                 yarp::os::Bottle bot;
                 if(detectionsPort.read(bot)){
-                    yInfo()<<bot.toString();
-                    yInfo()<<"size:"<<bot.size();
+                    // yInfo()<<bot.toString();
+                    // yInfo()<<"size:"<<bot.size();
                     m_bGraspingPoses.clear();
 
 
@@ -365,7 +365,7 @@ bool GetGraspingPoses::updateModule()
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*filling_cloud,  yarpCloudFilling);
                     
 
-                    yInfo()<<"Point cloud transformed";
+                    // yInfo()<<"Point cloud transformed";
                     rosComputeAndSendPc(yarpCloudLccp, "waist", *pointCloudLccpTopic);
                     rosComputeAndSendPc(yarpCloudFilling, "waist", *pointCloudFillingObjectsTopic);
 
@@ -703,7 +703,7 @@ bool GetGraspingPoses::supervoxelOversegmentation(const pcl::PointCloud<pcl::Poi
     // Compute the features
     ne.compute (*input_normals_ptr);
 
-    yInfo("Input cloud has %d normals", input_normals_ptr->size());
+    // yInfo("Input cloud has %d normals", input_normals_ptr->size());
 
 
     //TODO: Change to yarp params
@@ -809,8 +809,8 @@ void GetGraspingPoses::getPixelCoordinates(const pcl::PointXYZ & p, int &xpixel,
 bool GetGraspingPoses::computeIntersectionOverUnion(std::array<int, 4> detection_bbox, std::array<int, 4> cluster_bbox, float & IoU){
 
     // First we need to know if the two bboxes overlap
-    yInfo()<<"detection_bbox: "<<detection_bbox[0]<<" "<<detection_bbox[1]<<" "<<detection_bbox[2]<<" "<<detection_bbox[3];
-    yInfo()<<"cluster_bbox: "<<cluster_bbox[0]<<" "<<cluster_bbox[1]<<" "<<cluster_bbox[2]<<" "<<cluster_bbox[3];
+    // yInfo()<<"detection_bbox: "<<detection_bbox[0]<<" "<<detection_bbox[1]<<" "<<detection_bbox[2]<<" "<<detection_bbox[3];
+    // yInfo()<<"cluster_bbox: "<<cluster_bbox[0]<<" "<<cluster_bbox[1]<<" "<<cluster_bbox[2]<<" "<<cluster_bbox[3];
 
 
     if (detection_bbox[0] < cluster_bbox[2] && detection_bbox[2] > cluster_bbox[0] &&
@@ -853,12 +853,12 @@ bool GetGraspingPoses::computeIntersectionOverUnion(std::array<int, 4> detection
         yB = cluster_bbox[3];
     }
     float inter_area = (xB - xA) * (yB - yA);
-    yInfo()<<"Inter area: "<<inter_area;
+    // yInfo()<<"Inter area: "<<inter_area;
 
     float detection_bbox_area = (detection_bbox[2]-detection_bbox[0])*(detection_bbox[3]-detection_bbox[1]);
-    yInfo()<<"detection bbox area: "<<detection_bbox_area;
+    // yInfo()<<"detection bbox area: "<<detection_bbox_area;
     float cluster_bbox_area = (cluster_bbox[2]-cluster_bbox[0])*(cluster_bbox[3]-cluster_bbox[1]);
-    yInfo()<<"cluster bbox area: "<<cluster_bbox_area;
+    // yInfo()<<"cluster bbox area: "<<cluster_bbox_area;
 
     IoU = inter_area/(detection_bbox_area + cluster_bbox_area-inter_area);
     yInfo()<<"IoU: "<<IoU;
@@ -876,7 +876,7 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZL>::Ptr
     yInfo()<<"Category fullObjectPointCloud: "<<category;
     if ((category.find(std::string("cereals")) != std::string::npos) || (category.find(std::string("milk")) != std::string::npos) || (category.find(std::string("sugar")) != std::string::npos)) {
 
-        yInfo()<<"PointCloud corresponds to cereal!";
+        // yInfo()<<"PointCloud corresponds to cereal!";
         std::vector<std::vector<double>>graspingPoses;
 
         std::vector<pcl::PointXYZRGBA>maxPoints;
@@ -922,11 +922,11 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZL>::Ptr
             break;
             }
 
-            printf("Model coefficients: %f %f %f %f\n",coefficients->values[0],coefficients->values[1],coefficients->values[2], coefficients->values[3]);
+            // printf("Model coefficients: %f %f %f %f\n",coefficients->values[0],coefficients->values[1],coefficients->values[2], coefficients->values[3]);
             double lengthNormal = sqrt(coefficients->values[0]*coefficients->values[0] + coefficients->values[1]*coefficients->values[1]
             +coefficients->values[2]*coefficients->values[2]);
             KDL::Vector n(coefficients->values[0]/lengthNormal, coefficients->values[1]/lengthNormal,coefficients->values[2]/lengthNormal);
-            printf("Normal vector to plane: %f %f %f\n", n[0], n[1],n[2]);
+            // printf("Normal vector to plane: %f %f %f\n", n[0], n[1],n[2]);
             
 
             // Extract the inliers
@@ -934,7 +934,7 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZL>::Ptr
             extract.setIndices (inliers);
             extract.setNegative (false);
             extract.filter (*cloud_p);
-            printf("PointCloud representing the planar component: %d data points\n",cloud_p->width * cloud_p->height);
+            // printf("PointCloud representing the planar component: %d data points\n",cloud_p->width * cloud_p->height);
 
             pcl::CentroidPoint<pcl::PointXYZRGBA> centroid;
 
@@ -945,22 +945,22 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZL>::Ptr
 
             pcl::PointXYZRGBA c1;
             centroid.get (c1);
-            printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
-            std::stringstream ss;
-            ss << "plane_scene_" << i << ".pcd";
-            printf("plane_scene_%d\n",i);
+            // printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
+            // std::stringstream ss;
+            // ss << "plane_scene_" << i << ".pcd";
+            // printf("plane_scene_%d\n",i);
 
-            writer.write<pcl::PointXYZRGBA> (ss.str (), *cloud_p, false);
+            // writer.write<pcl::PointXYZRGBA> (ss.str (), *cloud_p, false);
 
            
-            printf("Valid plane i: %d\n",i);
+            // printf("Valid plane i: %d\n",i);
             pcl::PointXYZRGBA maxPoint;
             pcl::PointXYZRGBA minPoint;
             getMinimumBoundingBoxPointCLoud(cloud_p, maxPoint, minPoint, n);
 
 
-            printf("Normal: %f %f %f\n", n[0], n[1], n[2]);
-            printf("Max point: %f %f %f, Min Point: %f %f %f\n", maxPoint.x,maxPoint.y, maxPoint.z, minPoint.x, minPoint.y, minPoint.z);
+            // printf("Normal: %f %f %f\n", n[0], n[1], n[2]);
+            // printf("Max point: %f %f %f, Min Point: %f %f %f\n", maxPoint.x,maxPoint.y, maxPoint.z, minPoint.x, minPoint.y, minPoint.z);
                 
             normals.push_back(n);
             maxPoints.push_back(maxPoint);
@@ -1228,418 +1228,22 @@ bool GetGraspingPoses::read(yarp::os::ConnectionReader &connection)
     }
     if(b->get(0).check("category"))
     {
+        yInfo()<<"category: "<<b->get(0).find("category").asString();
         std::string current_category = b->get(0).find("category").asString();
         for(int i=0; i<m_bGraspingPoses.size(); i++){
             yarp::os::Bottle * graspObject = m_bGraspingPoses.get(i).asList();
             yInfo()<<current_category;
             yInfo()<<graspObject->get(0).toString();
             if(current_category == graspObject->get(0).toString())
+            {
+                yInfo()<<"found";
                 reply.addList() = *graspObject;   
             yInfo()<<"------------------------------";
+            }
         }
     }
-    // yInfo() << "command:" << command.toString();
 
-    // int brx = command.get(0).find("brx").asInt32();
-    // int bry = command.get(0).find("bry").asInt32();
-    // int tlx = command.get(0).find("tlx").asInt32();
-    // int tly = command.get(0).find("tly").asInt32();
-    // std::string category = command.get(0).find("category").asString();
 
-    // yInfo()<<"category: "<<category<<" brx:"<<brx<<" bry: "<< bry<<" tlx: "<<tlx<<" tly: "<<tly;
-    // yarp::sig::ImageOf<yarp::sig::PixelFloat> depthFrame;
-
-    // bool depth_ok = iRGBDSensor->getDepthImage(depthFrame);
-    // if (depth_ok == false)
-    // {
-    //     yError()<< "getDepthImage failed";
-    //     return false;
-    // }
-
-    // if(tlx<0){
-    //     tlx = 0;
-    // }
-    // if(tly<0){
-    //     tly = 0;
-    // }
-    // if(brx>=depthFrame.width()){
-    //     brx = depthFrame.width();
-    // }
-    // if(bry>=depthFrame.height()){
-    //     bry = depthFrame.height();
-    // }
-    // int min_x = tlx;
-    // int min_y = tly;
-    // int max_x = brx;
-    // int max_y = bry;
-
-
-
-    // yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> pcFilteredBB;
-    // pcFilteredBB.resize(brx-tlx,bry-tly);
-    // for (size_t i = 0, u = min_x; u < max_x; i++, u ++){
-    //     for (size_t j = 0, v = min_y; v < max_y; j++, v ++) {
-    //         if( depthFrame.pixel(u, v)<1.0){ // TODO: PARAMETER MAX DISTANCE FILTER
-    //             pcFilteredBB(i, j).x = depthFrame.pixel(u, v); 
-    //             pcFilteredBB(i, j).y = -(u - intrinsics.principalPointX) / intrinsics.focalLengthX * depthFrame.pixel(u, v);
-    //             pcFilteredBB(i, j).z = -(v - intrinsics.principalPointY) / intrinsics.focalLengthY * depthFrame.pixel(u, v);
-    //         }
-    //     }
-    // }
-
-
-    // pcl::PointCloud<pcl::PointXYZRGBA>::Ptr bb_transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGBA> ());
-    // pcl::PointXYZRGBA minPt, maxPt;
-    // if( !transformPointCloud(pcFilteredBB, bb_transformed_cloud, true)){
-    //     yError()<<"Could NOT transform the pointcloud";
-    //     reply.addString("Could not transform the pointcloud");
-    // }
-    // else{
-    //     yInfo()<<"PointCloud transformed succesfully";
-        
-    //     pcl::getMinMax3D (*bb_transformed_cloud, minPt, maxPt);
-
-    // }
-    // yInfo()<<"max and min";
-
-    // yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> pcFiltered;
-
-
-
-    // pcFiltered.resize(depthFrame.width(),depthFrame.height());
-    // min_x = 0;
-    // min_y = 0;
-    // max_x = depthFrame.width();
-    // max_y = depthFrame.height();
-    // for (size_t i = 0, u = min_x; u < max_x; i++, u ++){
-    //     for (size_t j = 0, v = min_y; v < max_y; j++, v ++) {
-    //         if( depthFrame.pixel(u, v)<1.0){ // TODO: PARAMETER MAX DISTANCE FILTER
-    //             pcFiltered(i, j).x = depthFrame.pixel(u, v); 
-    //             pcFiltered(i, j).y = -(u - intrinsics.principalPointX) / intrinsics.focalLengthX * depthFrame.pixel(u, v);
-    //             pcFiltered(i, j).z = -(v - intrinsics.principalPointY) / intrinsics.focalLengthY * depthFrame.pixel(u, v);
-    //         }
-    //     }
-    // }
-
-
-
-    // pcl::PointCloud<pcl::PointXYZRGBA>::Ptr crop_transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGBA> ());
-
-
-   
-    // if( !transformPointCloud(pcFiltered, crop_transformed_cloud, true)){
-    //     yError()<<"Could NOT transform the pointcloud";
-    //     reply.addString("Could not transform the pointcloud");
-    // }
-    // else{
-    //     yInfo()<<"PointCloud transformed succesfully";
-
-
-    // pcl::PCLPointCloud2::Ptr cloud_filtered_blob (new pcl::PCLPointCloud2);
-    // pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZRGBA>), cloud_p (new pcl::PointCloud<pcl::PointXYZRGBA>), cloud_f (new pcl::PointCloud<pcl::PointXYZRGBA>);
-    
-    // pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-    // pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
-    // // Create the segmentation object
-  
-
-    //     pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-    //     // Optional
-    //     seg.setOptimizeCoefficients (true);
-    //     // Mandatory
-    //     seg.setModelType (pcl::SACMODEL_PARALLEL_PLANE);
-    //     seg.setMethodType (pcl::SAC_RANSAC);
-    //     seg.setMaxIterations (1000);
-    //     seg.setDistanceThreshold (0.01);
-    //     seg.setAxis(Eigen::Vector3f::UnitX());
-    //     seg.setEpsAngle(0.005);
-
-    //     int i = 0, nr_points = (int) crop_transformed_cloud->size ();
-    //     while (i<1)
-    //     {
-    //     seg.setInputCloud (crop_transformed_cloud);
-    //     seg.segment (*inliers, *coefficients);
-
-    //     // Create the filtering object
-    //     pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
-
-    //     extract.setInputCloud(crop_transformed_cloud);
-    //     extract.setIndices(inliers);
-    //     extract.setNegative(true);             // Extract the inliers
-    //     extract.filter(*cloud_p);   
-
-    //     (crop_transformed_cloud).swap(cloud_p);
-    //     i++;
-    //     }
-
-    //     pcl::PassThrough<pcl::PointXYZRGBA> pass;
-    //     pass.setInputCloud (crop_transformed_cloud);		// Fill in data
-    //     pass.setFilterFieldName ("x");   // Set the dimension name to filter, where is the z-direction dimension
-    //     pass.setFilterLimits (0.55, 0.9); // Setting filter threshold
-    //     //pass.setFilterLimitsNegative (true);
-    //     pass.filter (*cloud_p);    // Start Filtering
-    //     (crop_transformed_cloud).swap(cloud_p);
-
-
-    //     pcl::PassThrough<pcl::PointXYZRGBA> pass_y;
-    //     pass_y.setInputCloud (crop_transformed_cloud);		// Fill in data
-    //     pass_y.setFilterFieldName ("y");   // Set the dimension name to filter, where is the z-direction dimension
-    //     pass_y.setFilterLimits (-0.5, 0.35); // Setting filter threshold
-    //     //pass.setFilterLimitsNegative (true);
-    //     pass_y.filter (*cloud_p);    // Start Filtering
-    //     (crop_transformed_cloud).swap(cloud_p);
-        
-    //     yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloud;
-    //     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*crop_transformed_cloud, yarpCloud);
-
-
-
-
-
-    //     pass.setInputCloud (crop_transformed_cloud);		// Fill in data
-    //     pass.setFilterFieldName ("x");   // Set the dimension name to filter, where is the z-direction dimension
-    //     pass.setFilterLimits (minPt.x, maxPt.x); // Setting filter threshold
-    //     //pass.setFilterLimitsNegative (true);
-    //     pass.filter (*cloud_p);    // Start Filtering
-    //     (crop_transformed_cloud).swap(cloud_p);
-
-    //     pass_y.setInputCloud (crop_transformed_cloud);		// Fill in data
-    //     pass_y.setFilterFieldName ("y");   // Set the dimension name to filter, where is the z-direction dimension
-    //     pass_y.setFilterLimits (minPt.y, maxPt.y); // Setting filter threshold
-    //     //pass.setFilterLimitsNegative (true);
-    //     pass_y.filter (*cloud_p);    // Start Filtering
-    //     (crop_transformed_cloud).swap(cloud_p);
-    //     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*crop_transformed_cloud, yarpCloud);
-
-
-    //     rosComputeAndSendPc(yarpCloud, "waist", *pointCloud_objectTopic);
-
-  
-    //     // yInfo()<<"Point cloud transformed";
-        
-
-        
-    //     // rosComputeAndSendPc(yarpCloud, "waist", false);
-        
-
-
-
-    // reply.addString(category);
-    // yarp::os::Bottle bGraspingPoses;
-
-
-    // std::vector<std::vector<double>>graspingPoses;
-
-    
-    // // yarp::os::Bottle& graspingPoses = pOutGraspingPosesPort->prepare();   // Get the object
-    // if (category == "water" || category == "nesquick"){
-    //     pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-    //     // Optional
-    //     seg.setOptimizeCoefficients (true);
-    //     // Mandatory
-    //     seg.setModelType (pcl::SACMODEL_PARALLEL_PLANE);
-    //     seg.setMethodType (pcl::SAC_RANSAC);
-    //     seg.setMaxIterations (1000);
-    //     seg.setDistanceThreshold (0.005);
-    //     seg.setAxis(Eigen::Vector3f::UnitX());
-    //     seg.setEpsAngle(0.005);
-
-    //     // Create the filtering object
-    //     pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
-
-    //     int i = 0, nr_points = (int) crop_transformed_cloud->size ();
-
-    //     pcl::PCDWriter writer;
-    //     // while (transformed_cloud->size () > 0.05 * nr_points)
-    //     // {
-    //         printf("Plane %d\n", i);
-    //         // Segment the largest planar component from the remaining cloud
-    //         seg.setInputCloud (crop_transformed_cloud);
-    //         seg.segment (*inliers, *coefficients);
-
-    //         printf("Model coefficients: %f %f %f %f\n",coefficients->values[0],coefficients->values[1],coefficients->values[2], coefficients->values[3]);
-    //         double lengthNormal = sqrt(coefficients->values[0]*coefficients->values[0] + coefficients->values[1]*coefficients->values[1]
-    //         +coefficients->values[2]*coefficients->values[2]);
-    //         KDL::Vector n(coefficients->values[0]/lengthNormal, coefficients->values[1]/lengthNormal,coefficients->values[2]/lengthNormal);
-    //         printf("Normal vector to plane: %f %f %f\n", n[0], n[1],n[2]);
-            
-
-    //         // Extract the inliers
-    //         extract.setInputCloud (crop_transformed_cloud);
-    //         extract.setIndices (inliers);
-    //         extract.setNegative (false);
-    //         extract.filter (*cloud_p);
-    //         printf("PointCloud representing the planar component: %d data points\n",cloud_p->width * cloud_p->height);
-
-    //         // pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> transformed_cloud_color_handler_obj (transformed_cloud_copy, 20, 230, 20); // Red
-    //         // viewer->addPointCloud (crop_transformed_cloud, transformed_cloud_color_handler_obj, "transformed_cloud1");
-
-
-
-    //         // Create the filtering object
-    //         extract.setNegative (true);
-    //         extract.filter (*cloud_f);
-    //         (crop_transformed_cloud).swap(cloud_f);
-
-    //         pcl::CentroidPoint<pcl::PointXYZRGBA> centroid;
-
-    //         for (auto& point: *crop_transformed_cloud)
-    //         {
-    //             centroid.add(point);
-    //         }
-
-    //         pcl::PointXYZRGBA c1;
-    //         centroid.get(c1);
-
-    //         std::stringstream ss;
-    //         ss << "water_scene_" << i << ".pcd";
-    //         printf("water_scene_%d\n",i);
-    //         writer.write<pcl::PointXYZRGBA> (ss.str (), *cloud_p, false);
-
-
-    //         std::vector<pcl::PointXYZRGBA>points;
-    //         std::vector<KDL::Vector>normals;
-    //         if (category == "water"){
-    //             computeGraspingPosesWaterNesquick(c1, normals, points, graspingPoses, waterShape);
-    //         }
-    //         if (category == "nesquick"){
-
-    //             computeGraspingPosesWaterNesquick(c1, normals, points, graspingPoses, nesquickShape);
-    //         }
-
-    //         rosComputeGraspingPosesArrowAndSend("waist", points, normals);
-    // }
-    // else{ // milk and cereals
-
-    //     std::vector<pcl::PointXYZRGBA>maxPoints;
-    //     std::vector<pcl::PointXYZRGBA>minPoints;
-    //     std::vector<KDL::Vector>normals;
-    //     std::vector<pcl::PointXYZRGBA>centroids;
-
-    //     pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-
-        
-    //     // Optional
-    //     seg.setOptimizeCoefficients (true);
-    //     // Mandatory
-    //     seg.setModelType (pcl::SACMODEL_PLANE);
-    //     seg.setMethodType (pcl::SAC_RANSAC);
-    //     seg.setMaxIterations (2000);
-    //     seg.setDistanceThreshold (0.005);
-
-    //     // Create the filtering object
-    //     pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
-
-    //     int i = 0, nr_points = (int) crop_transformed_cloud->size ();
-    //     pcl::PCDWriter writer;
-    //     while (crop_transformed_cloud->size () > 0.05 * nr_points)
-    //     {
-    //         printf("Plane %d\n", i);
-    //         // Segment the largest planar component from the remaining cloud
-    //         seg.setInputCloud (crop_transformed_cloud);
-    //         seg.segment (*inliers, *coefficients);
-    //         if (inliers->indices.size () == 0)
-    //         {
-    //         printf("Could not estimate a planar model for the given dataset.\n");
-    //         break;
-    //         }
-
-    //         printf("Model coefficients: %f %f %f %f\n",coefficients->values[0],coefficients->values[1],coefficients->values[2], coefficients->values[3]);
-    //         double lengthNormal = sqrt(coefficients->values[0]*coefficients->values[0] + coefficients->values[1]*coefficients->values[1]
-    //         +coefficients->values[2]*coefficients->values[2]);
-    //         KDL::Vector n(coefficients->values[0]/lengthNormal, coefficients->values[1]/lengthNormal,coefficients->values[2]/lengthNormal);
-    //         printf("Normal vector to plane: %f %f %f\n", n[0], n[1],n[2]);
-            
-
-    //         // Extract the inliers
-    //         extract.setInputCloud (crop_transformed_cloud);
-    //         extract.setIndices (inliers);
-    //         extract.setNegative (false);
-    //         extract.filter (*cloud_p);
-    //         printf("PointCloud representing the planar component: %d data points\n",cloud_p->width * cloud_p->height);
-
-    //         pcl::CentroidPoint<pcl::PointXYZRGBA> centroid;
-
-    //         for (auto& point: *cloud_p)
-    //         {
-    //             centroid.add(point);
-    //         }
-
-    //         pcl::PointXYZRGBA c1;
-    //         centroid.get (c1);
-    //         printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
-    //         std::stringstream ss;
-    //         ss << "milk_scene_" << i << ".pcd";
-    //         printf("milk_scene_%d\n",i);
-
-    //         writer.write<pcl::PointXYZRGBA> (ss.str (), *cloud_p, false);
-
-    //         if (fabs(n[2])<0.4){ // RIGHT NOW GRASPING FROM THE TOP IS NOT ALLOWEDDDD!!!
-
-    //             printf("Valid plane i: %d\n",i);
-    //             pcl::PointXYZRGBA maxPoint;
-    //             pcl::PointXYZRGBA minPoint;
-    //             getMinimumBoundingBoxPointCLoud(cloud_p, maxPoint, minPoint);
-    //             printf("Normal: %f %f %f\n", n[0], n[1], n[2]);
-    //             printf("Max point: %f %f %f, Min Point: %f %f %f\n", maxPoint.x,maxPoint.y, maxPoint.z, minPoint.x, minPoint.y, minPoint.z);
-                
-    //             normals.push_back(n);
-    //             maxPoints.push_back(maxPoint);
-    //             minPoints.push_back(minPoint);
-    //             centroids.push_back(c1);
-    //         }
-    //         // Create the filtering object
-    //         extract.setNegative (true);
-    //         extract.filter (*cloud_f);
-    //         (crop_transformed_cloud).swap (cloud_f);
-    //         i++;
-    //     }
-    //     if(normals.size() == 0){
-    //         printf("No planes detected!\n");
-    //     }
-    //     else{
-    //         printf("One or more Planes are detected!\n");
-    //         if (category == "milk1" || category == "milk2")
-    //         {
-    //             std::vector<KDL::Vector> y_vectors;
-    //             std::vector<KDL::Vector> x_vectors;
-    //             computeGraspingPosesMilk(normals, centroids, maxPoints, minPoints, graspingPoses, y_vectors, x_vectors);
-    //             rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
-    //             // addGraspingPointsAndNormalsToViewer(centroids, normals, viewer);
-              
-    //         }
-    //         if(category =="cereals1" || category == "cereals2" || category == "cereals3"){
-    //             computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
-    //             rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
-    //         }
-    //     }
-
-    // }
-
-
-     
-
-
-
-    // // viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "transformed_cloud");
-
-
-    // // while (!viewer->wasStopped ()) { // Display the visualiser until 'q' key is pressed
-    // //     viewer->spinOnce ();
-    // // }
-
-    // for(int i=0; i<graspingPoses.size(); i++){
-    //     printf("%f %f %f %f %f %f \n", graspingPoses[i][0], graspingPoses[i][1], graspingPoses[i][2], graspingPoses[i][3], graspingPoses[i][4], graspingPoses[i][5]);
-    //     yarp::os::Bottle bPose;
-    //     for(int j = 0; j < 6; j++){
-    //         bPose.addFloat64(graspingPoses[i][j]);
-    //     }
-    //     bGraspingPoses.addList() = bPose;
-    // }
-    // reply.addList() = bGraspingPoses;
-    
-
-    // }
 
 
     return reply.write(*writer);
@@ -1887,54 +1491,25 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
     maxPoints.push_back(maxPoint_to_keep);
     minPoints.push_back(minPoint_to_keep);
 
-    // if(normals.size() == 3){
-    //     printf("Three planes detected lest get the others\n");
-    //     if(fabs(normals[0][0])>fabs(normals[1][0])){
-    //         normals.pop_back();
-    //         centroids.pop_back();
-    //         maxPoints.pop_back();
-    //         minPoints.pop_back();
-    //     }
-    //     else{
-    //         normals.erase(normals.begin());
-    //         centroids.erase(centroids.begin());
-    //         maxPoints.erase(maxPoints.begin());
-    //         minPoints.erase(minPoints.begin());
-    //     }
-    // }
-    // if(normals.size() == 2){
-    //     printf("Two planes detected lest get the others\n");
-    //     if(fabs(normals[0][0])>fabs(normals[1][0])){
-    //         normals.pop_back();
-    //         centroids.pop_back();
-    //         maxPoints.pop_back();
-    //         minPoints.pop_back();            
-    //     }
-    //     else{
-    //         normals.erase(normals.begin());
-    //         centroids.erase(centroids.begin());
-    //         maxPoints.erase(maxPoints.begin());
-    //         minPoints.erase(minPoints.begin());
-    //     }
-    // }
+   
     // Here, we just have the data from the front plane
     
     if(normals.size() == 1){
-        yInfo()<<"Max points: "<< maxPoints[0].x << maxPoints[0].y<<  maxPoints[0].z;
-        yInfo()<<"Min points: "<< minPoints[0].x << minPoints[0].y<<  minPoints[0].z;
+        // yInfo()<<"Max points: "<< maxPoints[0].x << maxPoints[0].y<<  maxPoints[0].z;
+        // yInfo()<<"Min points: "<< minPoints[0].x << minPoints[0].y<<  minPoints[0].z;
         float cerealSizes[3] = {maxPoints[0].x-minPoints[0].x, maxPoints[0].y-minPoints[0].y, maxPoints[0].z-minPoints[0].z};
-        yInfo()<<"Cereal size: "<<cerealSizes[0] <<cerealSizes[1]<<cerealSizes[2];
+        // yInfo()<<"Cereal size: "<<cerealSizes[0] <<cerealSizes[1]<<cerealSizes[2];
         float marginShape = 0.05;
         float box_sizes[3] = {0.0,0,0};
         if(cerealSizes[1]>= (box_shape[2]-marginShape) && (cerealSizes[1]<= (box_shape[2]+marginShape))){
             box_sizes[0] = box_shape[2];
-            yInfo()<<"X Widest";
+            // yInfo()<<"X Widest";
             if(cerealSizes[2]>=(box_shape[1]-marginShape) && (cerealSizes[2]<=(box_shape[1]+marginShape))){
-                yInfo()<<"Z Middle Wide";
+                // yInfo()<<"Z Middle Wide";
                 box_sizes[1] = box_shape[1];
                 box_sizes[2] = box_shape[0];
             }else{
-                yInfo()<<"Z least wide";
+                // yInfo()<<"Z least wide";
                 box_sizes[1] = box_shape[0];
                 box_sizes[2] = box_shape[1];
             }
@@ -1944,13 +1519,13 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
         if(cerealSizes[1]>= (box_shape[1]-marginShape) && (cerealSizes[1]<= (box_shape[1]+marginShape))){
             box_sizes[0] = box_shape[1];
 
-            yInfo()<<"X Middle wide";
+            // yInfo()<<"X Middle wide";
             if(cerealSizes[2]>=(box_shape[2]-marginShape) && (cerealSizes[2]<=(box_shape[2]+marginShape))){
-                yInfo()<<"Z widest";
+                // yInfo()<<"Z widest";
                 box_sizes[1] = box_shape[2];
                 box_sizes[2] = box_shape[0];
             }else{
-                yInfo()<<"Z least wide";
+                // yInfo()<<"Z least wide";
                 box_sizes[1] = box_shape[0];
                 box_sizes[2] = box_shape[2];
             }
@@ -1960,14 +1535,14 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
 
         if((cerealSizes[1]>= (box_shape[0]-marginShape)) &&  (cerealSizes[1]<= (box_shape[0]+marginShape)))
         {
-            yInfo()<<"X least wide";
+            // yInfo()<<"X least wide";
             box_sizes[0] = box_shape[0];
             if(cerealSizes[2]>=(box_shape[2]-marginShape) && (cerealSizes[2]<=(box_shape[2]+marginShape))){
-                yInfo()<<"Z widest";
+                // yInfo()<<"Z widest";
                 box_sizes[1] = box_shape[2];
                 box_sizes[2] = box_shape[1];
             }else{
-                yInfo()<<"Z middle wide";
+                // yInfo()<<"Z middle wide";
                 box_sizes[1] = box_shape[1];
                 box_sizes[2] = box_shape[2];
             }
@@ -1987,15 +1562,15 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
                 center.y = aux_center[1];
                 center.z = aux_center[2];
                 
-                centers.push_back(center);    
-                zaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                xaxes.push_back(yaxes[0]*normals[0]);
+                // centers.push_back(center);    
+                // zaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[0]*normals[0]);
                 
                 centers.push_back(center);    
                 zaxes.push_back(normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
-                xaxes.push_back(-yaxes[0]*normals[0]);
+                xaxes.push_back(yaxes[0]*normals[0]);
 
             }
             for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
@@ -2004,15 +1579,15 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);    
-                zaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                xaxes.push_back(yaxes[0]*normals[0]);
+                // centers.push_back(center);    
+                // zaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[0]*normals[0]);
 
                 centers.push_back(center);    
                 zaxes.push_back(normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
-                xaxes.push_back(-yaxes[0]*normals[0]);
+                xaxes.push_back(yaxes[0]*normals[0]);
             
             }
 
@@ -2023,15 +1598,15 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);          
-                zaxes.push_back(-normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                xaxes.push_back(yaxes[1]*zaxes[1]);
+                // centers.push_back(center);          
+                // zaxes.push_back(-normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[1]*zaxes[1]);
             
                 centers.push_back(center);          
                 zaxes.push_back(-normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
-                xaxes.push_back(-yaxes[1]*zaxes[1]);            
+                xaxes.push_back(yaxes[yaxes.size()-1]*zaxes[zaxes.size()-1]);            
             }
             for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
                 KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]*normals[0]+d*KDL::Vector(0,0,1);
@@ -2039,97 +1614,93 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);          
-                zaxes.push_back(-normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                xaxes.push_back(yaxes[1]*zaxes[1]);
+                // centers.push_back(center);          
+                // zaxes.push_back(-normals[0]); 
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[1]*zaxes[1]);
             
                 centers.push_back(center);          
                 zaxes.push_back(-normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
-                xaxes.push_back(-yaxes[1]*zaxes[1]); 
+                xaxes.push_back(yaxes[yaxes.size()-1]*zaxes[zaxes.size()-1]);            
 
             }
-            //Grasping from the top side isn't allowed
-            // aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]+ box_sizes[1]/2.0*yaxes[1];
-            // center.x = aux_center[0];
-            // center.y = aux_center[1];
-            // center.z = aux_center[2];
-            // centers.push_back(center);          
-            // zaxes.push_back(-yaxes[1]);
-            // yaxes.push_back(normals[0]);
-            // xaxes.push_back(yaxes[2]*zaxes[2]);
+
         }
 
         if(box_sizes[2] <= m_grasp_width){
             for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
                 KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]+(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
 
-                xaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                zaxes.push_back(-(xaxes.back()*yaxes.back()));
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back(-(xaxes.back()*yaxes.back()));
                 pcl::PointXYZRGBA center;
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);
+                // centers.push_back(center);
                 
-                zaxes.push_back(-(xaxes.back()*yaxes.back()));
-                xaxes.push_back(-normals[0]);
+                
+                xaxes.push_back(normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
+                zaxes.push_back((xaxes.back()*yaxes.back()));
                 centers.push_back(center);
             }
 
             for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
                 KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]+(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
 
-                xaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                zaxes.push_back(-(xaxes.back()*yaxes.back()));
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back(-(xaxes.back()*yaxes.back()));
                 pcl::PointXYZRGBA center;
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);
+                // centers.push_back(center);
                 
-                zaxes.push_back(-(xaxes.back()*yaxes.back()));
-                xaxes.push_back(-normals[0]);
+                
+                xaxes.push_back(normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
+                zaxes.push_back((xaxes.back()*yaxes.back()));
                 centers.push_back(center);
             }
             
             for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
                 KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]-(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
-                xaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                zaxes.push_back((xaxes.back()*yaxes.back()));
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back((xaxes.back()*yaxes.back()));
                 pcl::PointXYZRGBA center;
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);
+                // centers.push_back(center);
             
                 centers.push_back(center);
-                zaxes.push_back((xaxes.back()*yaxes.back()));
                 xaxes.push_back(-normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
+                zaxes.push_back((xaxes.back()*yaxes.back()));
+
             }
 
             for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
                 KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]-(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
-                xaxes.push_back(normals[0]);
-                yaxes.push_back(KDL::Vector(0,0,1));
-                zaxes.push_back((xaxes.back()*yaxes.back()));
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back((xaxes.back()*yaxes.back()));
                 pcl::PointXYZRGBA center;
                 center.x = aux_center[0];
                 center.y = aux_center[1];
                 center.z = aux_center[2];
-                centers.push_back(center);
+                // centers.push_back(center);
             
                 centers.push_back(center);
-                zaxes.push_back((xaxes.back()*yaxes.back()));
+                
                 xaxes.push_back(-normals[0]);
                 yaxes.push_back(-KDL::Vector(0,0,1));
+                zaxes.push_back((xaxes.back()*yaxes.back()));
             }
             // aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[1]/2.0*yaxes.back();
             // center.x = aux_center[0];
@@ -2149,14 +1720,14 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> & normals, std::vect
             frame_goal.p[1] = centers[i].y;
             frame_goal.p[2] = centers[i].z;
             std::vector<double> tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_goal);
-            printf("%f %f %f %f %f %f\n",tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
+            // printf("%f %f %f %f %f %f\n",tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
             yarp::os::Bottle bPose;
             for(int j = 0; j < 6; j++){
                 bPose.addFloat64(tcpX[j]);
             }
             m_bObject.addList() = bPose;
         }
-        // yInfo()<<m_bObject.toString();
+        yInfo()<<m_bObject.toString();
     
 
         rosComputeGraspingPosesArrowAndSend("waist", centers, xaxes, yaxes, zaxes);
@@ -2174,9 +1745,9 @@ void GetGraspingPoses::fillBoxPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr
     Eigen::Vector3f x(normal[0],normal[1],normal[2]);
     Eigen::Vector3f z(0,0,1);
     Eigen::Vector3f y = z.cross(x);
-    std::cout << "Cross product:\n" << z.cross(x) << std::endl;
+    // std::cout << "Cross product:\n" << z.cross(x) << std::endl;
     Eigen::Vector3f center_front_side(centroid.x, centroid.y, centroid.z);
-    yInfo()<<"Box size: "<<box_sizes[0]<<" "<<box_sizes[1]<<" "<<box_sizes[2];
+    // yInfo()<<"Box size: "<<box_sizes[0]<<" "<<box_sizes[1]<<" "<<box_sizes[2];
     for(float distance_planes = 0; distance_planes<= box_sizes[2]; distance_planes += box_sizes[2]){
         center_front_side += distance_planes*x;
         for(float dx=-box_sizes[0]/2.0; dx<=box_sizes[0]/2.0; dx+=m_resolution_filling_cloud){

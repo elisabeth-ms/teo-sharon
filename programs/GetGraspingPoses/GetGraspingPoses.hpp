@@ -51,12 +51,12 @@
 #define DEFAULT_CROP_SELECTOR 0  // 1=true
 #define DEFAULT_RGBD_DEVICE "RGBDSensorClient"
 #define DEFAULT_RGBD_LOCAL "/getGraspingPoses"
-#define DEFAULT_RGBD_REMOTE "/teoSim/camera" // /teoSim/camera or /xtion
+#define DEFAULT_RGBD_REMOTE "/xtion" // /teoSim/camera or /xtion
 #define DEFAULT_WATCHDOG    2       // [s]
 #define DEFAULT_RATE_MS 400
 #define DEFAULT_PREFIX "/getGraspingPoses"
 
-constexpr auto DEFAULT_ROBOT = "/teoSim"; // /teo or /teoSim
+constexpr auto DEFAULT_ROBOT = "/teo"; // /teo or /teoSim
 namespace sharon
 {
     struct LabelRGB{
