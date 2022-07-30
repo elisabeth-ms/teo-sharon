@@ -1,4 +1,4 @@
-# Copyright: Universidad Carlos III de Madrid (C) 2021
+# Copyright: Universidad Carlos III de Madrid (C) 2022
 # Authors: Elisabeth Menendez
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
@@ -45,11 +45,7 @@ yarp_prepare_plugin(TrajectoryGeneration
 
 yarp_add_plugin(TrajectoryGeneration TrajectoryGeneration.cpp TrajectoryGeneration.hpp)
 
-# Configure executable build target.
-# add_executable(${KEYWORD} main.cpp
-#                           TrajectoryGeneration.hpp
-#                           TrajectoryGeneration.cpp
-#                           )
+
 include_directories( ${track_ik_INCLUDEDIR}   ${pkg_nlopt_INCLUDE_DIRS})
 
 #add_executable(clientTrajectoryGenerationTargetPoseGazebo clientTrajectoryGenerationTargetPoseGazebo.cpp)
@@ -94,30 +90,5 @@ yarp_install(
                 )
 
 
-
-
-# add_executable(testTrajectoryGeneration main.cpp)
-# target_include_directories(testTrajectoryGeneration PRIVATE {trajectoryGeneration_INCLUDE_DIRS} ${orocos_kdl_INCLUDE_DIRS}  
-#                                                             ${OMPL_INCLUDE_DIRS}     
-#                                                             ${FCL_INCLUDE_DIRS})
-# target_link_libraries(testTrajectoryGeneration trajectoryGeneration)
-
-# set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
-# yarp_install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/trajectoryGeneration.ini"  DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})                                 
-# target_link_libraries(clientTrajectoryGenerationTargetPoseGazebo
-#                                  YARP::YARP_init
-#                                  YARP::YARP_dev
-#                                  ${orocos_kdl_LIBRARIES}
-#                                  ROBOTICSLAB::KdlVectorConverterLib
-#                                  ROBOTICSLAB::KinematicRepresentationLib
-#                                  CheckSelfCollisionLibrary
-#                                  )
-
-#target_include_directories(clientTrajectoryGenerationTargetPoseGazebo PRIVATE ${orocos_kdl_INCLUDE_DIRS}  ${OMPL_INCLUDE_DIRS}     ${FCL_INCLUDE_DIRS})
-
-# Create installation rule.
-# install(TARGETS ${KEYWORD}
-#         DESTINATION ${CMAKE_INSTALL_BINDIR}
-#         COMPONENT trajectory_generation)
 
 endif(ENABLE_trajectoryGeneration)
