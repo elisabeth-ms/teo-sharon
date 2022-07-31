@@ -138,8 +138,8 @@ namespace sharon
             {
                 KDL::Frame frameJoint;
                 kinematics_status = fksolver.JntToCart(qRad, frameJoint, centerLinksWrtJoints[i].first);
-                //printf("kinematic status %d\n", kinematics_status);
-                // printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
+                printf("kinematic status %d\n", kinematics_status);
+                printf("%d %f %f %f\n",centerLinksWrtJoints[i].first,frameJoint.p.x(), frameJoint.p.y(), frameJoint.p.z());
 
                 KDL::Frame frameCenterLink = frameJoint * centerLinksWrtJoints[i].second;
                 fcl::Vector3f translation(frameCenterLink.p[0], frameCenterLink.p[1], frameCenterLink.p[2]);
@@ -147,9 +147,11 @@ namespace sharon
                 frameCenterLink.M.GetQuaternion(x, y, z, w);
                 fcl::Quaternionf rotation(w, x, y, z);
 
-                // printf("trans: %d %f %f %f \n", centerLinksWrtJoints[i].first, translation[0], translation[1], translation[2]);
-                // printf("rot: %f %f %f %f\n", x, y, z, w);
+                printf("trans: %d %f %f %f \n", centerLinksWrtJoints[i].first, translation[0], translation[1], translation[2]);
+                printf("rot: %f %f %f %f\n", x, y, z, w);
                 collisionObjects[i].setTransform(rotation, translation);
+
+                
             }
             return true;
         }
@@ -264,6 +266,22 @@ namespace sharon
         return distanceResult.min_distance;
     }
 
+    bool CheckSelfCollision::getTransformation(const fcl::CollisionObjectf & collisionObject, std::vector<double> &transformation)
+    {
+        fcl::Quaternionf quat = collisionObject.getQuatRotation();
+        fcl::Vector3f translation = collisionObject.getTranslation();
+
+        printf("Quat: %f %f %f %f\n", quat.x(), quat.y(), quat.z(), quat.w());
+        printf("Translation: %f %f %f\n", translation[0], translation[1], translation[2]);
+        transformation.push_back(quat.x());
+        transformation.push_back(quat.y());
+        transformation.push_back(quat.z());
+        transformation.push_back(quat.w());
+        transformation.push_back(translation[0]);
+        transformation.push_back(translation[1]);
+        transformation.push_back(translation[2]);
+        return true;
+    }
 
 
     /************************************************************************/

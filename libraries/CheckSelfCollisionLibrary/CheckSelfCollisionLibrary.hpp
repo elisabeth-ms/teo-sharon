@@ -48,26 +48,24 @@ public:
             throw std::runtime_error("Number of joints is not equal to qmin and qmax size");
         }
 
-        KDL::Frame f =  chain.getSegment(0).getFrameToTip();
-        for(int i=0; i< chain.getNrOfSegments(); i++){
-                
-            double x = chain.getSegment(i).getFrameToTip().p.x();
-            double y = chain.getSegment(i).getFrameToTip().p.y();
-            double z = chain.getSegment(i).getFrameToTip().p.z();
+        for (int i=0; i<chain.getNrOfSegments();i++){
+            KDL::Frame f =  chain.getSegment(i).getFrameToTip();
+            double x = f.p.x();
+            double y = f.p.y();
+            double z = f.p.z();
             double roll, pitch, yaw;
-            chain.getSegment(i).getFrameToTip().M.GetRPY(roll, pitch, yaw);
-            double norm = chain.getSegment(i).getFrameToTip().p.Norm();
+            f.M.GetRPY(roll, pitch, yaw);
+            double norm = f.p.Norm();
 
-            if (norm != 0){
-                KDL::Frame frameLink;
-                frameLink.p = KDL::Vector(x/2.0, y/2.0, z/2.0);
-                
-                centerLinksWrtJoints.push_back(std::make_pair(i, frameLink));
-                printf("i: %d, x: %f, y: %f, z: %f\n", i, x/2, y/2, z/2);
-                printf("norm: %f\n", norm);
-
-            }
+         
+            KDL::Frame frameLink;
+            frameLink.p = KDL::Vector(x/2.0, y/2.0, z/2.0);
+            centerLinksWrtJoints.push_back(std::make_pair(i, frameLink));
+            printf("i: %d, x: %f, y: %f, z: %f\n", i, x/2, y/2, z/2);
+            printf("norm: %f\n", norm);
+            
         }
+
         if(centerLinksWrtJoints.size()!= collisionObjects.size()){
             printf("%lu %lu", centerLinksWrtJoints.size(), collisionObjects.size());
             throw std::runtime_error("Error in the number of collision objects");
@@ -92,6 +90,7 @@ public:
     double twoLinksDistance(const KDL::JntArray &q, int link1, int link2);
     double minDistance();
     bool linkTableCollide(const KDL::JntArray &q, int link);
+    bool getTransformation(const fcl::CollisionObjectf & collisionObject, std::vector<double> &transformation);
 
     KDL::JntArray jointsDeg2Rad(const KDL::JntArray &q);
     KDL::Chain chain;
