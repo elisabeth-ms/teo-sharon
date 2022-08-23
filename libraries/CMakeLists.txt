@@ -4,3 +4,4 @@
 
 add_subdirectory(CheckSelfCollisionLibrary)
 add_subdirectory(HumanHandToRobotJointsIK)
+add_subdirectory(HumanMotionData)
