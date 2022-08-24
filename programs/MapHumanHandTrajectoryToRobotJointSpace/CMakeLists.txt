@@ -1,4 +1,4 @@
-# Copyright: Universidad Carlos III de Madrid (C) 2021
+# Copyright: Universidad Carlos III de Madrid (C) 2022
 # Authors: Elisabeth Menendez
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
@@ -21,6 +21,7 @@ add_executable(${KEYWORD} MapHumanHandTrajectoryToRobotJointSpace.hpp
 target_link_libraries(${KEYWORD} nlopt
                                  Eigen3::Eigen
                                  CheckSelfCollisionLibrary
+                                 HumanMotionData
                                  ${orocos_kdl_LIBRARIES}
                                  )
 

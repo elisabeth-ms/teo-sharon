@@ -22,7 +22,7 @@ import sys
 
 robot='/teoSim'
 posesPathFile = "/home/elisabeth/repos/teo-sharon/programs/MapHumanToRobotMotionPerFrameIK/trajectories/prueba1-smoothed-link-adj.csv"
-jointPosesCsvFile = csvFile = "/home/elisabeth/repos/teo-sharon/programs/MapHumanToRobotMotionPerFrameIK/trajectories/prueba1-smoothed-ik-joints.csv";
+jointPosesCsvFile = csvFile = "/home/elisabeth/repos/teo-sharon/programs/MapHumanToRobotMotionPerFrameIK/trajectories/prueba1-q-positions-optimization.csv";
 
 
 handPoses = []
@@ -509,72 +509,85 @@ def main():
     pub_Hand_path.publish(hand_path)
     
     
-    # Suppose initial joints position to zero
-    current_Q = yarp.DVector(numRightArmJoints+numTrunkJoints)
-    for j in range(0, numRightArmJoints):
-        current_Q[j+2] = 0
-    for j in range(numTrunkJoints):
-        current_Q[j] = 0
-    qTraj1 = []
-    for i in range(10):
-        try:
-            pos = PyKDL.Vector(handPoses[i][0],handPoses[i][1],handPoses[i][2])
-            norm = np.sqrt(handPoses[i][3]*handPoses[i][3]+handPoses[i][4]*handPoses[i][4]+handPoses[i][5]*handPoses[i][5]+handPoses[i][6]*handPoses[i][6])
-            handPoses[i][3] = handPoses[i][3]/norm
-            handPoses[i][4] = handPoses[i][4]/norm
-            handPoses[i][5] = handPoses[i][5]/norm
-            handPoses[i][6] = handPoses[i][6]/norm
-            norm = np.sqrt(handPoses[i][3]*handPoses[i][3]+handPoses[i][4]*handPoses[i][4]+handPoses[i][5]*handPoses[i][5]+handPoses[i][6]*handPoses[i][6])
+    # # Suppose initial joints position to zero
+    # current_Q = yarp.DVector(numRightArmJoints+numTrunkJoints)
+    # for j in range(0, numRightArmJoints):
+    #     current_Q[j+2] = 0
+    # for j in range(numTrunkJoints):
+    #     current_Q[j] = 0
+    # qTraj1 = []
+    # for i in range(10):
+    #     try:
+    #         pos = PyKDL.Vector(handPoses[i][0],handPoses[i][1],handPoses[i][2])
+    #         norm = np.sqrt(handPoses[i][3]*handPoses[i][3]+handPoses[i][4]*handPoses[i][4]+handPoses[i][5]*handPoses[i][5]+handPoses[i][6]*handPoses[i][6])
+    #         handPoses[i][3] = handPoses[i][3]/norm
+    #         handPoses[i][4] = handPoses[i][4]/norm
+    #         handPoses[i][5] = handPoses[i][5]/norm
+    #         handPoses[i][6] = handPoses[i][6]/norm
+    #         norm = np.sqrt(handPoses[i][3]*handPoses[i][3]+handPoses[i][4]*handPoses[i][4]+handPoses[i][5]*handPoses[i][5]+handPoses[i][6]*handPoses[i][6])
 
-            # qx[i] = qx[i]/norm
-            # qy[i] = qy[i]/norm
-            # qz[i] = qz[i]/norm
-            # qw[i] = qw[i]/norm
-            print("norm: ", norm)
-            rot = PyKDL.Rotation.Quaternion(handPoses[i][3], handPoses[i][4],handPoses[i][5], handPoses[i][6])    
-            # rot = rot*PyKDL.Rotation.RotX(-np.pi/2.0)
-            # rot = rot*PyKDL.Rotation.RotZ(-np.pi/2.0-np.pi/4)
+    #         # qx[i] = qx[i]/norm
+    #         # qy[i] = qy[i]/norm
+    #         # qz[i] = qz[i]/norm
+    #         # qw[i] = qw[i]/norm
+    #         print("norm: ", norm)
+    #         rot = PyKDL.Rotation.Quaternion(handPoses[i][3], handPoses[i][4],handPoses[i][5], handPoses[i][6])    
+    #         # rot = rot*PyKDL.Rotation.RotX(-np.pi/2.0)
+    #         # rot = rot*PyKDL.Rotation.RotZ(-np.pi/2.0-np.pi/4)
 
-            frame = PyKDL.Frame(rot, pos)
-            rotVector = frame.M.GetRot()
-            x_vector = yarp.DVector(6)
-            x_vector[0] = handPoses[i][0]
-            x_vector[1] = handPoses[i][1]
-            x_vector[2] = handPoses[i][2]
+    #         frame = PyKDL.Frame(rot, pos)
+    #         rotVector = frame.M.GetRot()
+    #         x_vector = yarp.DVector(6)
+    #         x_vector[0] = handPoses[i][0]
+    #         x_vector[1] = handPoses[i][1]
+    #         x_vector[2] = handPoses[i][2]
             
-            x_vector[3] = rotVector.x()
-            x_vector[4] = rotVector.y()
-            x_vector[5] = rotVector.z()
-            desireQ = yarp.DVector(numRightArmJoints+numTrunkJoints)
-            if(trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desireQ)):
-                print(desireQ[0]," ",desireQ[1]," ",desireQ[2]," ",desireQ[3]," ",desireQ[4]," ",desireQ[5]," ",desireQ[6]," ",desireQ[7])
-                qPose = [desireQ[0],desireQ[1],desireQ[2],desireQ[3],desireQ[4],desireQ[5],desireQ[6],desireQ[7]]
-                qTraj1.append(qPose)
-                current_Q = desireQ
-        except KeyboardInterrupt:
-            sys.exit()
-    plotTrajectories(qTraj1)
+    #         x_vector[3] = rotVector.x()
+    #         x_vector[4] = rotVector.y()
+    #         x_vector[5] = rotVector.z()
+    #         desireQ = yarp.DVector(numRightArmJoints+numTrunkJoints)
+    #         if(trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desireQ)):
+    #             print(desireQ[0]," ",desireQ[1]," ",desireQ[2]," ",desireQ[3]," ",desireQ[4]," ",desireQ[5]," ",desireQ[6]," ",desireQ[7])
+    #             qPose = [desireQ[0],desireQ[1],desireQ[2],desireQ[3],desireQ[4],desireQ[5],desireQ[6],desireQ[7]]
+    #             qTraj1.append(qPose)
+    #             current_Q = desireQ
+    #     except KeyboardInterrupt:
+    #         sys.exit()
+    # plotTrajectories(qTraj1)
+    
+    trunkModes = yarp.IVector(numTrunkJoints, yarp.VOCAB_CM_POSITION)
+    if not trunkYarpDevice.IControlMode.setControlModes(trunkModes):
+        print("Unable to set trunk  to position mode.")
+        raise SystemExit
+    else:
+        print("Trunk set to position mode.")
 
-        
-        
     
+    rightArmModes = yarp.IVector(numRightArmJoints, yarp.VOCAB_CM_POSITION)
+    if not rightArmYarpDevice.IControlMode.setControlModes(rightArmModes):
+        print("Unable to set right arm  to position  mode.")
+        raise SystemExit
+    else:
+        print("Right arm set to position mode.")    
+    yarp.delay(5.0)
+
     
-    x_rightArm_trunk = yarp.DVector(6)
-    Q_eeff = yarp.DVector(numTrunkJoints+numRightArmJoints)
-    for j in range(numRightArmJoints+numTrunkJoints):
-        Q_eeff[j] = qTraj[0][j]
-    trunkRightArmICartesianSolver.fwdKin(Q_eeff, x_rightArm_trunk)
-    print("x_rightArm_trunk: ", x_rightArm_trunk[0], x_rightArm_trunk[1], x_rightArm_trunk[2], x_rightArm_trunk[3], x_rightArm_trunk[4], x_rightArm_trunk[5])
+    # x_rightArm_trunk = yarp.DVector(6)
+    # Q_eeff = yarp.DVector(numTrunkJoints+numRightArmJoints)
+    # for j in range(numRightArmJoints+numTrunkJoints):
+    #     Q_eeff[j] = qTraj[0][j]
+    # trunkRightArmICartesianSolver.fwdKin(Q_eeff, x_rightArm_trunk)
+    # print("x_rightArm_trunk: ", x_rightArm_trunk[0], x_rightArm_trunk[1], x_rightArm_trunk[2], x_rightArm_trunk[3], x_rightArm_trunk[4], x_rightArm_trunk[5])
     print("Move to the first joints position in positionControl mode.")
     for joint in range(numTrunkJoints):
-        print(numTrunkJoints, joint, qTraj[280][joint])
-        trunkYarpDevice.IPositionControl.positionMove(joint, qTraj[700][joint])
+        print(numTrunkJoints, joint, qTraj[0][joint])
+        trunkYarpDevice.IPositionControl.positionMove(joint, qTraj[0][joint])
     for joint in range(0, numRightArmJoints, 1):
-        print(numRightArmJoints, joint, qTraj[280][joint+2])
-        rightArmYarpDevice.IPositionControl.positionMove(joint, qTraj[700][joint+2])
+        print(numRightArmJoints, joint, qTraj[0][joint+2])
+        rightArmYarpDevice.IPositionControl.positionMove(joint, qTraj[0][joint+2])
 
-    markerArray = updateHumanMarkersAdj(280)
-    marker = updateMarkerEndEffector(280)
+    markerArray = updateHumanMarkersAdj(0)
+    marker = updateMarkerEndEffector(0)
     print("Publish markers")
     pub_marker_array_adj.publish(markerArray)
     pub_marker_array_adj.publish(markerArray)
@@ -583,50 +596,50 @@ def main():
     pub_end_effector.publish(marker)
     pub_end_effector.publish(marker)
 
-    i=0
-    print("i: ", i, "Q:", qTraj[i][0], qTraj[i][1], qTraj[i][2],
-            qTraj[i][3], qTraj[i][4], qTraj[i][5], qTraj[i][6], qTraj[i][7])
+    # i=0
+    # print("i: ", i, "Q:", qTraj[i][0], qTraj[i][1], qTraj[i][2],
+    #         qTraj[i][3], qTraj[i][4], qTraj[i][5], qTraj[i][6], qTraj[i][7])
     
-    if not trunkYarpDevice.IEncoders.getEncoders(currentTrunkQ):
-        print("Failed getEncoders")
-    for i in range(numTrunkJoints):
-        print(currentTrunkQ[i])
-    if not rightArmYarpDevice.IEncoders.getEncoders(currentQ):
-        print("Failed getEncoders")
-    for i in range(numRightArmJoints):
-        print(currentQ[i])
+    # if not trunkYarpDevice.IEncoders.getEncoders(currentTrunkQ):
+    #     print("Failed getEncoders")
+    # for i in range(numTrunkJoints):
+    #     print(currentTrunkQ[i])
+    # if not rightArmYarpDevice.IEncoders.getEncoders(currentQ):
+    #     print("Failed getEncoders")
+    # for i in range(numRightArmJoints):
+    #     print(currentQ[i])
 
-    currentTrunkQ = yarp.DVector(numTrunkJoints)
-
-
+    # currentTrunkQ = yarp.DVector(numTrunkJoints)
 
 
 
 
-    # markerArray = updateHumanMarkers(0)
+
+
+    # # # # markerArray = updateHumanMarkers(0)
    
 
-    # pub_marker_array.publish(markerArray)
-    # yarp.delay(15.0)
-    # print("Change to positionDirect mode.")
-    # rightArmModes = yarp.IVector(numRightArmJoints, yarp.VOCAB_CM_POSITION_DIRECT)
-    # if not rightArmYarpDevice.IControlMode.setControlModes(rightArmModes):
-    #     print("Unable to set right arm  to position mode.")
-    #     raise SystemExit
-    # else:
-    #     print("Right arm set to position mode.")
+    # # pub_marker_array.publish(markerArray)
+    # # yarp.delay(15.0)
+    print("Change to positionDirect mode.")
+    rightArmModes = yarp.IVector(numRightArmJoints, yarp.VOCAB_CM_POSITION_DIRECT)
+    if not rightArmYarpDevice.IControlMode.setControlModes(rightArmModes):
+        print("Unable to set right arm  to position direct.")
+        raise SystemExit
+    else:
+        print("Right arm set to position direct.")
 
 
-    # trunkModes = yarp.IVector(numTrunkJoints, yarp.VOCAB_CM_POSITION_DIRECT)
-    # if not trunkYarpDevice.IControlMode.setControlModes(trunkModes):
-    #     print("Unable to set trunk  to position mode.")
-    #     raise SystemExit
-    # else:
-    #     print("Trunk set to position mode.")
+    trunkModes = yarp.IVector(numTrunkJoints, yarp.VOCAB_CM_POSITION_DIRECT)
+    if not trunkYarpDevice.IControlMode.setControlModes(trunkModes):
+        print("Unable to set trunk  to position direct.")
+        raise SystemExit
+    else:
+        print("Trunk set to position direct.")
 
     yarp.delay(10.0)
     print("Moving through the joints position path in positionDirect mode ...")
-    period = 500
+    period = 200
     start = time.time()
     max = len(qTraj)
     for i in range(0, max, 1):
@@ -640,20 +653,18 @@ def main():
             pub_marker_array_adj.publish(markerArray)
             pub_end_effector.publish(marker)
 
-            # markerArray = updateHumanMarkers(i)
-            # pub_marker_array.publish(markerArray)
             for joint in range(0, numRightArmJoints, 1):
-                rightArmYarpDevice.IPositionControl.positionMove(joint, qTraj[i][joint+2])
+                rightArmYarpDevice.IPositionDirect.setPosition(joint, qTraj[i][joint+2])
             for joint in range(numTrunkJoints):
                 # print(numTrunkJoints, joint, desireQ[joint])
-                trunkYarpDevice.IPositionControl.positionMove(joint, qTraj[i][joint])
+                trunkYarpDevice.IPositionDirect.setPosition(joint, qTraj[i][joint])
             # for j in range(2):
             #     trunkYarpDevice.IPositionDirect.setPosition(j, qTraj[i][j])
             # for j in range(6):
             #     rightArmYarpDevice.IPositionDirect.setPosition(j, qTraj[i][j+2])
             
             time.sleep(period * 0.001 - ((time.time() - start) % (period * 0.001)))
-        except rospy.ROSInterruptException:
+        except KeyboardInterrupt:
             break
 
 
