@@ -5,7 +5,6 @@
 
 #include <cstdio>
 
-#include <ColorDebug.h>
 #include <mutex>
 
 #include <chrono>
@@ -223,6 +222,10 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
     {
         intrinsics.fromProperty(depthIntrinsicParams);
     }
+
+    yInfo() << "colorIntrinsicParams: " << colorIntrinsicParams.toString();
+    yInfo() << "depthIntrinsicParams: " << depthIntrinsicParams.toString();
+
     rosNode = new yarp::os::Node(DEFAULT_PREFIX);
 
     pointCloud_outTopic = new yarp::os::Publisher<yarp::rosmsg::sensor_msgs::PointCloud2>;
@@ -391,15 +394,15 @@ bool GetGraspingPoses::updateModule()
 
             pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
             sor.setInputCloud(transformed_cloud);
-            sor.setLeafSize(0.002f, 0.002f, 0.002f);
+            sor.setLeafSize(0.001f, 0.001f, 0.001f);
             sor.filter(*transformed_cloud_filtered);
 
-            // pcl::PassThrough<pcl::PointXYZRGBA> pass;
-            // pass.setInputCloud(transformed_cloud_filtered);
-            // pass.setFilterFieldName("x");
-            // pass.setFilterLimits(0.0, 1.2);
-            // // pass.setFilterLimitsNegative (true);
-            // pass.filter(*transformed_cloud_filtered);
+            pcl::PassThrough<pcl::PointXYZRGBA> pass;
+            pass.setInputCloud(transformed_cloud_filtered);
+            pass.setFilterFieldName("x");
+            pass.setFilterLimits(0.0, 0.8);
+            // pass.setFilterLimitsNegative (true);
+            pass.filter(*transformed_cloud_filtered);
 
             // auto stop = high_resolution_clock::now();
             // auto duration = duration_cast<microseconds>(stop - start);
@@ -411,80 +414,84 @@ bool GetGraspingPoses::updateModule()
             // // yInfo()<<"Point cloud transformed";
             // rosComputeAndSendPc(yarpCloud, "waist", *pointCloud_outTopic);
 
-            // // Now we need to remove the horizontal surface (table) from the point cloud.
-            // // transformed_cloud is the pcl cloud that I need to use.
+            // Now we need to remove the horizontal surface (table) from the point cloud.
+            // transformed_cloud is the pcl cloud that I need to use.
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr without_horizontal_surface_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
             // start = high_resolution_clock::now();
-            removeHorizontalSurfaceFromPointCloud(transformed_cloud_filtered, without_horizontal_surface_cloud);
+            bool table_removed = removeHorizontalSurfaceFromPointCloud(transformed_cloud_filtered, without_horizontal_surface_cloud);
             // stop = high_resolution_clock::now();
             // duration = duration_cast<microseconds>(stop - start);
             // yInfo() << "Duration removeHorizontalSurface: " << duration.count() << "microseconds.";
 
-            // Create the filtering object
-            pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sorOutliers;
-            sorOutliers.setInputCloud(without_horizontal_surface_cloud);
-            sorOutliers.setMeanK(50);
-            sorOutliers.setStddevMulThresh(1.0);
-            sorOutliers.filter(*without_horizontal_surface_cloud);
-            // Create the yarp cloud from the pcl cloud and send it to ros.
-
-            yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudWithoutHorizontalSurface;
-            yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*without_horizontal_surface_cloud, yarpCloudWithoutHorizontalSurface);
-
-            // // // yInfo()<<"Point cloud transformed";
-            rosComputeAndSendPc(yarpCloudWithoutHorizontalSurface, "waist", *pointCloudWithoutPlannarSurfaceTopic);
-
-            pcl::PointCloud<pcl::PointXYZL>::Ptr lccp_labeled_cloud;
-            // start = high_resolution_clock::now();
-            supervoxelOversegmentation(without_horizontal_surface_cloud, lccp_labeled_cloud);
-            // stop = high_resolution_clock::now();
-
-            // duration = duration_cast<microseconds>(stop - start);
-            // yInfo() << "Duration supervoxelOverSegmentation: " << duration.count() << "microseconds.";
-            yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudLccp;
-            yarp::pcl::fromPCL<pcl::PointXYZL, yarp::sig::DataXYZRGBA>(*lccp_labeled_cloud, yarpCloudLccp);
-            rosComputeAndSendPc(yarpCloudLccp, "waist", *pointCloudLccpTopic);
-
-            pcl::PointCloud<pcl::PointXYZRGBA>::Ptr lccp_colored_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-
-            // // yInfo()<<"Color cloud";
-            if (lccp_labeled_cloud->points.size() != 0)
+            if (table_removed)
             {
-                // yInfo()<<"Labeled cloud NOT empty";
-                yarp::os::Bottle bot;
-                if (detectionsPort.read(bot))
+                // Create the filtering object
+                pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sorOutliers;
+                sorOutliers.setInputCloud(without_horizontal_surface_cloud);
+                sorOutliers.setMeanK(40);
+                sorOutliers.setStddevMulThresh(0.5);
+                sorOutliers.filter(*without_horizontal_surface_cloud);
+                // Create the yarp cloud from the pcl cloud and send it to ros.
+
+                yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudWithoutHorizontalSurface;
+                yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*without_horizontal_surface_cloud, yarpCloudWithoutHorizontalSurface);
+
+                // // // // yInfo()<<"Point cloud transformed";
+                rosComputeAndSendPc(yarpCloudWithoutHorizontalSurface, "waist", *pointCloudWithoutPlannarSurfaceTopic);
+
+                pcl::PointCloud<pcl::PointXYZL>::Ptr lccp_labeled_cloud;
+                // // start = high_resolution_clock::now();
+                supervoxelOversegmentation(without_horizontal_surface_cloud, lccp_labeled_cloud);
+                // // stop = high_resolution_clock::now();
+
+                // // duration = duration_cast<microseconds>(stop - start);
+                // // yInfo() << "Duration supervoxelOverSegmentation: " << duration.count() << "microseconds.";
+                yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudLccp;
+                yarp::pcl::fromPCL<pcl::PointXYZL, yarp::sig::DataXYZRGBA>(*lccp_labeled_cloud, yarpCloudLccp);
+                rosComputeAndSendPc(yarpCloudLccp, "waist", *pointCloudLccpTopic);
+
+                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr lccp_colored_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+                // // yInfo()<<"Color cloud";
+                if (lccp_labeled_cloud->points.size() != 0)
                 {
-                    // yInfo()<<bot.toString();
-                    yInfo() << "size:" << bot.size();
-                    m_bGraspingPoses.clear();
-
-                    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filling_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-                    // start = high_resolution_clock::now();
-                    XYZLPointCloudToRGBAPointCloud(lccp_labeled_cloud, bot, lccp_colored_cloud, filling_cloud);
-                    if (filling_cloud->size() > 0)
+                    // yInfo()<<"Labeled cloud NOT empty";
+                    yarp::os::Bottle bot;
+                    if (detectionsPort.read(bot))
                     {
-                        // stop = high_resolution_clock::now();
+                        // yInfo()<<bot.toString();
+                        yInfo() << "size:" << bot.size();
+                        m_bGraspingPoses.clear();
 
-                        // duration = duration_cast<microseconds>(stop - start);
-                        // yInfo() << "Duration XYZLPointCloudToRGBAPointCloud: " << duration.count() << "microseconds.";
-                        yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &yarpCloudFilling = outPointCloudPort.prepare();
-                        yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*filling_cloud, yarpCloudFilling);
+                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filling_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+                        // start = high_resolution_clock::now();
+                        XYZLPointCloudToRGBAPointCloud(lccp_labeled_cloud, bot, lccp_colored_cloud, filling_cloud);
+                        if (filling_cloud->size() > 0)
+                        {
+                            // stop = high_resolution_clock::now();
 
-                        // // yInfo()<<"Point cloud transformed";
-                        rosComputeAndSendPc(yarpCloudFilling, "waist", *pointCloudFillingObjectsTopic);
+                            // duration = duration_cast<microseconds>(stop - start);
+                            // yInfo() << "Duration XYZLPointCloudToRGBAPointCloud: " << duration.count() << "microseconds.";
+                            yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &yarpCloudFilling = outPointCloudPort.prepare();
+                            yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*filling_cloud, yarpCloudFilling);
 
-                        outPointCloudPort.write();
+                            // // yInfo()<<"Point cloud transformed";
+                            rosComputeAndSendPc(yarpCloudFilling, "waist", *pointCloudFillingObjectsTopic);
+
+                            outPointCloudPort.write();
+                        }
                     }
-                }
 
-                // for(unsigned int p = 0; p<lccp_labeled_cloud->points.size(); p++)
-                //     yInfo()<<"label: "<<lccp_labeled_cloud->points[p].label;
-                // pcl::io::savePCDFile ("out.pcd", *lccp_labeled_cloud, true);
+                    // for(unsigned int p = 0; p<lccp_labeled_cloud->points.size(); p++)
+                    //     yInfo()<<"label: "<<lccp_labeled_cloud->points[p].label;
+                    // pcl::io::savePCDFile ("out.pcd", *lccp_labeled_cloud, true);
+                    // }
+                }
             }
         }
-    }
 
-    return true;
+        return true;
+    }
 }
 
 /************************************************************************/
@@ -790,7 +797,7 @@ bool GetGraspingPoses::removeHorizontalSurfaceFromPointCloud(const pcl::PointClo
     seg.setMaxIterations(2000);
     seg.setDistanceThreshold(0.03);
     seg.setAxis(Eigen::Vector3f::UnitX());
-    seg.setEpsAngle(0.04);
+    seg.setEpsAngle(0.01);
 
     seg.setInputCloud(wholePointCloud);
     seg.segment(*inliers, *coefficients);
@@ -801,6 +808,10 @@ bool GetGraspingPoses::removeHorizontalSurfaceFromPointCloud(const pcl::PointClo
     extract.setIndices(inliers);
     extract.setNegative(true); // Extract the inliers
     extract.filter(*withoutHorizontalSurfacePointCloud);
+
+    if ((wholePointCloud->size() - withoutHorizontalSurfacePointCloud->size()) > DEFAULT_MIN_POINTS_TABLE)
+        return true;
+    return false;
 }
 
 bool GetGraspingPoses::supervoxelOversegmentation(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &inputPointCloud, pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud)
@@ -906,6 +917,8 @@ bool GetGraspingPoses::supervoxelOversegmentation(const pcl::PointCloud<pcl::Poi
     lccp.relabelCloud(*lccp_labeled_cloud);
 
     yInfo() << "supervoxel clusters: " << supervoxel_clusters.size();
+
+    return true;
 
     // PCL_INFO ("relabel\n");
 }
@@ -1032,7 +1045,6 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
         seg.setMaxIterations(2000);
         seg.setDistanceThreshold(0.03);
 
-
         // Create the filtering object
         pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 
@@ -1063,9 +1075,8 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
             // printf("Model coefficients: %f %f %f %f\n",coefficients->values[0],coefficients->values[1],coefficients->values[2], coefficients->values[3]);
             double lengthNormal = sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] * coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
             KDL::Vector n(coefficients->values[0] / lengthNormal, coefficients->values[1] / lengthNormal, coefficients->values[2] / lengthNormal);
-            
 
-            printf("Normal vector to plane: %f %f %f\n", n[0], n[1],n[2]);
+            printf("Normal vector to plane: %f %f %f\n", n[0], n[1], n[2]);
 
             // Extract the inliers
             extract.setInputCloud(copy_object_cloud);
@@ -1119,31 +1130,32 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
             // printf("One or more Planes are detected!\n");
             m_bObject.clear();
             m_bObject.addString(category);
-            if (category == "cereals1" || category == "cereals2" || category == "cereals3")
+            // if (category == "cereals1" || category == "cereals2" || category == "cereals3")
+            if (category == "cereals1")
             {
                 completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, cerealBoxShape);
                 // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
                 // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
             }
-            if (category == "milk1" || category == "milk2")
-            {
-                completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, milkBoxShape);
-                // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
-                // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
-            }
-            if (category == "sugar1")
-            {
-                completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar1Shape);
-            }
-            if (category == "sugar2")
-            {
-                completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar2Shape);
-            }
+            // if (category == "milk1" || category == "milk2")
+            // {
+            //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, milkBoxShape);
+            //     // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
+            //     // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
+            // }
+            // if (category == "sugar1")
+            // {
+            //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar1Shape);
+            // }
+            // if (category == "sugar2")
+            // {
+            //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar2Shape);
+            // }
 
-            if (category == "sugar3")
-            {
-                completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar3Shape);
-            }
+            // if (category == "sugar3")
+            // {
+            //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar3Shape);
+            // }
             m_bGraspingPoses.addList() = m_bObject;
         }
     }
@@ -1229,30 +1241,30 @@ void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl:
 
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr aux_bbox(new pcl::PointCloud<pcl::PointXYZRGBA>);
 
-        pcl::PointXYZ maxPointCloud(-1000, -1000, -1000), minPointCloud(1000, 1000, 1000);
-        for (size_t idx = 0; idx < aux_cloud->size(); idx++)
-        {
-            pcl::PointXYZ p(aux_cloud->points[idx].x, aux_cloud->points[idx].y, aux_cloud->points[idx].z);
-            if (p.x > maxPointCloud.x)
-                maxPointCloud.x = p.x;
-            if (p.y > maxPointCloud.y)
-                maxPointCloud.y = p.y;
-            if (p.z > maxPointCloud.z)
-                maxPointCloud.z = p.z;
-            if (p.x < minPointCloud.x)
-                minPointCloud.x = p.x;
-            if (p.y < minPointCloud.y)
-                minPointCloud.y = p.y;
-            if (p.z < minPointCloud.z)
-                minPointCloud.z = p.z;
-            // yInfo()<<"p: "<<p.x<<" "<<p.y<<" "<<p.z;
-        }
+        // pcl::PointXYZ maxPointCloud(-1000, -1000, -1000), minPointCloud(1000, 1000, 1000);
+        // for (size_t idx = 0; idx < aux_cloud->size(); idx++)
+        // {
+        //     pcl::PointXYZ p(aux_cloud->points[idx].x, aux_cloud->points[idx].y, aux_cloud->points[idx].z);
+        //     if (p.x > maxPointCloud.x)
+        //         maxPointCloud.x = p.x;
+        //     if (p.y > maxPointCloud.y)
+        //         maxPointCloud.y = p.y;
+        //     if (p.z > maxPointCloud.z)
+        //         maxPointCloud.z = p.z;
+        //     if (p.x < minPointCloud.x)
+        //         minPointCloud.x = p.x;
+        //     if (p.y < minPointCloud.y)
+        //         minPointCloud.y = p.y;
+        //     if (p.z < minPointCloud.z)
+        //         minPointCloud.z = p.z;
+        //     // yInfo()<<"p: "<<p.x<<" "<<p.y<<" "<<p.z;
+        // }
         pcl::PointXYZRGBA maxPoint;
         pcl::PointXYZRGBA minPoint;
         pcl::getMinMax3D(*aux_cloud, minPoint, maxPoint);
 
-        yInfo() << "maxPointCloud: " << maxPointCloud.x << " " << maxPointCloud.y << " " << maxPointCloud.z;
-        yInfo() << "minPointCloud: " << minPointCloud.x << " " << minPointCloud.y << " " << minPointCloud.z;
+        // yInfo() << "maxPointCloud: " << maxPointCloud.x << " " << maxPointCloud.y << " " << maxPointCloud.z;
+        // yInfo() << "minPointCloud: " << minPointCloud.x << " " << minPointCloud.y << " " << minPointCloud.z;
         bbox->clear();
         pcl::PointXYZRGBA auxp;
         auxp.x = maxPoint.x;

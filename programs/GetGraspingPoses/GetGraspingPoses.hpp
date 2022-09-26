@@ -58,6 +58,7 @@
 #define DEFAULT_RATE_MS 400
 #define DEFAULT_PREFIX "/getGraspingPoses"
 #define DEFAULT_MIN_NPOINTS 100
+#define DEFAULT_MIN_POINTS_TABLE 200
 
 constexpr auto DEFAULT_ROBOT = "/teoSim"; // /teo or /teoSim
 namespace sharon
