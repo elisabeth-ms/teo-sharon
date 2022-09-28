@@ -182,6 +182,7 @@ namespace sharon
         void updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud);
         bool PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud);
         void GetSuperquadricFromPointCloud(SuperqModel::PointCloud point_cloud,std::vector<SuperqModel::Superquadric> &superqs);
+        void createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric);
 
         void rosComputeGraspingPosesArrowAndSend(const std::string &frame_id, std::vector<pcl::PointXYZRGBA> &centroids, std::vector<KDL::Vector> &xaxis, std::vector<KDL::Vector> &yaxis, std::vector<KDL::Vector> &normals);
         double watchdog;

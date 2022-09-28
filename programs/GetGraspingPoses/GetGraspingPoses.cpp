@@ -482,18 +482,27 @@ bool GetGraspingPoses::updateModule()
                 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr lccp_colored_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
 
                 // // yInfo()<<"Color cloud";
+                yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudSuperquadric;
+                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudSuperquadric(new pcl::PointCloud<pcl::PointXYZRGBA>);
                 if (lccp_labeled_cloud->points.size() != 0)
                 {
 
                     updateDetectedObjectsPointCloud(lccp_labeled_cloud);
-
-                    for(unsigned int idx = 0; idx<detected_objects.size(); idx++){
+                    for (unsigned int idx = 0; idx < 1; idx++)
+                    {
                         SuperqModel::PointCloud point_cloud;
-                        PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud,point_cloud);
+                        PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud, point_cloud);
                         std::vector<SuperqModel::Superquadric> superqs;
-                        GetSuperquadricFromPointCloud(point_cloud, superqs); 
-                    }
+                        GetSuperquadricFromPointCloud(point_cloud, superqs);
+                        yInfo()<<"create";
 
+                        createPointCloudFromSuperquadric(superqs, cloudSuperquadric);
+                        yInfo()<<"created";
+                        yInfo()<<cloudSuperquadric->points.size();
+                    }
+                    yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
+                    yInfo()<<yarpCloudSuperquadric.size();
+                    rosComputeAndSendPc(yarpCloudSuperquadric, "waist", *pointCloudFillingObjectsTopic);
                     // // yInfo()<<"Labeled cloud NOT empty";
                     // yarp::os::Bottle bot;
                     // if (detectionsPort.read(bot))
@@ -1311,6 +1320,74 @@ void GetGraspingPoses::GetSuperquadricFromPointCloud(SuperqModel::PointCloud poi
         estim.SetStringValue("object_class", object_class);
         superqs = estim.computeSuperq(point_cloud);
     }
+}
+
+void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric)
+{
+    //Similar to sampling in https://github.com/ana-GT/GSoC_PCL
+    double cn, sn, sw, cw;
+    double n, w;
+    int num_n, num_w;
+    double dn, dw;
+    dn = 0.5 * M_PI / 180.0;
+    dw = 0.5 * M_PI / 180.0;
+    num_n = (int)(M_PI / dn);
+    num_w = (int)(2 * M_PI / dw);
+    n = -M_PI / 2.0;
+
+    auto params = superqs[0].getSuperqParams();
+    for (int i = 0; i < num_n; ++i)
+    {
+        cn = cos(n);
+        sn = sin(n);
+        w = -M_PI;
+        for (int j = 0; j < num_w; ++j)
+        {
+           
+            cw = cos(w);
+            sw = sin(w);
+            pcl::PointXYZRGBA p;
+            p.x = params[0] * pow(fabs(cn), params[3]) * pow(fabs(cw), params[4]);
+            p.y = params[1] * pow(fabs(cn), params[3]) * pow(fabs(sw), params[4]);
+            p.z = params[2] * pow(fabs(sn), params[3]);
+            p.r = 1;
+            p.g = 0;
+            p.b = 0;
+            p.a = 1;
+
+            if (cn * cw < 0)
+            {
+                p.x = -p.x;
+            }
+            if (cn * sw < 0)
+            {
+                p.y = -p.y;
+            }
+            if (sn < 0)
+            {
+                p.z = -p.z;
+            }
+            cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+
+            w += dw;
+
+        }
+        n += dn;
+    }
+
+    Eigen::AngleAxisf rollAngle(params[8], Eigen::Vector3f::UnitZ());
+    Eigen::AngleAxisf yawAngle(params[9], Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf pitchAngle(params[10], Eigen::Vector3f::UnitX());
+
+    Eigen::Quaternionf q = rollAngle * yawAngle * pitchAngle;
+    Eigen::Matrix3f rotationMatrix = q.matrix();
+
+    Eigen::Vector3f v(params[5],params[6],params[7]);
+    Eigen::Matrix4f transform = Eigen::Affine3f(Eigen::Translation3f(v)).matrix();
+
+    transform.block<3,3>(0,0) = rotationMatrix;
+    pcl::transformPointCloud(*cloudSuperquadric, *cloudSuperquadric, transform);
+
 
 }
 
