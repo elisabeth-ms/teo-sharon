@@ -429,7 +429,7 @@ bool GetGraspingPoses::updateModule()
             pcl::PassThrough<pcl::PointXYZRGBA> pass;
             pass.setInputCloud(transformed_cloud_filtered);
             pass.setFilterFieldName("x");
-            pass.setFilterLimits(0.0, 0.8);
+            pass.setFilterLimits(0.0, 0.7);
             // pass.setFilterLimitsNegative (true);
             pass.filter(*transformed_cloud_filtered);
 
@@ -455,11 +455,11 @@ bool GetGraspingPoses::updateModule()
             if (table_removed)
             {
                 // Create the filtering object
-                pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sorOutliers;
-                sorOutliers.setInputCloud(without_horizontal_surface_cloud);
-                sorOutliers.setMeanK(40);
-                sorOutliers.setStddevMulThresh(0.5);
-                sorOutliers.filter(*without_horizontal_surface_cloud);
+                // pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sorOutliers;
+                // sorOutliers.setInputCloud(without_horizontal_surface_cloud);
+                // sorOutliers.setMeanK(40);
+                // sorOutliers.setStddevMulThresh(0.5);
+                // sorOutliers.filter(*without_horizontal_surface_cloud);
                 // Create the yarp cloud from the pcl cloud and send it to ros.
 
                 yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudWithoutHorizontalSurface;
@@ -488,7 +488,7 @@ bool GetGraspingPoses::updateModule()
                 {
 
                     updateDetectedObjectsPointCloud(lccp_labeled_cloud);
-                    for (unsigned int idx = 0; idx < 1; idx++)
+                    for (unsigned int idx = 0; idx < detected_objects.size(); idx++)
                     {
                         SuperqModel::PointCloud point_cloud;
                         PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud, point_cloud);
@@ -496,9 +496,10 @@ bool GetGraspingPoses::updateModule()
                         GetSuperquadricFromPointCloud(point_cloud, superqs);
                         yInfo()<<"create";
 
-                        createPointCloudFromSuperquadric(superqs, cloudSuperquadric);
-                        yInfo()<<"created";
-                        yInfo()<<cloudSuperquadric->points.size();
+                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr auxCloudSuperquadric(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+                        createPointCloudFromSuperquadric(superqs, auxCloudSuperquadric);
+                        *cloudSuperquadric += *auxCloudSuperquadric;
                     }
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
                     yInfo()<<yarpCloudSuperquadric.size();
@@ -1375,9 +1376,13 @@ void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<Superq
         n += dn;
     }
 
+
+    // Eigen::Matrix3f rotationMatrix = AngleAxisd(params[8], Vector3d::UnitZ())*
+    //      AngleAxisd(params[9], Vector3d::UnitY())*
+    //      AngleAxisd(params[10], Vector3d::UnitZ())
     Eigen::AngleAxisf rollAngle(params[8], Eigen::Vector3f::UnitZ());
     Eigen::AngleAxisf yawAngle(params[9], Eigen::Vector3f::UnitY());
-    Eigen::AngleAxisf pitchAngle(params[10], Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(params[10], Eigen::Vector3f::UnitZ());
 
     Eigen::Quaternionf q = rollAngle * yawAngle * pitchAngle;
     Eigen::Matrix3f rotationMatrix = q.matrix();
