@@ -21,6 +21,7 @@
 
 #include <yarp/sig/PointCloud.h>
 #include <yarp/pcl/Pcl.h>
+#include <yarp/eigen/Eigen.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -50,6 +51,10 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/surface/mls.h>
+
+// SuperquadricLib
+#include <SuperquadricLibModel/superquadricEstimator.h>
+
 #define DEFAULT_CROP_SELECTOR 0 // 1=true
 #define DEFAULT_RGBD_DEVICE "RGBDSensorClient"
 #define DEFAULT_RGBD_LOCAL "/getGraspingPoses"
@@ -174,6 +179,10 @@ namespace sharon
         void fillBoxPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &filling_cloud, const pcl::PointXYZRGBA &centroid,
                                const KDL::Vector &normal, float box_sizes[3], int rgb[3]);
 
+        void updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud);
+        bool PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud);
+        void GetSuperquadricFromPointCloud(SuperqModel::PointCloud point_cloud,std::vector<SuperqModel::Superquadric> &superqs);
+
         void rosComputeGraspingPosesArrowAndSend(const std::string &frame_id, std::vector<pcl::PointXYZRGBA> &centroids, std::vector<KDL::Vector> &xaxis, std::vector<KDL::Vector> &yaxis, std::vector<KDL::Vector> &normals);
         double watchdog;
 
@@ -200,6 +209,13 @@ namespace sharon
 
         std::vector<Object> detected_objects;
         int th_points = DEFAULT_MIN_NPOINTS;
+
+        std::map<std::string,double> sq_model_params;
+        SuperqModel::SuperqEstimatorApp estim;
+
+        bool single_superq;
+        std::string object_class;
+
     };
 
 } // namespace sharon

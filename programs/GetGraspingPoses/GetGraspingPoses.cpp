@@ -294,6 +294,35 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
         yInfo("Opening graspingPoses topic succesfully.\n");
     }
 
+    /* ------ Set Superquadric Model parameters ------ */
+
+    int print_level_superq = rf.check("print_level_superq", yarp::os::Value(0)).asInt32();
+    object_class = rf.check("object_class", yarp::os::Value("default")).toString();
+    single_superq = rf.check("single_superq", yarp::os::Value(true)).asBool();
+    sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-5)).asFloat64();
+    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(50)).asInt32();
+    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(true)).asBool();
+
+    sq_model_params["merge_model"] = rf.check("merge_model", yarp::os::Value(true)).asBool();
+    sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(150)).asInt32();
+    sq_model_params["fraction_pc"] = rf.check("fraction_pc", yarp::os::Value(8)).asInt32();
+    sq_model_params["threshold_axis"] = rf.check("tol_threshold_axissuperq", yarp::os::Value(0.7)).asFloat64();
+    sq_model_params["threshold_section1"] = rf.check("threshold_section1", yarp::os::Value(0.6)).asFloat64();
+    sq_model_params["threshold_section2"] = rf.check("threshold_section2", yarp::os::Value(0.03)).asFloat64();
+
+    estim.SetNumericValue("tol", sq_model_params["tol"]);
+    estim.SetIntegerValue("print_level", print_level_superq);
+    estim.SetStringValue("object_class", object_class);
+    estim.SetIntegerValue("optimizer_points", int(sq_model_params["optimizer_points"]));
+    estim.SetBoolValue("random_sampling", bool(sq_model_params["random_sampling"]));
+
+    estim.SetBoolValue("merge_model", sq_model_params["merge_model"]);
+    estim.SetIntegerValue("minimum_points", sq_model_params["minimum_points"]);
+    estim.SetIntegerValue("fraction_pc", sq_model_params["fraction_pc"]);
+    estim.SetNumericValue("threshold_axis", sq_model_params["threshold_axis"]);
+    estim.SetNumericValue("threshold_section1", sq_model_params["threshold_section1"]);
+    estim.SetNumericValue("threshold_section2", sq_model_params["threshold_section2"]);
+
     this->detected_objects.resize(0);
 
     rpcServer.setReader(*this);
@@ -455,32 +484,42 @@ bool GetGraspingPoses::updateModule()
                 // // yInfo()<<"Color cloud";
                 if (lccp_labeled_cloud->points.size() != 0)
                 {
-                    // yInfo()<<"Labeled cloud NOT empty";
-                    yarp::os::Bottle bot;
-                    if (detectionsPort.read(bot))
-                    {
-                        // yInfo()<<bot.toString();
-                        yInfo() << "size:" << bot.size();
-                        m_bGraspingPoses.clear();
 
-                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filling_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-                        // start = high_resolution_clock::now();
-                        XYZLPointCloudToRGBAPointCloud(lccp_labeled_cloud, bot, lccp_colored_cloud, filling_cloud);
-                        if (filling_cloud->size() > 0)
-                        {
-                            // stop = high_resolution_clock::now();
+                    updateDetectedObjectsPointCloud(lccp_labeled_cloud);
 
-                            // duration = duration_cast<microseconds>(stop - start);
-                            // yInfo() << "Duration XYZLPointCloudToRGBAPointCloud: " << duration.count() << "microseconds.";
-                            yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &yarpCloudFilling = outPointCloudPort.prepare();
-                            yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*filling_cloud, yarpCloudFilling);
-
-                            // // yInfo()<<"Point cloud transformed";
-                            rosComputeAndSendPc(yarpCloudFilling, "waist", *pointCloudFillingObjectsTopic);
-
-                            outPointCloudPort.write();
-                        }
+                    for(unsigned int idx = 0; idx<detected_objects.size(); idx++){
+                        SuperqModel::PointCloud point_cloud;
+                        PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud,point_cloud);
+                        std::vector<SuperqModel::Superquadric> superqs;
+                        GetSuperquadricFromPointCloud(point_cloud, superqs); 
                     }
+
+                    // // yInfo()<<"Labeled cloud NOT empty";
+                    // yarp::os::Bottle bot;
+                    // if (detectionsPort.read(bot))
+                    // {
+                    //     // yInfo()<<bot.toString();
+                    //     yInfo() << "size:" << bot.size();
+                    //     m_bGraspingPoses.clear();
+
+                    //     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filling_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+                    //     // start = high_resolution_clock::now();
+                    //     XYZLPointCloudToRGBAPointCloud(lccp_labeled_cloud, bot, lccp_colored_cloud, filling_cloud);
+                    //     if (filling_cloud->size() > 0)
+                    //     {
+                    //         // stop = high_resolution_clock::now();
+
+                    //         // duration = duration_cast<microseconds>(stop - start);
+                    //         // yInfo() << "Duration XYZLPointCloudToRGBAPointCloud: " << duration.count() << "microseconds.";
+                    //         yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &yarpCloudFilling = outPointCloudPort.prepare();
+                    //         yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*filling_cloud, yarpCloudFilling);
+
+                    //         // // yInfo()<<"Point cloud transformed";
+                    //         rosComputeAndSendPc(yarpCloudFilling, "waist", *pointCloudFillingObjectsTopic);
+
+                    //         outPointCloudPort.write();
+                    //     }
+                    // }
 
                     // for(unsigned int p = 0; p<lccp_labeled_cloud->points.size(); p++)
                     //     yInfo()<<"label: "<<lccp_labeled_cloud->points[p].label;
@@ -795,9 +834,9 @@ bool GetGraspingPoses::removeHorizontalSurfaceFromPointCloud(const pcl::PointClo
     seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(2000);
-    seg.setDistanceThreshold(0.03);
+    seg.setDistanceThreshold(0.02);
     seg.setAxis(Eigen::Vector3f::UnitX());
-    seg.setEpsAngle(0.01);
+    seg.setEpsAngle(0.008);
 
     seg.setInputCloud(wholePointCloud);
     seg.segment(*inliers, *coefficients);
@@ -1010,7 +1049,7 @@ bool GetGraspingPoses::computeIntersectionOverUnion(std::array<int, 4> detection
         // yInfo()<<"cluster bbox area: "<<cluster_bbox_area;
 
         IoU = inter_area / (detection_bbox_area + cluster_bbox_area - inter_area);
-        // yInfo()<<"IoU: "<<IoU;
+        yInfo() << "IoU: " << IoU;
 
         return true;
     }
@@ -1043,7 +1082,7 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
         seg.setModelType(pcl::SACMODEL_PLANE);
         seg.setMethodType(pcl::SAC_RANSAC);
         seg.setMaxIterations(2000);
-        seg.setDistanceThreshold(0.03);
+        seg.setDistanceThreshold(0.012);
 
         // Create the filtering object
         pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
@@ -1084,6 +1123,13 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
             extract.setNegative(false);
             extract.filter(*cloud_p);
 
+            // // aqui
+            // yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudPlane;
+            // yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloud_p, yarpCloudPlane);
+            // rosComputeAndSendPc(yarpCloudPlane, "waist", *pointCloudLccpTopic);
+
+            // yarp::os::Time::delay(5.0);
+
             // printf("PointCloud representing the planar component: %d data points\n",cloud_p->width * cloud_p->height);
 
             pcl::CentroidPoint<pcl::PointXYZRGBA> centroid;
@@ -1095,10 +1141,10 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
 
             pcl::PointXYZRGBA c1;
             centroid.get(c1);
-            printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
+            // printf("Centroid %f %f %f\n", c1.x, c1.y, c1.z);
             std::stringstream ss;
-            ss << "plane_scene_" << i << ".pcd";
-            printf("plane_scene_%d\n", i);
+            // ss << "plane_scene_" << i << ".pcd";
+            // printf("plane_scene_%d\n", i);
 
             // writer.write<pcl::PointXYZRGBA> (ss.str (), *cloud_p, false);
 
@@ -1130,19 +1176,18 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
             // printf("One or more Planes are detected!\n");
             m_bObject.clear();
             m_bObject.addString(category);
-            // if (category == "cereals1" || category == "cereals2" || category == "cereals3")
-            if (category == "cereals1")
+            if (category == "cereals1" || category == "cereals2" || category == "cereals3")
             {
                 completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, cerealBoxShape);
                 // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
                 // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
             }
-            // if (category == "milk1" || category == "milk2")
-            // {
-            //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, milkBoxShape);
-            //     // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
-            //     // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
-            // }
+            if (category == "milk1" || category == "milk2")
+            {
+                completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, milkBoxShape);
+                // computeGraspingPosesCereal(normals, centroids, maxPoints, minPoints, graspingPoses);
+                // rosComputeGraspingPosesArrowAndSend("waist", centroids, normals);
+            }
             // if (category == "sugar1")
             // {
             //     completeBox(normals, centroids, maxPoints, minPoints, filling_cloud, rgb, sugar1Shape);
@@ -1161,18 +1206,9 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
     }
 }
 
-void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud, const yarp::os::Bottle &bottle_detections,
-                                                      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &lccp_colored_cloud,
-                                                      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &filling_cloud)
+void GetGraspingPoses::updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud)
 {
-
-    //------------------------------ SEGMENTATION POST PROCESSING ---------------------------------
-    // construct for each segmented object the point cloud associated to that object
     detected_objects.clear();
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr transformed_object_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr transformed_bboxes(new pcl::PointCloud<pcl::PointXYZRGBA>);
-
-    yInfo() << "Segmentation Post Processing";
     for (int i = 0; i < lccp_labeled_cloud->points.size(); ++i)
     {
 
@@ -1214,8 +1250,79 @@ void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl:
             size = detected_objects.size();
         }
         else
+        {
+            detected_objects[i].object_cloud.width = detected_objects[i].object_cloud.size();
+            detected_objects[i].object_cloud.height = 1;
             i++;
+        }
     }
+}
+
+bool GetGraspingPoses::PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud)
+{
+    std::vector<yarp::sig::Vector> acquired_points;
+    std::vector<std::vector<unsigned char>> acquired_colors;
+
+    yarp::sig::Vector point(3);
+    std::vector<unsigned char> c;
+    c.resize(3);
+
+    for (size_t idx = 0; idx < object_cloud.size(); idx++)
+    {
+        point(0) = object_cloud[idx].x;
+        point(1) = object_cloud[idx].y;
+        point(2) = object_cloud[idx].z;
+
+        c[0] = object_cloud[idx].r;
+        c[1] = object_cloud[idx].g;
+        c[2] = object_cloud[idx].b;
+
+        acquired_points.push_back(point);
+        acquired_colors.push_back(c);
+    }
+
+    std::deque<Eigen::Vector3d> eigen_points;
+
+    for (size_t i = 0; i < acquired_points.size(); i++)
+    {
+        eigen_points.push_back(yarp::eigen::toEigen(acquired_points[i]));
+    }
+
+    if (eigen_points.size() >= sq_model_params["minimum_points"])
+    {
+        point_cloud.setPoints(eigen_points);
+        point_cloud.setColors(acquired_colors);
+        return true;
+    }
+    else
+        return false;
+}
+
+void GetGraspingPoses::GetSuperquadricFromPointCloud(SuperqModel::PointCloud point_cloud, std::vector<SuperqModel::Superquadric> &superqs)
+{
+
+    /*  ------------------------------  */
+    /*  ------> Compute superq <------  */
+    /*  ------------------------------  */
+
+    yInfo() << "[computeSuperqAndGrasp]: compute superq";
+    if (single_superq || object_class != "default")
+    {
+        estim.SetStringValue("object_class", object_class);
+        superqs = estim.computeSuperq(point_cloud);
+    }
+
+}
+
+void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud, const yarp::os::Bottle &bottle_detections,
+                                                      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &lccp_colored_cloud,
+                                                      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &filling_cloud)
+{
+
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr transformed_object_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr transformed_bboxes(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+    updateDetectedObjectsPointCloud(lccp_labeled_cloud);
 
     Eigen::Matrix4f transform;
     getTransformMatrix(false, transform);
@@ -1223,6 +1330,11 @@ void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl:
     for (int i = 0; i < detected_objects.size(); i++)
     {
         // yInfo()<<"Cloud: "<<i;
+        std::stringstream ss;
+        ss << "object_" << i << ".pcd";
+        printf("object_%d\n", i);
+        pcl::PCDWriter writerPCD;
+        writerPCD.write<pcl::PointXYZRGBA>(ss.str(), detected_objects[i].object_cloud, false);
 
         yarp::os::Bottle b;
         Eigen::Matrix4f transform_now;
@@ -1414,6 +1526,8 @@ void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl:
         }
     }
 
+    yInfo() << label_category.toString();
+
     for (unsigned int i = 0; i < label_category.size(); i++)
     {
         yarp::os::Bottle *b = label_category.get(i).asList();
@@ -1465,7 +1579,7 @@ void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl:
 
         // }
     }
-    yInfo() << m_bGraspingPoses.toString();
+    // yInfo() << m_bGraspingPoses.toString();
 
     // for (unsigned int i = 0; i < label_category.size(); i++)
     // {
@@ -2111,184 +2225,190 @@ void GetGraspingPoses::completeBox(std::vector<KDL::Vector> &normals, std::vecto
         }
         // This computes the grasping poses for all the detected objects. Maybe is better to compute it for the detected object.
 
-        // std::vector<KDL::Vector> zaxes;
-        // std::vector<KDL::Vector> xaxes;
-        // std::vector<KDL::Vector> yaxes;
-        // std::vector<pcl::PointXYZRGBA> centers;
-        // if(box_sizes[0] <= m_grasp_width){
+        std::vector<KDL::Vector> zaxes;
+        std::vector<KDL::Vector> xaxes;
+        std::vector<KDL::Vector> yaxes;
+        std::vector<pcl::PointXYZRGBA> centers;
+        if (box_sizes[0] <= m_grasp_width)
+        {
 
-        //     for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + d*(KDL::Vector(0,0,1));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
+            for (float d = 0; d < box_sizes[1] / 4.0; d += (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + d * (KDL::Vector(0, 0, 1));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
 
-        //         // centers.push_back(center);
-        //         // zaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // xaxes.push_back(yaxes[0]*normals[0]);
+                // centers.push_back(center);
+                // zaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[0]*normals[0]);
 
-        //         centers.push_back(center);
-        //         zaxes.push_back(normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         xaxes.push_back(yaxes[0]*normals[0]);
+                centers.push_back(center);
+                zaxes.push_back(normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                xaxes.push_back(yaxes[0] * normals[0]);
+            }
+            for (float d = -(box_sizes[1] / 4.0) / 20; d > -box_sizes[1] / 4.0; d -= (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + d * (KDL::Vector(0, 0, 1));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
+                // zaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[0]*normals[0]);
 
-        //     }
-        //     for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + d*(KDL::Vector(0,0,1));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
-        //         // zaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // xaxes.push_back(yaxes[0]*normals[0]);
+                centers.push_back(center);
+                zaxes.push_back(normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                xaxes.push_back(yaxes[0] * normals[0]);
+            }
 
-        //         centers.push_back(center);
-        //         zaxes.push_back(normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         xaxes.push_back(yaxes[0]*normals[0]);
+            for (float d = 0; d < box_sizes[1] / 4.0; d += (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] * normals[0] + d * KDL::Vector(0, 0, 1);
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
+                // zaxes.push_back(-normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[1]*zaxes[1]);
 
-        //     }
+                centers.push_back(center);
+                zaxes.push_back(-normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                xaxes.push_back(yaxes[yaxes.size() - 1] * zaxes[zaxes.size() - 1]);
+            }
+            for (float d = -(box_sizes[1] / 4.0) / 20; d > -box_sizes[1] / 4.0; d -= (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] * normals[0] + d * KDL::Vector(0, 0, 1);
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
+                // zaxes.push_back(-normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // xaxes.push_back(yaxes[1]*zaxes[1]);
 
-        //     for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]*normals[0]+d*KDL::Vector(0,0,1);
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
-        //         // zaxes.push_back(-normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // xaxes.push_back(yaxes[1]*zaxes[1]);
+                centers.push_back(center);
+                zaxes.push_back(-normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                xaxes.push_back(yaxes[yaxes.size() - 1] * zaxes[zaxes.size() - 1]);
+            }
+        }
 
-        //         centers.push_back(center);
-        //         zaxes.push_back(-normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         xaxes.push_back(yaxes[yaxes.size()-1]*zaxes[zaxes.size()-1]);
-        //     }
-        //     for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]*normals[0]+d*KDL::Vector(0,0,1);
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
-        //         // zaxes.push_back(-normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // xaxes.push_back(yaxes[1]*zaxes[1]);
+        if (box_sizes[2] <= m_grasp_width)
+        {
+            for (float d = 0; d < box_sizes[1] / 4.0; d += (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] / 2.0 * normals[0] + (normals[0] * KDL::Vector(0, 0, 1)) * box_sizes[0] / 2.0 + d * KDL::Vector(0, 0, 1);
 
-        //         centers.push_back(center);
-        //         zaxes.push_back(-normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         xaxes.push_back(yaxes[yaxes.size()-1]*zaxes[zaxes.size()-1]);
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back(-(xaxes.back()*yaxes.back()));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
 
-        //     }
+                xaxes.push_back(normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                zaxes.push_back((xaxes.back() * yaxes.back()));
+                centers.push_back(center);
+            }
 
-        // }
+            for (float d = -(box_sizes[1] / 4.0) / 20; d > -box_sizes[1] / 4.0; d -= (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] / 2.0 * normals[0] + (normals[0] * KDL::Vector(0, 0, 1)) * box_sizes[0] / 2.0 + d * KDL::Vector(0, 0, 1);
 
-        // if(box_sizes[2] <= m_grasp_width){
-        //     for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]+(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back(-(xaxes.back()*yaxes.back()));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
 
-        //         // xaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // zaxes.push_back(-(xaxes.back()*yaxes.back()));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
+                xaxes.push_back(normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                zaxes.push_back((xaxes.back() * yaxes.back()));
+                centers.push_back(center);
+            }
 
-        //         xaxes.push_back(normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         zaxes.push_back((xaxes.back()*yaxes.back()));
-        //         centers.push_back(center);
-        //     }
+            for (float d = 0; d < box_sizes[1] / 4.0; d += (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] / 2.0 * normals[0] - (normals[0] * KDL::Vector(0, 0, 1)) * box_sizes[0] / 2.0 + d * KDL::Vector(0, 0, 1);
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back((xaxes.back()*yaxes.back()));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
 
-        //     for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]+(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
+                centers.push_back(center);
+                xaxes.push_back(-normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                zaxes.push_back((xaxes.back() * yaxes.back()));
+            }
 
-        //         // xaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // zaxes.push_back(-(xaxes.back()*yaxes.back()));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
+            for (float d = -(box_sizes[1] / 4.0) / 20; d > -box_sizes[1] / 4.0; d -= (box_sizes[1] / 4.0) / 20)
+            {
+                KDL::Vector aux_center = KDL::Vector(centroids[0].x, centroids[0].y, centroids[0].z) + box_sizes[2] / 2.0 * normals[0] - (normals[0] * KDL::Vector(0, 0, 1)) * box_sizes[0] / 2.0 + d * KDL::Vector(0, 0, 1);
+                // xaxes.push_back(normals[0]);
+                // yaxes.push_back(KDL::Vector(0,0,1));
+                // zaxes.push_back((xaxes.back()*yaxes.back()));
+                pcl::PointXYZRGBA center;
+                center.x = aux_center[0];
+                center.y = aux_center[1];
+                center.z = aux_center[2];
+                // centers.push_back(center);
 
-        //         xaxes.push_back(normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         zaxes.push_back((xaxes.back()*yaxes.back()));
-        //         centers.push_back(center);
-        //     }
+                centers.push_back(center);
 
-        //     for(float d=0; d<box_sizes[1]/4.0; d+=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]-(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
-        //         // xaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // zaxes.push_back((xaxes.back()*yaxes.back()));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
-
-        //         centers.push_back(center);
-        //         xaxes.push_back(-normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         zaxes.push_back((xaxes.back()*yaxes.back()));
-
-        //     }
-
-        //     for(float d=-(box_sizes[1]/4.0)/20; d>-box_sizes[1]/4.0; d-=(box_sizes[1]/4.0)/20){
-        //         KDL::Vector aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[2]/2.0*normals[0]-(normals[0]*KDL::Vector(0,0,1))*box_sizes[0]/2.0+d*KDL::Vector(0,0,1);
-        //         // xaxes.push_back(normals[0]);
-        //         // yaxes.push_back(KDL::Vector(0,0,1));
-        //         // zaxes.push_back((xaxes.back()*yaxes.back()));
-        //         pcl::PointXYZRGBA center;
-        //         center.x = aux_center[0];
-        //         center.y = aux_center[1];
-        //         center.z = aux_center[2];
-        //         // centers.push_back(center);
-
-        //         centers.push_back(center);
-
-        //         xaxes.push_back(-normals[0]);
-        //         yaxes.push_back(-KDL::Vector(0,0,1));
-        //         zaxes.push_back((xaxes.back()*yaxes.back()));
-        //     }
-        //     // aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[1]/2.0*yaxes.back();
-        //     // center.x = aux_center[0];
-        //     // center.y = aux_center[1];
-        //     // center.z = aux_center[2];
-        //     // centers.push_back(center);
-        //     // zaxes.push_back(-yaxes.back());
-        //     // yaxes.push_back(xaxes.back());
-        //     // xaxes.push_back(yaxes.back()*zaxes.back());
-
-        // }
-        // for(int i=0; i<zaxes.size(); i++){
-        //     KDL::Rotation rot = KDL::Rotation(xaxes[i], yaxes[i],zaxes[i]);
-        //     KDL::Frame frameTCP(rot);
-        //     KDL::Frame frame_goal = frameTCP;
-        //     frame_goal.p[0] = centers[i].x;
-        //     frame_goal.p[1] = centers[i].y;
-        //     frame_goal.p[2] = centers[i].z;
-        //     std::vector<double> tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_goal);
-        //     // printf("%f %f %f %f %f %f\n",tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
-        //     yarp::os::Bottle bPose;
-        //     for(int j = 0; j < 6; j++){
-        //         bPose.addFloat64(tcpX[j]);
-        //     }
-        //     m_bObject.addList() = bPose;
-        // }
+                xaxes.push_back(-normals[0]);
+                yaxes.push_back(-KDL::Vector(0, 0, 1));
+                zaxes.push_back((xaxes.back() * yaxes.back()));
+            }
+            // aux_center = KDL::Vector (centroids[0].x,centroids[0].y, centroids[0].z) + box_sizes[1]/2.0*yaxes.back();
+            // center.x = aux_center[0];
+            // center.y = aux_center[1];
+            // center.z = aux_center[2];
+            // centers.push_back(center);
+            // zaxes.push_back(-yaxes.back());
+            // yaxes.push_back(xaxes.back());
+            // xaxes.push_back(yaxes.back()*zaxes.back());
+        }
+        for (int i = 0; i < zaxes.size(); i++)
+        {
+            KDL::Rotation rot = KDL::Rotation(xaxes[i], yaxes[i], zaxes[i]);
+            KDL::Frame frameTCP(rot);
+            KDL::Frame frame_goal = frameTCP;
+            frame_goal.p[0] = centers[i].x;
+            frame_goal.p[1] = centers[i].y;
+            frame_goal.p[2] = centers[i].z;
+            std::vector<double> tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_goal);
+            // printf("%f %f %f %f %f %f\n",tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
+            yarp::os::Bottle bPose;
+            for (int j = 0; j < 6; j++)
+            {
+                bPose.addFloat64(tcpX[j]);
+            }
+            m_bObject.addList() = bPose;
+        }
         // yInfo()<<m_bObject.toString();
 
-        // rosComputeGraspingPosesArrowAndSend("waist", centers, xaxes, yaxes, zaxes);
+        rosComputeGraspingPosesArrowAndSend("waist", centers, xaxes, yaxes, zaxes);
     }
 }
 void GetGraspingPoses::fillBoxPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &filling_cloud,

@@ -9,6 +9,7 @@ set(KEYWORD "getGraspingPoses")
 find_package(YARP 3.3 REQUIRED COMPONENTS os dev)
 find_package(orocos_kdl 1.4)
 find_package(ROBOTICSLAB_KINEMATICS_DYNAMICS REQUIRED)
+find_package(SuperquadricLib 0.1.0.0 EXACT REQUIRED)
 
 # Retrieve a list of targets defined elsewhere.
 get_property(_exported_targets GLOBAL PROPERTY TEO_SHARON_TARGETS)
@@ -47,6 +48,7 @@ target_link_libraries(${KEYWORD} YARP::YARP_OS
                                  ROBOTICSLAB::KinematicRepresentationLib
                                  ${OpenCV_LIBRARIES}
                                  ${PCL_LIBRARIES}
+                                 SuperquadricLib::SuperquadricLibModel
                                  ${_exported_targets})
 
 target_include_directories(${KEYWORD} PRIVATE ${orocos_kdl_INCLUDE_DIRS})                                 
