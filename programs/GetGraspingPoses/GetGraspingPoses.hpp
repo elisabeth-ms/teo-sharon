@@ -51,6 +51,7 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/surface/mls.h>
+#include <pcl/surface/convex_hull.h>
 
 // SuperquadricLib
 #include <SuperquadricLibModel/superquadricEstimator.h>
@@ -63,7 +64,7 @@
 #define DEFAULT_RATE_MS 400
 #define DEFAULT_PREFIX "/getGraspingPoses"
 #define DEFAULT_MIN_NPOINTS 100
-#define DEFAULT_MIN_POINTS_TABLE 200
+#define DEFAULT_MIN_POINTS_TABLE 150
 
 constexpr auto DEFAULT_ROBOT = "/teoSim"; // /teo or /teoSim
 namespace sharon
@@ -183,6 +184,7 @@ namespace sharon
         bool PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud);
         void GetSuperquadricFromPointCloud(SuperqModel::PointCloud point_cloud,std::vector<SuperqModel::Superquadric> &superqs);
         void createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric);
+        void createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs);
 
         void rosComputeGraspingPosesArrowAndSend(const std::string &frame_id, std::vector<pcl::PointXYZRGBA> &centroids, std::vector<KDL::Vector> &xaxis, std::vector<KDL::Vector> &yaxis, std::vector<KDL::Vector> &normals);
         double watchdog;

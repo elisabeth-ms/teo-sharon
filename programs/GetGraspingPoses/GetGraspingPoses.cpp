@@ -300,11 +300,11 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
     object_class = rf.check("object_class", yarp::os::Value("default")).toString();
     single_superq = rf.check("single_superq", yarp::os::Value(true)).asBool();
     sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-5)).asFloat64();
-    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(50)).asInt32();
-    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(true)).asBool();
+    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(250)).asInt32();
+    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(false)).asBool();
 
     sq_model_params["merge_model"] = rf.check("merge_model", yarp::os::Value(true)).asBool();
-    sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(150)).asInt32();
+    sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(250)).asInt32();
     sq_model_params["fraction_pc"] = rf.check("fraction_pc", yarp::os::Value(8)).asInt32();
     sq_model_params["threshold_axis"] = rf.check("tol_threshold_axissuperq", yarp::os::Value(0.7)).asFloat64();
     sq_model_params["threshold_section1"] = rf.check("threshold_section1", yarp::os::Value(0.6)).asFloat64();
@@ -429,7 +429,7 @@ bool GetGraspingPoses::updateModule()
             pcl::PassThrough<pcl::PointXYZRGBA> pass;
             pass.setInputCloud(transformed_cloud_filtered);
             pass.setFilterFieldName("x");
-            pass.setFilterLimits(0.0, 0.7);
+            pass.setFilterLimits(0.0, 0.9);
             // pass.setFilterLimitsNegative (true);
             pass.filter(*transformed_cloud_filtered);
 
@@ -484,12 +484,47 @@ bool GetGraspingPoses::updateModule()
                 // // yInfo()<<"Color cloud";
                 yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> yarpCloudSuperquadric;
                 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudSuperquadric(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+                std::vector<pcl::PointXYZRGBA> centroids;
                 if (lccp_labeled_cloud->points.size() != 0)
                 {
 
                     updateDetectedObjectsPointCloud(lccp_labeled_cloud);
                     for (unsigned int idx = 0; idx < detected_objects.size(); idx++)
                     {
+                        pcl::PointXYZRGBA centroid;
+
+                        pcl::PointXYZRGBA maxPoint;
+                        pcl::PointXYZRGBA minPoint;
+
+                        pcl::getMinMax3D(detected_objects[idx].object_cloud, minPoint, maxPoint);
+                        
+
+                        centroid.x = (maxPoint.x - minPoint.x)/2.0+minPoint.x;
+                        centroid.y = (maxPoint.y - minPoint.y)/2.0+minPoint.y;
+                        centroid.z = (maxPoint.z - minPoint.z)/2.0+minPoint.z;
+
+                        centroids.push_back(centroid);
+                        
+                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr projected_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+                        for (const auto& point: detected_objects[idx].object_cloud.points){
+                            auto projected_point = point;
+                            projected_point.z = 0;
+                            projected_cloud->push_back(*(pcl::PointXYZRGBA *)(&projected_point));
+                        }
+                        
+
+                        // Compute convex hull
+
+                          // Create a convex Hull representation of the projected inliers
+                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull (new pcl::PointCloud<pcl::PointXYZRGBA>);
+                        pcl::ConvexHull<pcl::PointXYZRGBA> chull;
+                        chull.setInputCloud(projected_cloud);
+                        chull.reconstruct (*cloud_hull);
+
+
+                        std::cerr << "Convex hull has: " << cloud_hull->size()<< " data points." << std::endl;
+
                         SuperqModel::PointCloud point_cloud;
                         PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud, point_cloud);
                         std::vector<SuperqModel::Superquadric> superqs;
@@ -499,11 +534,60 @@ bool GetGraspingPoses::updateModule()
                         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr auxCloudSuperquadric(new pcl::PointCloud<pcl::PointXYZRGBA>);
 
                         createPointCloudFromSuperquadric(superqs, auxCloudSuperquadric);
+                        // createGraspingPosesFromSuperquadric(superqs);
                         *cloudSuperquadric += *auxCloudSuperquadric;
                     }
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
                     yInfo()<<yarpCloudSuperquadric.size();
                     rosComputeAndSendPc(yarpCloudSuperquadric, "waist", *pointCloudFillingObjectsTopic);
+
+                    //*********** Just for testing ***********************************//
+                    yarp::rosmsg::visualization_msgs::Marker marker;
+                    yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
+
+                    marker.header.frame_id = "waist";
+                    static int counter = 0;
+                    marker.header.stamp.nsec = 0;
+                    marker.header.stamp.sec = 0;
+
+                    marker.action = yarp::rosmsg::visualization_msgs::Marker::DELETEALL;
+                    markerArray.markers.push_back(marker);
+
+                    if (graspingPoses_outTopic)
+                    {
+                        yInfo("Publish...\n");
+                        graspingPoses_outTopic->write(markerArray);
+                    }
+
+                    for (int i = 0; i < centroids.size(); i++)
+                    {
+                        // printf("Normals %d: %f %f %f\n", i, normals[0], normals[1], normals[2]);
+                        marker.header.seq = i;
+                        marker.id = i;
+                        marker.type = yarp::rosmsg::visualization_msgs::Marker::SPHERE;
+                        marker.action = yarp::rosmsg::visualization_msgs::Marker::ADD;
+
+                        marker.pose.position.x = centroids[i].x;
+                        marker.pose.position.y = centroids[i].y;
+                        marker.pose.position.z = centroids[i].z;
+
+
+                        marker.pose.orientation.w = 1.0;
+                        marker.scale.x = 0.1;
+                        marker.scale.y = 0.1;
+                        marker.scale.z = 0.1;
+                        marker.color.a = 1.0; // Don't forget to set the alpha!
+                        marker.color.r = 0.0;
+                        marker.color.g = 0.0;
+                        marker.color.b = 1.0;
+                        markerArray.markers.push_back(marker);
+                    }
+                    graspingPoses_outTopic->write(markerArray);
+
+
+                    //*********** Just for testing ***********************************//
+
+
                     // // yInfo()<<"Labeled cloud NOT empty";
                     // yarp::os::Bottle bot;
                     // if (detectionsPort.read(bot))
@@ -844,9 +928,9 @@ bool GetGraspingPoses::removeHorizontalSurfaceFromPointCloud(const pcl::PointClo
     seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(2000);
-    seg.setDistanceThreshold(0.02);
+    seg.setDistanceThreshold(0.01);
     seg.setAxis(Eigen::Vector3f::UnitX());
-    seg.setEpsAngle(0.008);
+    seg.setEpsAngle(0.01);
 
     seg.setInputCloud(wholePointCloud);
     seg.segment(*inliers, *coefficients);
@@ -891,7 +975,7 @@ bool GetGraspingPoses::supervoxelOversegmentation(const pcl::PointCloud<pcl::Poi
     float seed_resolution = 0.02f;
     float color_importance = 0.0f;
     float spatial_importance = 2.0f;
-    float normal_importance = 4.0f;
+    float normal_importance = 2.0f;
     bool use_single_cam_transform = false;
     bool use_supervoxel_refinement = false;
 
@@ -1161,6 +1245,7 @@ void GetGraspingPoses::fullObjectPointCloud(pcl::PointCloud<pcl::PointXYZRGBA> &
             // printf("Valid plane i: %d\n",i);
             pcl::PointXYZRGBA maxPoint;
             pcl::PointXYZRGBA minPoint;
+
             getMinimumBoundingBoxPointCLoud(cloud_p, maxPoint, minPoint, n);
 
             // printf("Normal: %f %f %f\n", n[0], n[1], n[2]);
@@ -1266,6 +1351,8 @@ void GetGraspingPoses::updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl
             i++;
         }
     }
+
+    
 }
 
 bool GetGraspingPoses::PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud)
@@ -1322,6 +1409,11 @@ void GetGraspingPoses::GetSuperquadricFromPointCloud(SuperqModel::PointCloud poi
         superqs = estim.computeSuperq(point_cloud);
     }
 }
+
+void GetGraspingPoses::createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs){
+
+}
+
 
 void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric)
 {
