@@ -357,8 +357,15 @@ bool GetGraspingPoses::updateModule()
             yError() << "getDepthImage failed";
             return false;
         }
-        // yarp::sig::FlexImage rgbImage;
-        // bool rgb_ok = iRGBDSensor->getRgbImage(&rgbImage);
+        yarp::sig::FlexImage rgbImage;
+        bool rgb_ok = iRGBDSensor->getRgbImage(rgbImage);
+        if (rgb_ok == false)
+        {
+            yError() << "getRgbImage failed";
+            return false;
+        }
+        yarp::sig::ImageOf<yarp::sig::PixelRgb> colorFrame;
+        colorFrame.copy(rgbImage);
 
         int min_x = 0;
         int min_y = 0;
@@ -380,7 +387,11 @@ bool GetGraspingPoses::updateModule()
                     pcFiltered(i, j).x = depthFrame.pixel(u, v);
                     pcFiltered(i, j).y = -(u - intrinsics.principalPointX) / intrinsics.focalLengthX * depthFrame.pixel(u, v);
                     pcFiltered(i, j).z = -(v - intrinsics.principalPointY) / intrinsics.focalLengthY * depthFrame.pixel(u, v);
-                    // pcFiltered(i,j).r =
+
+                    yarp::sig::PixelRgb rgb = colorFrame.pixel(u, j);
+                    pcFiltered(i, j).r = rgb.r;
+                    pcFiltered(i, j).g = rgb.g;
+                    pcFiltered(i, j).b = rgb.b;
                 }
             }
         }
@@ -498,47 +509,45 @@ bool GetGraspingPoses::updateModule()
                         pcl::PointXYZRGBA minPoint;
 
                         pcl::getMinMax3D(detected_objects[idx].object_cloud, minPoint, maxPoint);
-                        
 
-                        centroid.x = (maxPoint.x - minPoint.x)/2.0+minPoint.x;
-                        centroid.y = (maxPoint.y - minPoint.y)/2.0+minPoint.y;
-                        centroid.z = (maxPoint.z - minPoint.z)/2.0+minPoint.z;
+                        centroid.x = (maxPoint.x - minPoint.x) / 2.0 + minPoint.x;
+                        centroid.y = (maxPoint.y - minPoint.y) / 2.0 + minPoint.y;
+                        centroid.z = (maxPoint.z - minPoint.z) / 2.0 + minPoint.z;
 
                         centroids.push_back(centroid);
-                        
+
                         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr projected_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-                        for (const auto& point: detected_objects[idx].object_cloud.points){
+                        for (const auto &point : detected_objects[idx].object_cloud.points)
+                        {
                             auto projected_point = point;
                             projected_point.z = 0;
                             projected_cloud->push_back(*(pcl::PointXYZRGBA *)(&projected_point));
                         }
-                        
 
                         // Compute convex hull
 
-                          // Create a convex Hull representation of the projected inliers
-                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull (new pcl::PointCloud<pcl::PointXYZRGBA>);
+                        // Create a convex Hull representation of the projected inliers
+                        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull(new pcl::PointCloud<pcl::PointXYZRGBA>);
                         pcl::ConvexHull<pcl::PointXYZRGBA> chull;
                         chull.setInputCloud(projected_cloud);
-                        chull.reconstruct (*cloud_hull);
+                        chull.reconstruct(*cloud_hull);
 
-
-                        std::cerr << "Convex hull has: " << cloud_hull->size()<< " data points." << std::endl;
+                        std::cerr << "Convex hull has: " << cloud_hull->size() << " data points." << std::endl;
 
                         SuperqModel::PointCloud point_cloud;
                         PclPointCloudToSuperqPointCloud(detected_objects[idx].object_cloud, point_cloud);
                         std::vector<SuperqModel::Superquadric> superqs;
                         GetSuperquadricFromPointCloud(point_cloud, superqs);
-                        yInfo()<<"create";
+                        yInfo() << "create";
 
                         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr auxCloudSuperquadric(new pcl::PointCloud<pcl::PointXYZRGBA>);
 
-                        createPointCloudFromSuperquadric(superqs, auxCloudSuperquadric);
+                        createPointCloudFromSuperquadric(superqs, auxCloudSuperquadric, idx);
                         // createGraspingPosesFromSuperquadric(superqs);
                         *cloudSuperquadric += *auxCloudSuperquadric;
                     }
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
-                    yInfo()<<yarpCloudSuperquadric.size();
+                    yInfo() << yarpCloudSuperquadric.size();
                     rosComputeAndSendPc(yarpCloudSuperquadric, "waist", *pointCloudFillingObjectsTopic);
 
                     //*********** Just for testing ***********************************//
@@ -571,7 +580,6 @@ bool GetGraspingPoses::updateModule()
                         marker.pose.position.y = centroids[i].y;
                         marker.pose.position.z = centroids[i].z;
 
-
                         marker.pose.orientation.w = 1.0;
                         marker.scale.x = 0.1;
                         marker.scale.y = 0.1;
@@ -584,9 +592,7 @@ bool GetGraspingPoses::updateModule()
                     }
                     graspingPoses_outTopic->write(markerArray);
 
-
                     //*********** Just for testing ***********************************//
-
 
                     // // yInfo()<<"Labeled cloud NOT empty";
                     // yarp::os::Bottle bot;
@@ -928,7 +934,7 @@ bool GetGraspingPoses::removeHorizontalSurfaceFromPointCloud(const pcl::PointClo
     seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(2000);
-    seg.setDistanceThreshold(0.01);
+    seg.setDistanceThreshold(0.02);
     seg.setAxis(Eigen::Vector3f::UnitX());
     seg.setEpsAngle(0.01);
 
@@ -1325,9 +1331,9 @@ void GetGraspingPoses::updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl
         tmp_point_rgb.x = lccp_labeled_cloud->points[i].x;
         tmp_point_rgb.y = lccp_labeled_cloud->points[i].y;
         tmp_point_rgb.z = lccp_labeled_cloud->points[i].z;
-        tmp_point_rgb.r = 0;
-        tmp_point_rgb.g = 0;
-        tmp_point_rgb.b = 255;
+        tmp_point_rgb.r = rand() % 256;
+        tmp_point_rgb.g = rand() % 256;
+        tmp_point_rgb.b = rand() % 256;
 
         detected_objects[idx].object_cloud.points.push_back(tmp_point_rgb);
         detected_objects[idx].label = (int)idx;
@@ -1351,8 +1357,6 @@ void GetGraspingPoses::updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl
             i++;
         }
     }
-
-    
 }
 
 bool GetGraspingPoses::PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud)
@@ -1410,64 +1414,110 @@ void GetGraspingPoses::GetSuperquadricFromPointCloud(SuperqModel::PointCloud poi
     }
 }
 
-void GetGraspingPoses::createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs){
-
+void GetGraspingPoses::createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs)
+{
 }
 
-
-void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric)
+void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric, int indexDetectedObjects)
 {
-    //Similar to sampling in https://github.com/ana-GT/GSoC_PCL
+    // Similar to sampling in https://github.com/ana-GT/GSoC_PCL
     double cn, sn, sw, cw;
     double n, w;
     int num_n, num_w;
     double dn, dw;
-    dn = 0.5 * M_PI / 180.0;
-    dw = 0.5 * M_PI / 180.0;
+    dn = 1.0 * M_PI / 180.0;
+    dw = 0.1 * M_PI / 180.0;
     num_n = (int)(M_PI / dn);
-    num_w = (int)(2 * M_PI / dw);
-    n = -M_PI / 2.0;
+    num_w = (int)(M_PI / dw);
+    n = -M_PI;
 
+    double step = 0.005;
     auto params = superqs[0].getSuperqParams();
-    for (int i = 0; i < num_n; ++i)
+
+    std::cout<<"a0: "<<params[0]<<" a1: "<<params[1]<<" a2: "<<params[3]<<std::endl;
+
+    for (double x = 0; x <= params[0]; x += step)
     {
-        cn = cos(n);
-        sn = sin(n);
-        w = -M_PI;
-        for (int j = 0; j < num_w; ++j)
+        for (double y = 0; y <= params[1]; y += step)
         {
-           
-            cw = cos(w);
-            sw = sin(w);
-            pcl::PointXYZRGBA p;
-            p.x = params[0] * pow(fabs(cn), params[3]) * pow(fabs(cw), params[4]);
-            p.y = params[1] * pow(fabs(cn), params[3]) * pow(fabs(sw), params[4]);
-            p.z = params[2] * pow(fabs(sn), params[3]);
-            p.r = 1;
-            p.g = 0;
-            p.b = 0;
-            p.a = 1;
-
-            if (cn * cw < 0)
+            for (double z = 0; z <= params[2]; z += step)
             {
-                p.x = -p.x;
-            }
-            if (cn * sw < 0)
-            {
-                p.y = -p.y;
-            }
-            if (sn < 0)
-            {
-                p.z = -p.z;
-            }
-            cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+                double f = pow(abs(pow(abs(x / params[0]), 2.0 / params[4]) + pow(abs(y / params[1]), 2.0 / params[4])), params[4] / params[3]) + pow(abs(z / params[2]), 2.0 / params[3]);
+                if (f <= 1.0)
+                {
+                    pcl::PointXYZRGBA p;
 
-            w += dw;
+                    p.x = x;
+                    p.y = y;
+                    p.z = z;
+                    p.r = detected_objects[indexDetectedObjects].object_cloud.points[0].r;
+                    p.g = detected_objects[indexDetectedObjects].object_cloud.points[0].g;
+                    p.b = detected_objects[indexDetectedObjects].object_cloud.points[0].b;
+                    p.a = 1;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
 
+                    p.z = -z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+
+
+                    p.x = -x;
+                    p.y = y;
+                    p.z = z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+                    p.z = -z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+                    
+                    p.x = x;
+                    p.y = -y;
+                    p.z = z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+                    p.z = -z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+
+                    p.x = -x;
+                    p.y = -y;
+                    p.z = z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+
+                    p.z = -z;
+                    cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+                }
+            }
         }
-        n += dn;
     }
+    // for (double n = -2*M_PI; n<= 2*M_PI; n+=step)
+    // {
+    // cn = cos(n);
+    // sn = sin(n);
+    // // for (double w= -2*M_PI; w <= 2*M_PI; w+=step)
+    // {
 
+    //     cw = cos(w);
+    //     sw = sin(w);
+    //     pcl::PointXYZRGBA p;
+    //     p.x = params[0] * yarp::math::sign(cn)*pow(fabs(cn), params[3]) * yarp::math::sign(cw)*pow(fabs(cw), params[4]);
+    //     p.y = params[1] * yarp::math::sign(cn)*pow(fabs(cn), params[3]) * yarp::math::sign(sw)*pow(fabs(sw), params[4]);
+    //     p.z = params[2] * yarp::math::sign(sn)*pow(fabs(sn), params[3]);
+    //     p.r = detected_objects[indexDetectedObjects].object_cloud.points[0].r;
+    //     p.g = detected_objects[indexDetectedObjects].object_cloud.points[0].g;
+    //     p.b = detected_objects[indexDetectedObjects].object_cloud.points[0].b;
+    //     p.a = 1;
+
+    // if (cn * cw < 0)
+    // {
+    //      p.x = -p.x;
+    // }
+    // if (cn * sw < 0)
+    // {
+    //     p.y = -p.y;
+    // }
+    // if (sn < 0)
+    // {
+    //     p.z = -p.z;
+    // }
+    // cloudSuperquadric->push_back(*(pcl::PointXYZRGBA *)(&p));
+    // }
+    // }
 
     // Eigen::Matrix3f rotationMatrix = AngleAxisd(params[8], Vector3d::UnitZ())*
     //      AngleAxisd(params[9], Vector3d::UnitY())*
@@ -1479,13 +1529,11 @@ void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<Superq
     Eigen::Quaternionf q = rollAngle * yawAngle * pitchAngle;
     Eigen::Matrix3f rotationMatrix = q.matrix();
 
-    Eigen::Vector3f v(params[5],params[6],params[7]);
+    Eigen::Vector3f v(params[5], params[6], params[7]);
     Eigen::Matrix4f transform = Eigen::Affine3f(Eigen::Translation3f(v)).matrix();
 
-    transform.block<3,3>(0,0) = rotationMatrix;
+    transform.block<3, 3>(0, 0) = rotationMatrix;
     pcl::transformPointCloud(*cloudSuperquadric, *cloudSuperquadric, transform);
-
-
 }
 
 void GetGraspingPoses::XYZLPointCloudToRGBAPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud, const yarp::os::Bottle &bottle_detections,
