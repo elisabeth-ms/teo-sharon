@@ -67,6 +67,7 @@
 #define DEFAULT_PREFIX "/getGraspingPoses"
 #define DEFAULT_MIN_NPOINTS 100
 #define DEFAULT_MIN_POINTS_TABLE 150
+#define MAX_OBJECT_WIDTH_GRASP 0.12
 
 constexpr auto DEFAULT_ROBOT = "/teoSim"; // /teo or /teoSim
 namespace sharon
@@ -188,6 +189,9 @@ namespace sharon
         void createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric, int indexDetectedObjects);
         void createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs);
 
+        void computeGraspingPoses(const std::vector<SuperqModel::Superquadric> &superqs, std::vector<std::vector<double>> &graspingPoses);
+        void rosSendGraspingPoses(const std::string &frame_id, const std::vector<std::vector<double>> &graspingPoses);
+        
         void rosComputeGraspingPosesArrowAndSend(const std::string &frame_id, std::vector<pcl::PointXYZRGBA> &centroids, std::vector<KDL::Vector> &xaxis, std::vector<KDL::Vector> &yaxis, std::vector<KDL::Vector> &normals);
         double watchdog;
 
