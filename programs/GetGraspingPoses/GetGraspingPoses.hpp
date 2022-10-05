@@ -19,7 +19,9 @@
 #include "ICartesianSolver.h"
 #include "KinematicRepresentation.hpp"
 #include <KdlVectorConverter.hpp>
-
+#include <kdl/utilities/utility.h>
+#include <kdl/frames.hpp>
+#include <kdl/frames_io.hpp>
 #include <yarp/sig/PointCloud.h>
 #include <yarp/pcl/Pcl.h>
 #include <yarp/eigen/Eigen.h>
@@ -67,7 +69,7 @@
 #define DEFAULT_PREFIX "/getGraspingPoses"
 #define DEFAULT_MIN_NPOINTS 100
 #define DEFAULT_MIN_POINTS_TABLE 150
-#define MAX_OBJECT_WIDTH_GRASP 0.12
+#define MAX_OBJECT_WIDTH_GRASP 0.16
 
 constexpr auto DEFAULT_ROBOT = "/teoSim"; // /teo or /teoSim
 namespace sharon

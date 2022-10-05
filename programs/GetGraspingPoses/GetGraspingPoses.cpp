@@ -299,9 +299,9 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
     int print_level_superq = rf.check("print_level_superq", yarp::os::Value(0)).asInt32();
     object_class = rf.check("object_class", yarp::os::Value("default")).toString();
     single_superq = rf.check("single_superq", yarp::os::Value(true)).asBool();
-    sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-4)).asFloat64();
-    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(150)).asInt32();
-    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(false)).asBool();
+    sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-5)).asFloat64();
+    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(50)).asInt32();
+    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(true)).asBool();
 
     sq_model_params["merge_model"] = rf.check("merge_model", yarp::os::Value(true)).asBool();
     sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(150)).asInt32();
@@ -437,12 +437,12 @@ bool GetGraspingPoses::updateModule()
             sor.setLeafSize(0.001f, 0.001f, 0.001f);
             sor.filter(*transformed_cloud_filtered);
 
-            pcl::PassThrough<pcl::PointXYZRGBA> pass;
-            pass.setInputCloud(transformed_cloud_filtered);
-            pass.setFilterFieldName("x");
-            pass.setFilterLimits(0.0, 0.9);
-            // pass.setFilterLimitsNegative (true);
-            pass.filter(*transformed_cloud_filtered);
+            // pcl::PassThrough<pcl::PointXYZRGBA> pass;
+            // pass.setInputCloud(transformed_cloud_filtered);
+            // pass.setFilterFieldName("x");
+            // pass.setFilterLimits(0.0, 2.0);
+            // // pass.setFilterLimitsNegative (true);
+            // pass.filter(*transformed_cloud_filtered);
 
             // auto stop = high_resolution_clock::now();
             // auto duration = duration_cast<microseconds>(stop - start);
@@ -500,6 +500,8 @@ bool GetGraspingPoses::updateModule()
                 {
 
                     updateDetectedObjectsPointCloud(lccp_labeled_cloud);
+                    std::vector<std::vector<double>> graspingPoses;
+
                     for (unsigned int idx = 0; idx < detected_objects.size(); idx++)
                     {
                         SuperqModel::PointCloud point_cloud;
@@ -513,15 +515,14 @@ bool GetGraspingPoses::updateModule()
                         createPointCloudFromSuperquadric(superqs, auxCloudSuperquadric, idx);
                         // createGraspingPosesFromSuperquadric(superqs);
                         *cloudSuperquadric += *auxCloudSuperquadric;
-                        std::vector<std::vector<double>> graspingPoses;
                         computeGraspingPoses(superqs, graspingPoses);
-                        if (graspingPoses.size() > 0)
-                            rosSendGraspingPoses("waist", graspingPoses);
                     }
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
                     yInfo() << yarpCloudSuperquadric.size();
                     rosComputeAndSendPc(yarpCloudSuperquadric, "waist", *pointCloudFillingObjectsTopic);
-
+                    yInfo() << "graspingPoses.size(): " << graspingPoses.size();
+                    if (graspingPoses.size() > 0)
+                        rosSendGraspingPoses("waist", graspingPoses);
                     // //*********** Just for testing ***********************************//
                     // yarp::rosmsg::visualization_msgs::Marker marker;
                     // yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
@@ -1396,32 +1397,85 @@ void GetGraspingPoses::computeGraspingPoses(const std::vector<SuperqModel::Super
 
     Eigen::Quaternionf q = rollAngle * yawAngle * pitchAngle;
 
-    KDL::Rotation rot_aux;//KDL::Rotation::Quaternion(q.x(), q.y(), q.z(), q.w());
+    KDL::Rotation rot_aux = KDL::Rotation::Quaternion(q.x(), q.y(), q.z(), q.w());
     KDL::Frame frame_object_wrt_world(rot_aux);
     frame_object_wrt_world.p[0] = params[5];
     frame_object_wrt_world.p[1] = params[6];
     frame_object_wrt_world.p[2] = params[7];
 
-    // if (2 * params[0] <= MAX_OBJECT_WIDTH_GRASP)
-    // {
-        KDL::Vector zobject(0, -1, 0);
-        KDL::Vector yobject(0, 0, 1.0);
-        KDL::Vector xobject = yobject * zobject;
-        KDL::Rotation rot = KDL::Rotation(xobject, yobject, zobject);
-        KDL::Frame frameTCP(rot);
-        KDL::Frame frame_grasping_wrt_object = frameTCP;
+    KDL::Frame frame_grasping_wrt_world;
+    std::cout << "axes length: " << 2 * params[0] << " " << 2 * params[1] << ": " << 2 * params[2] << std::endl;
+
+    float step = 0.004;
+    if (2 * params[2] <= MAX_OBJECT_WIDTH_GRASP)
+    {
+        KDL::Vector zobject;
+        KDL::Vector yobject;
+        KDL::Vector xobject;
+        KDL::Rotation rot;
+        KDL::Frame frameTCP, frame_grasping_wrt_object;
+        std::vector<double> tcpX;
+        for (float xaxes = -1.0; xaxes <= 1.0; xaxes += 2)
+        {
+            zobject = KDL::Vector(xaxes, 0, 0);
+            for (float y = -params[1] / 2.0; y <= params[1] / 2.0; y += step)
+            {
+                for (float yaxes = -1.0; yaxes <= 1.0; yaxes += 2)
+                {
+                    yobject = KDL::Vector(0, yaxes, 0.0);
+                    xobject = yobject * zobject;
+                    rot = KDL::Rotation(xobject, yobject, zobject);
+                    frameTCP = KDL::Frame(rot);
+                    frame_grasping_wrt_object = frameTCP;
+                    frame_grasping_wrt_object.p[0] = -xaxes*params[0];
+                    frame_grasping_wrt_object.p[1] = y;
+                    frame_grasping_wrt_object.p[2] = 0;
+                    frame_grasping_wrt_world = frame_object_wrt_world * frame_grasping_wrt_object;
+                    tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_grasping_wrt_world);
+                    printf("%f %f %f %f %f %f\n", tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
+                    graspingPoses.push_back(tcpX);
+                }
+            }
+        }
+
+        for (float yaxes = -1.0; yaxes <= 1.0; yaxes += 2)
+        {
+            zobject = KDL::Vector(0, yaxes, 0);
+            for (float x = -params[0] / 2.0; x <= params[0] / 2.0; x += step)
+            {
+                for (float xaxes = -1.0; xaxes <= 1.0; xaxes += 2)
+                {
+                    yobject = KDL::Vector(xaxes, 0.0, 0.0);
+                    xobject = yobject * zobject;
+                    rot = KDL::Rotation(xobject, yobject, zobject);
+                    frameTCP = KDL::Frame(rot);
+                    frame_grasping_wrt_object = frameTCP;
+                    frame_grasping_wrt_object.p[0] = x;
+                    frame_grasping_wrt_object.p[1] = -yaxes*params[1];
+                    frame_grasping_wrt_object.p[2] = 0;
+                    frame_grasping_wrt_world = frame_object_wrt_world * frame_grasping_wrt_object;
+                    tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_grasping_wrt_world);
+                    printf("%f %f %f %f %f %f\n", tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
+                    graspingPoses.push_back(tcpX);
+                }
+            }
+        }
+
+        zobject = KDL::Vector(0, 1, 0);
+        yobject = KDL::Vector(1.0, 0.0, 0.0);
+        xobject = yobject * zobject;
+        rot = KDL::Rotation(xobject, yobject, zobject);
+        frameTCP = KDL::Frame(rot);
+        frame_grasping_wrt_object = frameTCP;
         frame_grasping_wrt_object.p[0] = 0;
-        frame_grasping_wrt_object.p[1] = params[1];
+        frame_grasping_wrt_object.p[1] = -params[1];
         frame_grasping_wrt_object.p[2] = 0;
-
-        KDL::Frame frame_grasping_wrt_world = frame_grasping_wrt_object * frame_object_wrt_world;
-
-        std::vector<double> tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_grasping_wrt_world);
+        frame_grasping_wrt_world = frame_object_wrt_world * frame_grasping_wrt_object;
+        tcpX = roboticslab::KdlVectorConverter::frameToVector(frame_grasping_wrt_world);
         printf("%f %f %f %f %f %f\n", tcpX[0], tcpX[1], tcpX[2], tcpX[3], tcpX[4], tcpX[5]);
         graspingPoses.push_back(tcpX);
+    }
     // }
-
-    
 }
 
 void GetGraspingPoses::createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric, int indexDetectedObjects)
@@ -3075,11 +3129,6 @@ void GetGraspingPoses::getMinimumBoundingBoxPointCLoud(pcl::PointCloud<pcl::Poin
 
 void GetGraspingPoses::rosSendGraspingPoses(const std::string &frame_id, const std::vector<std::vector<double>> &graspingPoses)
 {
-    KDL::Frame frame = roboticslab::KdlVectorConverter::vectorToFrame(graspingPoses[0]);
-    KDL::Vector unitx = frame.M.UnitX();
-    KDL::Vector unity = frame.M.UnitY();
-    KDL::Vector unitz = frame.M.UnitZ();
-
     yarp::rosmsg::visualization_msgs::Marker marker;
     yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
 
@@ -3096,13 +3145,37 @@ void GetGraspingPoses::rosSendGraspingPoses(const std::string &frame_id, const s
         yInfo("Publish...\n");
         graspingPoses_outTopic->write(markerArray);
     }
-
-    for (int i = 0; i < graspingPoses.size(); i++)
+    for (int idx = 0; idx < graspingPoses.size(); idx++)
     {
+        KDL::Frame frame = roboticslab::KdlVectorConverter::vectorToFrame(graspingPoses[idx]);
+        KDL::Vector unitx = frame.M.UnitX();
+        KDL::Vector unity = frame.M.UnitY();
+        KDL::Vector unitz = frame.M.UnitZ();
+        std::cout << frame << std::endl;
+
+        std::cout << "unitx: " << unitx[0] << " " << unitx[1] << " " << unitx[2] << std::endl;
+
+        // yarp::rosmsg::visualization_msgs::Marker marker;
+        // yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
+
+        marker.header.frame_id = frame_id;
+        static int counter = 0;
+        marker.header.stamp.nsec = 0;
+        marker.header.stamp.sec = 0;
+
+        // marker.action = yarp::rosmsg::visualization_msgs::Marker::DELETEALL;
+        // markerArray.markers.push_back(marker);
+
+        // if (graspingPoses_outTopic)
+        // {
+        //     yInfo("Publish...\n");
+        //     graspingPoses_outTopic->write(markerArray);
+        // }
+
         float lengthArrow = 0.1;
         KDL::Vector auxV1 = unitz * lengthArrow;
         marker.header.seq = counter++;
-        marker.id = i;
+        marker.id = idx;
         marker.type = yarp::rosmsg::visualization_msgs::Marker::ARROW;
         marker.action = yarp::rosmsg::visualization_msgs::Marker::ADD;
         yarp::rosmsg::geometry_msgs::Point pointRos;
@@ -3124,18 +3197,12 @@ void GetGraspingPoses::rosSendGraspingPoses(const std::string &frame_id, const s
         marker.color.g = 0.0;
         marker.color.b = 1.0;
         markerArray.markers.push_back(marker);
-    }
 
-    for (int i = 0; i < graspingPoses.size(); i++)
-    {
-        // printf("Normals %d: %f %f %f\n", i, normals[0], normals[1], normals[2]);
-        float lengthArrow = 0.1;
-        KDL::Vector auxV1 = unitx * lengthArrow;
+        auxV1 = unitx * lengthArrow;
         marker.header.seq = counter++;
-        marker.id = i + graspingPoses.size();
+        marker.id = idx + graspingPoses.size();
         marker.type = yarp::rosmsg::visualization_msgs::Marker::ARROW;
         marker.action = yarp::rosmsg::visualization_msgs::Marker::ADD;
-        yarp::rosmsg::geometry_msgs::Point pointRos;
         pointRos.x = frame.p[0] - auxV1[0];
         pointRos.y = frame.p[1] - auxV1[1];
         pointRos.z = frame.p[2] - auxV1[2];
@@ -3154,18 +3221,12 @@ void GetGraspingPoses::rosSendGraspingPoses(const std::string &frame_id, const s
         marker.color.g = 0.0;
         marker.color.b = 0.0;
         markerArray.markers.push_back(marker);
-    }
 
-    for (int i = 0; i < graspingPoses.size(); i++)
-    {
-        // printf("Normals %d: %f %f %f\n", i, normals[0], normals[1], normals[2]);
-        float lengthArrow = 0.1;
-        KDL::Vector auxV1 = unity * lengthArrow;
+        auxV1 = unity * lengthArrow;
         marker.header.seq = counter++;
-        marker.id = i + graspingPoses.size() * 2;
+        marker.id = idx + graspingPoses.size() * 2;
         marker.type = yarp::rosmsg::visualization_msgs::Marker::ARROW;
         marker.action = yarp::rosmsg::visualization_msgs::Marker::ADD;
-        yarp::rosmsg::geometry_msgs::Point pointRos;
         pointRos.x = frame.p[0] - auxV1[0];
         pointRos.y = frame.p[1] - auxV1[1];
         pointRos.z = frame.p[2] - auxV1[2];
@@ -3184,8 +3245,9 @@ void GetGraspingPoses::rosSendGraspingPoses(const std::string &frame_id, const s
         marker.color.g = 1.0;
         marker.color.b = 0.0;
         markerArray.markers.push_back(marker);
-    }
 
+       
+    }
     if (graspingPoses_outTopic)
     {
         yInfo("Publish...\n");
