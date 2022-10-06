@@ -20,6 +20,7 @@ constexpr auto VOCAB_CMD_PAUSE = yarp::os::createVocab32('p', 'a', 'u', 's');
 constexpr auto VOCAB_CMD_RESUME = yarp::os::createVocab32('r', 's', 'm');
 constexpr auto VOCAB_CMD_GET_SUPERQUADRICS_BBOXES = yarp::os::createVocab32('g', 's', 'b', 'b');
 constexpr auto VOCAB_CMD_GET_GRASPING_POSES = yarp::os::createVocab32('g', 'g', 'p');
+constexpr auto VOCAB_CMD_GET_SUPERQUADRICS = yarp::os::createVocab32('g', 's', 'u', 'p');
 
 /************************************************************************/
 
@@ -481,7 +482,6 @@ bool GetGraspingPoses::updateModule()
                     yarp::pcl::fromPCL<pcl::PointXYZRGBA, yarp::sig::DataXYZRGBA>(*cloudSuperquadric, yarpCloudSuperquadric);
                     yInfo() << yarpCloudSuperquadric.size();
                     rosComputeAndSendPc(yarpCloudSuperquadric, "waist", *pointCloudFillingObjectsTopic);
-
                 }
             }
         }
@@ -1422,7 +1422,6 @@ bool GetGraspingPoses::createBoundingBox2DFromSuperquadric(const std::vector<Sup
     marker.header.stamp.sec = 0;
     marker.header.seq = 0;
 
-
     yInfo() << "Bbox has " << bbox3d->points.size() << "points";
     for (int idx = 0; idx <= bbox3d->points.size() - 1; idx += 1)
     {
@@ -2170,97 +2169,122 @@ bool GetGraspingPoses::read(yarp::os::ConnectionReader &connection)
 
     switch (command.get(0).asVocab32())
     {
-        case VOCAB_CMD_PAUSE:
+    case VOCAB_CMD_PAUSE:
+    {
+        m_update_data = false;
+        yarp::os::Bottle reply{yarp::os::Value(VOCAB_OK, true)};
+        return reply.write(*writer);
+    }
+    case VOCAB_CMD_RESUME:
+    {
+        m_update_data = true;
+        yarp::os::Bottle reply{yarp::os::Value(VOCAB_OK, true)};
+        return reply.write(*writer);
+    }
+    case VOCAB_CMD_GET_SUPERQUADRICS_BBOXES:
+    {
+        mtx.lock();
+        yarp::rosmsg::visualization_msgs::Marker marker;
+        yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
+
+        marker.header.frame_id = "waist";
+        static int counter = 0;
+        marker.header.stamp.nsec = 0;
+        marker.header.stamp.sec = 0;
+
+        marker.action = yarp::rosmsg::visualization_msgs::Marker::DELETEALL;
+        marker.points.clear();
+        markerArray.markers.push_back(marker);
+
+        if (bbox3d_topic)
         {
-            m_update_data = false;
-            yarp::os::Bottle reply{yarp::os::Value(VOCAB_OK, true)};
-            return reply.write(*writer);
+            yInfo("Publish...\n");
+            bbox3d_topic->write(markerArray);
         }
-        case VOCAB_CMD_RESUME:
+
+        for (unsigned int i = 0; i < m_superquadric_objects.size(); i++)
         {
-            m_update_data = true;
-            yarp::os::Bottle reply{yarp::os::Value(VOCAB_OK, true)};
-            return reply.write(*writer);
+            std::array<int, 4> bbox;
+            createBoundingBox2DFromSuperquadric(m_superquadric_objects[i].superqs, bbox);
+            yarp::os::Property bboxDict;
+            bboxDict.put("label_idx", m_superquadric_objects[i].label);
+            bboxDict.put("tlx", yarp::os::Value(bbox[0]));
+            bboxDict.put("tly", yarp::os::Value(bbox[1]));
+            bboxDict.put("brx", yarp::os::Value(bbox[2]));
+            bboxDict.put("bry", yarp::os::Value(bbox[3]));
+            reply.addDict() = bboxDict;
         }
-        case VOCAB_CMD_GET_SUPERQUADRICS_BBOXES:
+        mtx.unlock();
+        return reply.write(*writer);
+    }
+    case VOCAB_CMD_GET_GRASPING_POSES:
+    {
+        mtx.lock();
+        yInfo() << command.toString();
+        bool found = false;
+        int i;
+        for (i = 0; i < m_superquadric_objects.size(); i++)
         {
-            mtx.lock();
-            yarp::rosmsg::visualization_msgs::Marker marker;
-            yarp::rosmsg::visualization_msgs::MarkerArray markerArray;
-
-            marker.header.frame_id = "waist";
-            static int counter = 0;
-            marker.header.stamp.nsec = 0;
-            marker.header.stamp.sec = 0;
-
-            marker.action = yarp::rosmsg::visualization_msgs::Marker::DELETEALL;
-            marker.points.clear();
-            markerArray.markers.push_back(marker);
-
-            if (bbox3d_topic)
+            if (m_superquadric_objects[i].label == command.get(1).asVocab32())
             {
-                yInfo("Publish...\n");
-                bbox3d_topic->write(markerArray);
+                found = true;
+                break;
             }
-
-            for(unsigned int i=0; i<m_superquadric_objects.size(); i++){
-                std::array<int, 4> bbox;
-                createBoundingBox2DFromSuperquadric(m_superquadric_objects[i].superqs, bbox);
-                yarp::os::Property bboxDict;
-                bboxDict.put("label_idx", m_superquadric_objects[i].label);
-                bboxDict.put("tlx", yarp::os::Value(bbox[0]));
-                bboxDict.put("tly", yarp::os::Value(bbox[1]));
-                bboxDict.put("brx", yarp::os::Value(bbox[2]));
-                bboxDict.put("bry", yarp::os::Value(bbox[3]));
-                reply.addDict() = bboxDict;
+        }
+        if (!found)
+        {
+            mtx.unlock();
+            yarp::os::Bottle reply{yarp::os::Value(VOCAB_FAIL, true)};
+            return reply.write(*writer);
+        }
+        else
+        {
+            std::vector<std::vector<double>> graspingPoses;
+            computeGraspingPoses(m_superquadric_objects[i].superqs, graspingPoses);
+            yarp::os::Bottle bPose;
+            yarp::os::Bottle bObject;
+            for (int i = 0; i < graspingPoses.size(); i++)
+            {
+                bPose.clear();
+                for (int j = 0; j < 6; j++)
+                {
+                    bPose.addFloat64(graspingPoses[i][j]);
+                }
+                reply.addList() = bPose;
             }
             mtx.unlock();
+            yInfo() << "graspingPoses.size(): " << graspingPoses.size();
+            if (graspingPoses.size() > 0)
+                rosSendGraspingPoses("waist", graspingPoses);
             return reply.write(*writer);
         }
-        case VOCAB_CMD_GET_GRASPING_POSES:
+    }
+    case VOCAB_CMD_GET_SUPERQUADRICS:
+    {
+        for (int i = 0; i < m_superquadric_objects.size(); i++)
         {
-            mtx.lock();
-            yInfo() << command.toString();
-            bool found = false;
-            int i;
-            for(i=0; i<m_superquadric_objects.size(); i++){
-                if(m_superquadric_objects[i].label == command.get(1).asVocab32()){
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-            {
-                mtx.unlock();
-                yarp::os::Bottle reply {yarp::os::Value(VOCAB_FAIL, true)};
-                return reply.write(*writer);
-
-            }
-            else{
-                std::vector<std::vector<double>> graspingPoses;
-                computeGraspingPoses(m_superquadric_objects[i].superqs, graspingPoses);
-                yarp::os::Bottle bPose;
-                yarp::os::Bottle bObject;
-                for(int i = 0; i<graspingPoses.size(); i++){
-                    bPose.clear();
-                    for (int j = 0; j < 6; j++)
-                    {
-                        bPose.addFloat64(graspingPoses[i][j]);
-                    }
-                    reply.addList() = bPose;
-                }
-                mtx.unlock();
-                yInfo() << "graspingPoses.size(): " << graspingPoses.size();
-                if (graspingPoses.size() > 0)
-                    rosSendGraspingPoses("waist", graspingPoses);
-                return reply.write(*writer);
-            }
-
-
+            auto params = m_superquadric_objects[i].superqs[0].getSuperqParams();
+            yarp::os::Property bboxDict;
+            bboxDict.put("label_idx", m_superquadric_objects[i].label);
+            bboxDict.put("axes0", yarp::os::Value(params[0]));
+            bboxDict.put("axes1", yarp::os::Value(params[1]));
+            bboxDict.put("axes2", yarp::os::Value(params[2]));
+            bboxDict.put("e1", yarp::os::Value(params[3]));
+            bboxDict.put("e2", yarp::os::Value(params[4]));
+            bboxDict.put("x", yarp::os::Value(params[5]));
+            bboxDict.put("y", yarp::os::Value(params[6]));
+            bboxDict.put("y", yarp::os::Value(params[7]));
+            bboxDict.put("roll", yarp::os::Value(params[8]));
+            bboxDict.put("pitch", yarp::os::Value(params[9]));
+            bboxDict.put("yaw", yarp::os::Value(params[10]));
+            reply.addDict() = bboxDict;
         }
-        default:
-            yarp::os::Bottle reply {yarp::os::Value(VOCAB_FAIL, true)};
-            return reply.write(*writer);
+        return reply.write(*writer);
+    }
+
+    default:
+        yarp::os::Bottle reply{yarp::os::Value(VOCAB_FAIL, true)};
+        return reply.write(*writer);
     }
 
     // if (b->get(0).toString().find("update") != std::string::npos)
