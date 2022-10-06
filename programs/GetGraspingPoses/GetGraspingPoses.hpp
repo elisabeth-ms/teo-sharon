@@ -91,6 +91,22 @@ namespace sharon
         uint32_t b;
     };
 
+    struct ObjectSuperquadric
+    {
+        pcl::PointCloud<pcl::PointXYZRGBA> cloud;
+        int label;
+        std::vector<SuperqModel::Superquadric> superqs;
+    };
+
+    struct BoundingBox2d
+    {
+        int label; /**< label assigned by the lccp algorithm*/
+        int tlx;
+        int tly;
+        int brx;
+        int bry;
+    };
+
     /**
      * @ingroup getGraspingPoses
      *
@@ -145,6 +161,7 @@ namespace sharon
         yarp::os::Publisher<yarp::rosmsg::sensor_msgs::PointCloud2> *pointCloud_objectTopic;
         yarp::os::Publisher<yarp::rosmsg::sensor_msgs::PointCloud2> *pointCloudLccpTopic;
         yarp::os::Publisher<yarp::rosmsg::sensor_msgs::PointCloud2> *pointCloudFillingObjectsTopic;
+        yarp::os::Publisher<yarp::rosmsg::visualization_msgs::MarkerArray> *bbox3d_topic;
 
         yarp::os::Publisher<yarp::rosmsg::visualization_msgs::MarkerArray> *graspingPoses_outTopic;
         std::string robot;
@@ -155,16 +172,7 @@ namespace sharon
         void rosComputeAndSendPc(const yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &pc, std::string frame_id, const yarp::os::Publisher<yarp::rosmsg::sensor_msgs::PointCloud2> &PointCloudTopic);
         bool transformPointCloud(const yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> &pc, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &transformed_cloud, bool from_camera_to_trunk);
         Eigen::Matrix4f KDLToEigenMatrix(const KDL::Frame &p);
-        void computeGraspingPosesMilk(std::vector<KDL::Vector> &normals, std::vector<pcl::PointXYZRGBA> &centroids, std::vector<pcl::PointXYZRGBA> &maxPoints,
-                                      std::vector<pcl::PointXYZRGBA> &minPoints, std::vector<std::vector<double>> &graspingPoses,
-                                      std::vector<KDL::Vector> &y_vectors, std::vector<KDL::Vector> &x_vectors);
-
-        void computeGraspingPosesCereal(std::vector<KDL::Vector> &normals, std::vector<pcl::PointXYZRGBA> &centroids,
-                                        std::vector<pcl::PointXYZRGBA> &maxPoints, std::vector<pcl::PointXYZRGBA> &minPoints,
-                                        std::vector<std::vector<double>> &graspingPoses);
-
-        void computeGraspingPosesWaterNesquick(pcl::PointXYZRGBA &centroid, std::vector<KDL::Vector> &normals, std::vector<pcl::PointXYZRGBA> &points,
-                                               std::vector<std::vector<double>> &graspingPoses, double (&cylinderShape)[2]);
+        
         void getMinimumBoundingBoxPointCLoud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudSegmented, pcl::PointXYZRGBA &maxPoint, pcl::PointXYZRGBA &minPoint, KDL::Vector normal);
         void getMinimumBoundingBoxPointCLoud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudSegmented, pcl::PointXYZRGBA &maxPoint, pcl::PointXYZRGBA &minPoint);
         void getMinimumOrientedBoundingBox(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudSegmented, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &bbox);
@@ -185,12 +193,14 @@ namespace sharon
         void fillBoxPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &filling_cloud, const pcl::PointXYZRGBA &centroid,
                                const KDL::Vector &normal, float box_sizes[3], int rgb[3]);
 
+
+
         void updateDetectedObjectsPointCloud(const pcl::PointCloud<pcl::PointXYZL>::Ptr &lccp_labeled_cloud);
         bool PclPointCloudToSuperqPointCloud(const pcl::PointCloud<pcl::PointXYZRGBA> &object_cloud, SuperqModel::PointCloud &point_cloud);
         void GetSuperquadricFromPointCloud(SuperqModel::PointCloud point_cloud,std::vector<SuperqModel::Superquadric> &superqs);
         void createPointCloudFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloudSuperquadric, int indexDetectedObjects);
         void createGraspingPosesFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs);
-
+        bool createBoundingBox2DFromSuperquadric(const std::vector<SuperqModel::Superquadric> &superqs, std::array<int, 4> &bbox);
         void computeGraspingPoses(const std::vector<SuperqModel::Superquadric> &superqs, std::vector<std::vector<double>> &graspingPoses);
         void rosSendGraspingPoses(const std::string &frame_id, const std::vector<std::vector<double>> &graspingPoses);
         
@@ -226,6 +236,8 @@ namespace sharon
 
         bool single_superq;
         std::string object_class;
+
+        std::vector<ObjectSuperquadric> m_superquadric_objects;
 
     };
 
