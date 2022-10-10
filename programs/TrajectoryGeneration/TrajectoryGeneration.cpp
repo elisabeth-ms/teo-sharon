@@ -176,12 +176,16 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
     printf("---- Joint limits of %s\n",deviceName.c_str());
     qmin.resize(numJoints);
     qmax.resize(numJoints);
+    m_qmin.resize(numJoints);
+    m_qmax.resize(numJoints);
 
     for(unsigned int joint = 0; joint < numJoints; joint++){
         double min, max;
         iControlLimits->getLimits(joint, &min, &max);
         qmin(joint) = min;
         qmax(joint) = max;
+        m_qmin[joint] = min;
+        m_qmax[joint] = max;
     }
 
     changeJointsLimitsFromConfigFile(qmin,config, "qmin");
@@ -259,68 +263,91 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         yError()<<"Invalid deviceName. Options: trunkAndRightArm, rightArm, trunkAndLeftArm, leftArm";
     }
 
-    unsigned int nj = chain.getNrOfJoints();
-    yInfo() << "Number of joints: " << nj;
-    unsigned int nl = chain.getNrOfSegments();
-    yInfo() << "Number of segments: " << nl;
+    // unsigned int nj = chain.getNrOfJoints();
+    // yInfo() << "Number of joints: " << nj;
+    // unsigned int nl = chain.getNrOfSegments();
+    // yInfo() << "Number of segments: " << nl;
    
-    yInfo() <<"Lets create the collision objects";
-    CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.24, 0.24, 0.5}};
-    fcl::Transform3f tfTest;
-    fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
+    // yInfo() <<"Lets create the collision objects";
+    // CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.24, 0.24, 0.5}};
+    // fcl::Transform3f tfTest;
+    // fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
 
-    CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
-    fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
+    // CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
+    // fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
    
-    CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_LENGTH}};//{new fcl::Box{0.15, 0.15, 0.32901}};
-    fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
+    // CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_LENGTH}};//{new fcl::Box{0.15, 0.15, 0.32901}};
+    // fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
 
-    CollisionGeometryPtr_t teoElbow{new fcl::Boxf{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
-    fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
+    // CollisionGeometryPtr_t teoElbow{new fcl::Boxf{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
+    // fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
     
-    CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.19, 0.29, 0.19}};
-    fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
+    // CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.19, 0.29, 0.19}};
+    // fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
 
-    CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.0,0.0,0.0}};
-    fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
+    // CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.0,0.0,0.0}};
+    // fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
 
 
-    CollisionGeometryPtr_t table{new fcl::Boxf{0.6,1.3,0.95}};
-    fcl::CollisionObjectf collisionObjectTable{table, tfTest};
-    fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
-    // fcl::Vector3f translation(1.65, 0.0, -0.43);
-    fcl::Vector3f translation(0.77, 0.0, -0.43);
-    collisionObjectTable.setTransform(rotation, translation);
-    tableCollision.clear();
-    tableCollision.push_back(collisionObjectTable);
+    // CollisionGeometryPtr_t table{new fcl::Boxf{0.6,1.3,0.95}};
+    // fcl::CollisionObjectf collisionObjectTable{table, tfTest};
+    // fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
+    // // fcl::Vector3f translation(1.65, 0.0, -0.43);
+    // fcl::Vector3f translation(0.77, 0.0, -0.43);
+    // collisionObjectTable.setTransform(rotation, translation);
+    // tableCollision.clear();
+    // tableCollision.push_back(collisionObjectTable);
 
-    int nOfCollisionObjects = 6;
-    collisionObjects.clear();
-    collisionObjects.reserve(nOfCollisionObjects);
-    collisionObjects.emplace_back(collisionObject1);
-    collisionObjects.emplace_back(collisionObject2);
-    collisionObjects.emplace_back(collisionObject3);
-    collisionObjects.emplace_back(collisionObject4);
-    collisionObjects.emplace_back(collisionObject5);
-    collisionObjects.emplace_back(collisionObject6);
+    // int nOfCollisionObjects = 6;
+    // collisionObjects.clear();
+    // collisionObjects.reserve(nOfCollisionObjects);
+    // collisionObjects.emplace_back(collisionObject1);
+    // collisionObjects.emplace_back(collisionObject2);
+    // collisionObjects.emplace_back(collisionObject3);
+    // collisionObjects.emplace_back(collisionObject4);
+    // collisionObjects.emplace_back(collisionObject5);
+    // collisionObjects.emplace_back(collisionObject6);
 
-    yInfo()<<"Collision objects created";
-    offsetCollisionObjects.reserve(nOfCollisionObjects);
-    std::array<float, 3> offsetObject = {0, 0, 0};
-    for (int i = 0; i < nOfCollisionObjects; i++)
-    {
-        offsetCollisionObjects.emplace_back(offsetObject);
-    }
+    // yInfo()<<"Collision objects created";
+    // offsetCollisionObjects.reserve(nOfCollisionObjects);
+    // std::array<float, 3> offsetObject = {0, 0, 0};
+    // for (int i = 0; i < nOfCollisionObjects; i++)
+    // {
+    //     offsetCollisionObjects.emplace_back(offsetObject);
+    // }
 
-    offsetCollisionObjects[0][2] = -0.2;
-    offsetCollisionObjects[1][1] = 0.0;
-    offsetCollisionObjects[1][2] = +0.1734;
-    offsetCollisionObjects[4][1] = 0.055;
+    // offsetCollisionObjects[0][2] = -0.2;
+    // offsetCollisionObjects[1][1] = 0.0;
+    // offsetCollisionObjects[1][2] = +0.1734;
+    // offsetCollisionObjects[4][1] = 0.055;
 
     yInfo()<<"offset collisions created";
 
-    checkSelfCollision = new CheckSelfCollision(chain, qmin, qmax, collisionObjects, offsetCollisionObjects, tableCollision);
-    yInfo()<<"Check selfCollisionObject created";
+    if(deviceName != "trunkAndRightArm"){
+        yError()<<"No trunkAndRightArm device";
+        return false;
+    }
+
+
+    rf.setDefaultContext("kinematics");
+    std::string kinematicsFileFullPath = rf.findFileByName( "teo-trunk-rightArm-fetch.ini" );
+
+    rf.setDefaultContext("teoCheckSelfCollisions");
+    std::string selfCollisionsFileFullPath = rf.findFileByName( "teo-trunk-RightArm-fetch-collisions.ini");
+
+    rf.setDefaultContext("teoCheckCollisions");
+    std::string fixedObjectsFileFullPath = rf.findFileByName("fixed-table-collision.ini");
+
+
+    m_checkCollisions = new TeoCheckCollisionsLibrary(fixedObjectsFileFullPath);
+    m_checkCollisions->setSelfCollisionsFileFullPath(selfCollisionsFileFullPath);
+    m_checkCollisions->setKinematicsFileFullPath(kinematicsFileFullPath);
+    m_checkCollisions->setQMin(m_qmin);
+    m_checkCollisions->setQMax(m_qmax);
+    m_checkCollisions->configureCollisionObjects();
+    m_checkCollisions->getBoxShapes(m_boxShapes);
+    m_checkCollisions->configureEnvironmentFixedObjects();
+    m_checkCollisions->getBoxShapesFixedObjects(m_boxShapesFixedObjects);
 
     nlopt_opt opt_obo;
     opt_obo = nlopt_create(NLOPT_LN_BOBYQA, numJoints);

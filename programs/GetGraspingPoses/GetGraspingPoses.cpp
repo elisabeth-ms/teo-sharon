@@ -175,7 +175,7 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
 
     std::string prefix(DEFAULT_PREFIX);
 
-    if (!rpcServer.open(portPrefix + "/rpc:s"))
+    if (!rpcServer.open(prefix + "/rpc:s"))
     {
         yError() << "Unable to open RPC server port" << rpcServer.getName();
         return false;
@@ -315,13 +315,13 @@ bool GetGraspingPoses::configure(yarp::os::ResourceFinder &rf)
     int print_level_superq = rf.check("print_level_superq", yarp::os::Value(0)).asInt32();
     object_class = rf.check("object_class", yarp::os::Value("default")).toString();
     single_superq = rf.check("single_superq", yarp::os::Value(true)).asBool();
-    sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-5)).asFloat64();
-    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(50)).asInt32();
-    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(true)).asBool();
-
+    sq_model_params["tol"] = rf.check("tol_superq", yarp::os::Value(1e-6)).asFloat64();
+    sq_model_params["optimizer_points"] = rf.check("optimizer_points", yarp::os::Value(200)).asInt32();
+    sq_model_params["random_sampling"] = rf.check("random_sampling", yarp::os::Value(false)).asBool();
+    sq_model_params["max_iter"] = rf.check("max_iter", yarp::os::Value(10000000)).asInt32();
     sq_model_params["merge_model"] = rf.check("merge_model", yarp::os::Value(true)).asBool();
-    sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(150)).asInt32();
-    sq_model_params["fraction_pc"] = rf.check("fraction_pc", yarp::os::Value(8)).asInt32();
+    sq_model_params["minimum_points"] = rf.check("minimum_points", yarp::os::Value(200)).asInt32();
+    sq_model_params["fraction_pc"] = rf.check("fraction_pc", yarp::os::Value(2)).asInt32();
     sq_model_params["threshold_axis"] = rf.check("tol_threshold_axissuperq", yarp::os::Value(0.7)).asFloat64();
     sq_model_params["threshold_section1"] = rf.check("threshold_section1", yarp::os::Value(0.6)).asFloat64();
     sq_model_params["threshold_section2"] = rf.check("threshold_section2", yarp::os::Value(0.03)).asFloat64();
@@ -425,7 +425,7 @@ bool GetGraspingPoses::updateModule()
 
             pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
             sor.setInputCloud(transformed_cloud);
-            sor.setLeafSize(0.001f, 0.001f, 0.001f);
+            sor.setLeafSize(0.005f, 0.005f, 0.005f);
             sor.filter(*transformed_cloud_filtered);
 
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr without_horizontal_surface_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -2273,7 +2273,7 @@ bool GetGraspingPoses::read(yarp::os::ConnectionReader &connection)
             bboxDict.put("e2", yarp::os::Value(params[4]));
             bboxDict.put("x", yarp::os::Value(params[5]));
             bboxDict.put("y", yarp::os::Value(params[6]));
-            bboxDict.put("y", yarp::os::Value(params[7]));
+            bboxDict.put("z", yarp::os::Value(params[7]));
             bboxDict.put("roll", yarp::os::Value(params[8]));
             bboxDict.put("pitch", yarp::os::Value(params[9]));
             bboxDict.put("yaw", yarp::os::Value(params[10]));

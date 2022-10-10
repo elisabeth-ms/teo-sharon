@@ -64,7 +64,7 @@
 #define DEFAULT_RGBD_DEVICE "RGBDSensorClient"
 #define DEFAULT_RGBD_LOCAL "/getGraspingPoses"
 #define DEFAULT_RGBD_REMOTE "/realsense2" // /teoSim/camera or /xtion
-#define DEFAULT_WATCHDOG 0.1                 // [s]
+#define DEFAULT_WATCHDOG 1.0                 // [s]
 #define DEFAULT_RATE_MS 400
 #define DEFAULT_PREFIX "/getGraspingPoses"
 #define DEFAULT_MIN_NPOINTS 100

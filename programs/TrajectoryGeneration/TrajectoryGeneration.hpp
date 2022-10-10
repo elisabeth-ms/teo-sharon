@@ -15,16 +15,16 @@
 #include <ompl/base/goals/GoalState.h>
 #include <ompl/geometric/planners/rrt/BiTRRT.h>
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
-#include <ompl/geometric/planners/rlrt/BiRLRT.h>
+
 
 #include </usr/local/include/nlopt.hpp>
-#include "trac-ik/trac_ik/trac_ik.hpp"
+#include "trac_ik/trac_ik.hpp"
 
 #include <yarp/sig/PointCloud.h>
 #include <pcl/common/common.h>
 #include <yarp/pcl/Pcl.h>
 
-#include "../../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
+#include <TeoCheckCollisionsLibrary.hpp>
 #include <yarp/os/Vocab.h>
 #include <yarp/dev/GenericVocabs.h>
 
@@ -42,6 +42,7 @@
 
 #define FRONTAL_WRIST_LINK_LENGTH 0.45
 #define FRONTAL_WRIST_LINK_RADIUS 0.2
+#define MARGIN_BOUNDS 0.01
 
 
 
@@ -76,7 +77,7 @@ constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
 
         protected:
           typedef std::shared_ptr<fcl::CollisionGeometryf> CollisionGeometryPtr_t;
-          sharon::CheckSelfCollision *checkSelfCollision;
+          TeoCheckCollisionsLibrary * m_checkCollisions;
 
         private:
             bool openDevices();
@@ -102,10 +103,12 @@ constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
             KDL::Chain chain;
             KDL::JntArray qmin;
             KDL::JntArray qmax;
-            std::vector<fcl::CollisionObjectf> collisionObjects;
-            std::vector<std::array<float, 3>> offsetCollisionObjects;
-            std::vector<fcl::CollisionObjectf> tableCollision;
-            
+            std::vector<double> m_qmin;
+            std::vector<double> m_qmax;
+
+            std::vector<std::array<float,3>>m_boxShapes;
+            std::vector<std::array<float,3>>m_boxShapesFixedObjects;
+
             std::vector<KDL::Frame> centerLinkWrtJoint;
 
             /*-- Arm Device --*/
