@@ -12,7 +12,7 @@ if(ENABLE_tests)
     if(ENABLE_CheckSelfCollisionLibrary)
         add_executable(testCheckSelfCollisionLibrary testCheckSelfCollisionLibrary.cpp)
 
-        target_link_libraries(testCheckSelfCollisionLibrary ROBOTICSLAB::ColorDebug
+        target_link_libraries(testCheckSelfCollisionLibrary
                                                  CheckSelfCollisionLibrary
                                                  gtest_main)
 

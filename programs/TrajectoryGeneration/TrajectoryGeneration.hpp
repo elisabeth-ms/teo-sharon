@@ -59,6 +59,7 @@ constexpr auto VOCAB_CHECK_GOAL_JOINTS = yarp::os::createVocab32('c','h','g','j'
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_POSE = yarp::os::createVocab32('c','p','g','p');
 constexpr auto VOCAB_COMPUTE_JOINTS_PATH_GOAL_JOINTS = yarp::os::createVocab32('c','p','g','j');
 constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
+constexpr auto VOCAB_CMD_GET_SUPERQUADRICS = yarp::os::createVocab32('g', 's', 'u', 'p');
 
 
 
@@ -148,6 +149,8 @@ constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
             ICartesianSolver *armICartesianSolver;
             yarp::os::Property armSolverOptions;
 
+            yarp::os::RpcClient m_clientGetGraspingPoses;
+
             /** Joints limits modified**/
             yarp::os::Bottle qrMin;
             yarp::os::Bottle qrMax;
@@ -193,6 +196,8 @@ constexpr auto VOCAB_UPDATE_POINTCLOUD = yarp::os::createVocab32('u','p','c');
 
             bool isValid(const ob::State *state);
             bool getCurrentQ(std::vector<double> & currentQ);
+            void getSuperquadrics(std::vector<int> &label_idx, std::vector<std::array<float,11>> &params);
+
             bool computeDiscretePath(ob::ScopedState<ob::SE3StateSpace> start, ob::ScopedState<ob::SE3StateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, bool &validStartState, bool &validGoalState);
             bool computeDiscretePath(ob::ScopedState<ob::RealVectorStateSpace> start, ob::ScopedState<ob::RealVectorStateSpace> goal, std::vector<std::vector<double>> &jointsTrajectory, std::string & errorMessage);
             std::vector<double> goalQ;

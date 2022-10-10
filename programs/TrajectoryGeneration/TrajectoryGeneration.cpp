@@ -15,7 +15,6 @@
 
 using namespace roboticslab::KinRepresentation;
 using namespace roboticslab::KdlVectorConverter;
-using namespace sharon;
 
 #define DEFAULT_MAX_DIFF_INV 0.0000001
 #define DEFAULT_PREFIX "/trajectoryGeneration/"
@@ -243,6 +242,10 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         yError() << "Unable to open RPC server port" << rpcServer.getName();
         return false;
     }
+
+
+    m_clientGetGraspingPoses.open("/client");
+    yarp::os::Network::connect("/client", "/getGraspingPoses/rpc:s");
     
 
     //Init collisions objects
@@ -263,63 +266,8 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
         yError()<<"Invalid deviceName. Options: trunkAndRightArm, rightArm, trunkAndLeftArm, leftArm";
     }
 
-    // unsigned int nj = chain.getNrOfJoints();
-    // yInfo() << "Number of joints: " << nj;
-    // unsigned int nl = chain.getNrOfSegments();
-    // yInfo() << "Number of segments: " << nl;
-   
-    // yInfo() <<"Lets create the collision objects";
-    // CollisionGeometryPtr_t teoRootTrunk{new fcl::Boxf{0.24, 0.24, 0.5}};
-    // fcl::Transform3f tfTest;
-    // fcl::CollisionObjectf collisionObject1{teoRootTrunk, tfTest};
+    unsigned int nj = chain.getNrOfJoints();
 
-    // CollisionGeometryPtr_t teoTrunk{new fcl::Boxf{0.3, 0.3, 0.46}};
-    // fcl::CollisionObjectf collisionObject2{teoTrunk, tfTest};
-   
-    // CollisionGeometryPtr_t teoAxialShoulder{new fcl::Boxf{AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_RADIUS,AXIAL_SHOULDER_LINK_LENGTH}};//{new fcl::Box{0.15, 0.15, 0.32901}};
-    // fcl::CollisionObjectf collisionObject3{teoAxialShoulder, tfTest};
-
-    // CollisionGeometryPtr_t teoElbow{new fcl::Boxf{FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_RADIUS, FRONTAL_ELBOW_LINK_LENGTH}};
-    // fcl::CollisionObjectf collisionObject4{teoElbow, tfTest};
-    
-    // CollisionGeometryPtr_t teoWrist{new fcl::Boxf{0.19, 0.29, 0.19}};
-    // fcl::CollisionObjectf collisionObject5{teoWrist, tfTest};
-
-    // CollisionGeometryPtr_t endEffector{new fcl::Boxf{0.0,0.0,0.0}};
-    // fcl::CollisionObjectf collisionObject6{endEffector, tfTest};
-
-
-    // CollisionGeometryPtr_t table{new fcl::Boxf{0.6,1.3,0.95}};
-    // fcl::CollisionObjectf collisionObjectTable{table, tfTest};
-    // fcl::Quaternionf rotation(1.0,0.0,0.0,0.0);
-    // // fcl::Vector3f translation(1.65, 0.0, -0.43);
-    // fcl::Vector3f translation(0.77, 0.0, -0.43);
-    // collisionObjectTable.setTransform(rotation, translation);
-    // tableCollision.clear();
-    // tableCollision.push_back(collisionObjectTable);
-
-    // int nOfCollisionObjects = 6;
-    // collisionObjects.clear();
-    // collisionObjects.reserve(nOfCollisionObjects);
-    // collisionObjects.emplace_back(collisionObject1);
-    // collisionObjects.emplace_back(collisionObject2);
-    // collisionObjects.emplace_back(collisionObject3);
-    // collisionObjects.emplace_back(collisionObject4);
-    // collisionObjects.emplace_back(collisionObject5);
-    // collisionObjects.emplace_back(collisionObject6);
-
-    // yInfo()<<"Collision objects created";
-    // offsetCollisionObjects.reserve(nOfCollisionObjects);
-    // std::array<float, 3> offsetObject = {0, 0, 0};
-    // for (int i = 0; i < nOfCollisionObjects; i++)
-    // {
-    //     offsetCollisionObjects.emplace_back(offsetObject);
-    // }
-
-    // offsetCollisionObjects[0][2] = -0.2;
-    // offsetCollisionObjects[1][1] = 0.0;
-    // offsetCollisionObjects[1][2] = +0.1734;
-    // offsetCollisionObjects[4][1] = 0.055;
 
     yInfo()<<"offset collisions created";
 
@@ -337,6 +285,11 @@ bool TrajectoryGeneration::open(yarp::os::Searchable& config)
 
     rf.setDefaultContext("teoCheckCollisions");
     std::string fixedObjectsFileFullPath = rf.findFileByName("fixed-table-collision.ini");
+
+    yInfo()<<kinematicsFileFullPath;
+    yInfo()<<selfCollisionsFileFullPath;
+    yInfo()<<fixedObjectsFileFullPath;
+
 
 
     m_checkCollisions = new TeoCheckCollisionsLibrary(fixedObjectsFileFullPath);
@@ -616,9 +569,11 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
             
             yInfo()<<"desireQ: "<<desireQ;
 
-            checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
-            bool selfCollide = checkSelfCollision->selfCollision();
-            return !selfCollide;
+
+            m_checkCollisions->updateCollisionObjectsTransform(desireQ);
+
+            bool collide = m_checkCollisions->collision();
+            return !collide;
         }
         return true;
     }
@@ -626,19 +581,24 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
         
         const ob::RealVectorStateSpace::StateType *jointState = state->as<ob::RealVectorStateSpace::StateType>();
         KDL::JntArray jointpositions = KDL::JntArray(numJoints);
+        std::vector<double> currentQ(numJoints);
 
         for (unsigned int i = 0; i < jointpositions.rows(); i++)
         {
             jointpositions(i) = jointState->values[i];
+            currentQ[i] = jointpositions(i);
             // yInfo()<<"Joint("<<i<<")="<<jointpositions(i);
         }
         
-        jointsInsideBounds = checkSelfCollision->updateCollisionObjectsTransform(jointpositions);
+
+        jointsInsideBounds = m_checkCollisions->updateCollisionObjectsTransform(currentQ);
+
         
         if(jointsInsideBounds){
             yInfo()<<"Joints inside bounds";
-            yInfo()<<"eo: selfCollision"<<checkSelfCollision->selfCollision();
-            return !checkSelfCollision->selfCollision();
+            bool collide = m_checkCollisions->collision();
+            yInfo()<<"eo: selfCollision"<<collide;
+            return !collide;
         }
         else{
             
@@ -1097,6 +1057,38 @@ bool TrajectoryGeneration::checkGoalJoints(yarp::os::Bottle * bGoal, std::string
     }
 }
 
+/************************************************************************/
+void TrajectoryGeneration::getSuperquadrics(std::vector<int> &label_idx, std::vector<std::array<float,11>> &params){
+    yInfo()<<"Lets get the superquadrics";
+    yarp::os::Bottle cmd;
+    cmd.addString("gsup");
+    yInfo()<<"Sending message..."<<cmd.toString();
+    yarp::os::Bottle response;
+    m_clientGetGraspingPoses.write(cmd, response);
+    yInfo()<<"Got response:"<<response.toString();
+
+
+    for(int i=0; i<response.size(); i++){
+        label_idx.push_back(response.get(i).find("label_idx").asInt32());
+        std::array<float,11> object_params;
+        object_params[0] = response.get(i).find("axes0").asFloat32();
+        object_params[1] = response.get(i).find("axes1").asFloat32();
+        object_params[2] = response.get(i).find("axes2").asFloat32();
+        object_params[3] = response.get(i).find("e1").asFloat32();
+        object_params[4] = response.get(i).find("e2").asFloat32();
+        object_params[5] = response.get(i).find("x").asFloat32();
+        object_params[6] = response.get(i).find("y").asFloat32();
+        object_params[7] = response.get(i).find("z").asFloat32();
+        object_params[8] = response.get(i).find("roll").asFloat32();
+        object_params[9] = response.get(i).find("pitch").asFloat32();
+        object_params[10] = response.get(i).find("yaw").asFloat32();
+        params.push_back(object_params);
+
+        yInfo()<<label_idx[i];
+        yInfo()<<object_params;
+    }
+}
+
 
 bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
 {
@@ -1311,6 +1303,16 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 yInfo() <<"help";
                 static auto usage = makeUsage();
                 reply.append(usage);
+            }break;
+            case VOCAB_CMD_GET_SUPERQUADRICS:{
+                std::vector<int> label_idx; 
+                std::vector<std::array<float,11>> params;
+                getSuperquadrics(label_idx, params);
+                if(label_idx.size() != 0){
+                    m_checkCollisions->setSuperquadrics(label_idx, params);
+                    m_checkCollisions->updateEnvironmentCollisionObjects();
+                    yInfo()<<label_idx;
+                 }
             }break;
             case VOCAB_UPDATE_POINTCLOUD:{
                 yInfo() << "Update the pointcloud for collision checking";
