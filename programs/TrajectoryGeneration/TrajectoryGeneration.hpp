@@ -42,7 +42,7 @@
 
 #define FRONTAL_WRIST_LINK_LENGTH 0.45
 #define FRONTAL_WRIST_LINK_RADIUS 0.2
-#define MARGIN_BOUNDS 0.01
+#define MARGIN_BOUNDS 0.0
 
 
 
@@ -176,16 +176,17 @@ constexpr auto VOCAB_CMD_GET_SUPERQUADRICS = yarp::os::createVocab32('g', 's', '
 
             TRAC_IK::TRAC_IK * iksolver;
             KDL::Twist boundsSolver = KDL::Twist::Zero();
+            
 
             yarp::os::Port inPort;
             yarp::sig::PointCloud<yarp::sig::DataXYZRGBA> inCloud;
 
-            // boundsSolver.pos.x(0.0001);
-            // boundsSolver.pos.y = 0.0001;
-            // boundsSolver.pos.z = 0.0001;
-            // boundsSolver.rot.x = 0.0001;
-            // boundsSolver.rot.y = 0.0001;
-            // boundsSolver.rot.z = 0.0001;
+            // boundsSolver.
+            // boundsSolver.vel.y = 0.0001;
+            // boundsSolver.vel.z = 0.0001;
+            // boundsSolver.rot.x = 0.005;
+            // boundsSolver.rot.y = 0.005;
+            // boundsSolver.rot.z = 0.005;
 
             nlopt_opt opt;
             

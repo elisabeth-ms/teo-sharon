@@ -2,7 +2,6 @@
 
 #include "../libraries/CheckSelfCollisionLibrary/CheckSelfCollisionLibrary.hpp"
 
-#include <ColorDebug.h>
 
 namespace sharon
 {

@@ -6,11 +6,15 @@ import numpy as np
 from scipy import interpolate
 from matplotlib.ticker import MaxNLocator
 import time
+import kinematics_dynamics
+
 
 VOCAB_OK = yarp.createVocab32('o', 'k')
 VOCAB_FAIL = yarp.createVocab32('f', 'a', 'i', 'l')
 robot = '/teoSim'
 prefix = '/demoSharon'
+
+
 
 class TestTrajectoryGeneration():
     def __init__(self):
@@ -37,6 +41,9 @@ class TestTrajectoryGeneration():
         self.trunkIPositionDirect = None
         self.trunkIRemoteVariables = False
         
+        self.trunkRightArmSolverOptions = yarp.Property()
+        self.trunkRightArmSolverDevice = None
+
         # Trajectory Generation client
         self.rpcClientTrajectoryGenerationRight = yarp.RpcClient()
 
@@ -53,10 +60,13 @@ class TestTrajectoryGeneration():
 
         self.bGraspingPoses = yarp.Bottle()
         self.rightArm = True
-        self.reachingDistance = 0.05
-        
+        self.reachingDistance = 0.09
+        self.numPointTrajectory = 0
         self.numTrunkJoints = 2
         self.numRightArmJoints = 6
+        self.jointsPositionError = 2.5
+        self.jointsDistandeFromBounds = 2
+
         
         self.smoothJointsTrajectoryTrunk = []
         self.smoothJointsTrajectoryRightArm = []
@@ -101,6 +111,15 @@ class TestTrajectoryGeneration():
             raise SystemExit
         else:
             print("Right arm position direct interface available")
+
+        # rightArm position control interface
+        self.rightArmIPositionControl = self.rightArmDevice.viewIPositionControl()
+
+        if self.rightArmIPositionControl == []:
+            print("rightArm position control interface NOT available")
+            raise SystemExit
+        else:
+            print("rightArm position control interface available.")
 
         self.rightArmIControlMode = self.rightArmDevice.viewIControlMode()
         if self.rightArmIControlMode == []:
@@ -178,6 +197,70 @@ class TestTrajectoryGeneration():
         else:
             print("Trunk set to position direct mode.")
 
+
+        # Open rightHand device
+        self.rightHandOptions = yarp.Property()
+
+        self.rightHandOptions.put('device', 'remote_controlboard')
+        self.rightHandOptions.put('remote', robot+'/rightHand')
+        self.rightHandOptions.put('local', robot+'/rightHand')
+
+        self.rightHandDevice = yarp.PolyDriver(self.rightHandOptions)
+        self.rightHandDevice.open(self.rightHandOptions)
+
+        if not self.rightHandDevice.isValid():
+            print('Cannot open rightHand device!')
+            raise SystemExit
+
+        self.rightHandIPositionControl = self.rightHandDevice.viewIPositionControl()
+
+        if self.rightHandIPositionControl == []:
+            print("Right hand position control interface NOT available")
+            raise SystemExit
+        else:
+            print("Right hand position control interface available.")
+        
+        rf = yarp.ResourceFinder()
+        rf.setDefaultContext("kinematics")
+        trunkRightKinPath = rf.findFileByName("teo-trunk-rightArm-fetch.ini")
+        print(trunkRightKinPath)
+        self.trunkRightArmSolverOptions.fromConfigFile(trunkRightKinPath)
+        self.trunkRightArmSolverOptions.put("device", "KdlSolver")
+        self.trunkRightArmSolverOptions.put("ik", "nrjl")
+        self.trunkRightArmSolverOptions.put("eps",0.005)
+        self.trunkRightArmSolverOptions.put("maxIter",100000)
+
+        self.trunkRightArmSolverOptions.fromString(
+            "(mins (-30 -10.0 -98.1 -75.5 -80.1 -99.6 -80.4 -115.4))", False)
+        self.trunkRightArmSolverOptions.fromString(
+            "(maxs (30 16.5 106 22.4 57 98.4 99.6 44.7))", False)
+        print("mins")
+        print(self.trunkRightArmSolverOptions.find("mins").toString())
+        print("maxs")
+        print(self.trunkRightArmSolverOptions.find("maxs").toString())
+
+        self.minsTrunkAndRightArm = self.trunkRightArmSolverOptions.find(
+            "mins").asList()
+        self.maxsTrunkAndRightArm = self.trunkRightArmSolverOptions.find(
+            "maxs").asList()
+
+        self.trunkRightArmSolverDevice = yarp.PolyDriver(
+            self.trunkRightArmSolverOptions)  # calls open -> connects
+        self.trunkRightArmSolverDevice.open(self.trunkRightArmSolverOptions)
+
+        if self.trunkRightArmSolverDevice == []:
+            print("trunk right arm solver device interface NOT available")
+        else:
+            print("trunk right arm solver device interface available.")
+
+        # Trunk and right arm cartesian solver
+        self.trunkRightArmICartesianSolver = kinematics_dynamics.viewICartesianSolver(
+            self.trunkRightArmSolverDevice)
+        if self.trunkRightArmICartesianSolver == []:
+            print("Right arm cartesian solver interface NOT available")
+        else:
+            print("Right arm cartesian solver interface available.")
+
     def vectorToFrame(self, x):
 
         f = PyKDL.Frame()
@@ -204,8 +287,37 @@ class TestTrajectoryGeneration():
         return x
     
     def execute(self):
-        
 
+    
+        self.outsideBounds, goalQInsideBounds = self.checkBounds()
+        if(self.outsideBounds):
+                 
+            rightArmModes = yarp.IVector(6, yarp.VOCAB_CM_POSITION)
+            if not self.rightArmIControlMode.setControlModes(rightArmModes):
+                print("Unable to set right arm  to position  mode.")
+                raise SystemExit
+            else:
+                print("Right arm set to position  mode.")
+            trunkModes = yarp.IVector(2, yarp.VOCAB_CM_POSITION)
+            if not self.trunkIControlMode.setControlModes(trunkModes):
+                print("Unable to set trunk to position  mode.")
+                raise SystemExit
+            else:
+                print("Trunk set to position  mode.")
+            for j in range(2):
+                self.trunkIPositionControl.positionMove(j, goalQInsideBounds[j])
+            for j in range(6):
+                self.rightArmIPositionControl.positionMove(j, goalQInsideBounds[j+2])
+        
+        
+        cmd = yarp.Bottle()
+        response = yarp.Bottle()
+        cmd.addString('rsm')
+        self.rpcClientGetGraspingPoses.write(cmd, response)
+        yarp.delay(1.0)
+
+
+        
         cmd = yarp.Bottle()
         response = yarp.Bottle()
         cmd.addString('paus')
@@ -220,8 +332,20 @@ class TestTrajectoryGeneration():
 
         cmd.clear()
         response.clear()
+        cmd.addString('gsup')
+        self.rpcClientGetGraspingPoses.write(cmd, response)
+        print(response.toString())
+        print(response.size())
+
+        label = 0
+        for j in range(response.size()):
+            sup = response.get(j).asDict()
+            label = sup.find("label_idx").asInt32()
+
+        cmd.clear()
+        response.clear()
         cmd.addString('ggp')
-        cmd.addInt32(1)
+        cmd.addInt32(label)
         self.rpcClientGetGraspingPoses.write(cmd, response)
         
         self.bGraspingPoses = response
@@ -252,7 +376,120 @@ class TestTrajectoryGeneration():
                 self.plotTrajectories(self.jointsTrajectory, self.smoothJointsTrajectoryTrunk,self.smoothJointsTrajectoryRightArm)
                 
                 self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)
-                
+        
+        print("Open rightHand")
+        self.rightHandIPositionControl.positionMove(0, 1200)
+        yarp.delay(5.0)
+
+        cmd.clear()
+        response.clear()
+        cmd.addString('rsup')
+        cmd.addInt32(label)
+        self.rpcClientGetGraspingPoses.write(cmd, response)
+        print(response.toString())
+        
+        cmd.clear()
+        response.clear()
+        cmd.addString('gsup')
+        self.rpcClientTrajectoryGenerationRight.write(cmd, response)
+        print(response.toString())
+
+        yarp.delay(5.0)
+
+        self.moveTowardsObject()
+
+
+       
+        
+        print("Close rightHand")
+        self.rightHandIPositionControl.positionMove(0, -200)
+        yarp.delay(5.0)
+
+
+        self.outsideBounds, goalQInsideBounds = self.checkBounds()
+        if(self.outsideBounds):
+                 
+            rightArmModes = yarp.IVector(6, yarp.VOCAB_CM_POSITION)
+            if not self.rightArmIControlMode.setControlModes(rightArmModes):
+                print("Unable to set right arm  to position  mode.")
+                raise SystemExit
+            else:
+                print("Right arm set to position  mode.")
+            trunkModes = yarp.IVector(2, yarp.VOCAB_CM_POSITION)
+            if not self.trunkIControlMode.setControlModes(trunkModes):
+                print("Unable to set trunk to position  mode.")
+                raise SystemExit
+            else:
+                print("Trunk set to position  mode.")
+            for j in range(2):
+                self.trunkIPositionControl.positionMove(j, goalQInsideBounds[j])
+            for j in range(6):
+                self.rightArmIPositionControl.positionMove(j, goalQInsideBounds[j+2])
+        yarp.delay(1.0)
+
+
+        self.moveUpObject()
+        yarp.delay(1.0)
+
+        if (self.checkJointsPosition([0,0], self.trunkIEncoders, self.numTrunkJoints) and self.checkJointsPosition([0,0,0,0,0,0], self.rightArmIEncoders, self.numRightArmJoints)):
+            return True
+        else:
+            print("Back to home position")
+            self.reachingQ = [0,0,0,0,0,0,0,0]
+            found, self.jointsTrajectory = self.computeTrajectoryToJointsPosition(self.rightArm, self.reachingQ)
+
+            if found:
+                self.numPointTrajectory = 0
+                            # Lets plot the trajectory
+                print(len(self.jointsTrajectory))
+                nPoints = 0
+                if len(self.jointsTrajectory) < 100:
+                    nPoints = 400
+                else:
+                    nPoints = 1000 
+                self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm = self.computeSmoothJointsTrajectory(nPoints)
+                print("done!")
+                self.plotTrajectories(self.jointsTrajectory, self.smoothJointsTrajectoryTrunk,self.smoothJointsTrajectoryRightArm)
+                    
+                self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)
+
+    def checkBounds(self):
+        goalQinsideBounds = yarp.DVector(self.numRightArmJoints+self.numTrunkJoints)
+        outsideBounds = False
+        print("Aproach to object")
+        trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
+        if (not self.trunkIEncoders.getEncoders(trunkCurrentQ)):
+            print("Unable to get trunk encoders position")
+            raise SystemExit
+
+        for j in range(self.numTrunkJoints):
+            if(trunkCurrentQ[j]<= self.minsTrunkAndRightArm.get(j).asFloat64()):
+                goalQinsideBounds[j] = self.minsTrunkAndRightArm.get(j).asFloat64()+self.jointsDistandeFromBounds
+                outsideBounds = True
+            elif(trunkCurrentQ[j]>= self.maxsTrunkAndRightArm.get(j).asFloat64()):
+                goalQinsideBounds[j] = self.maxsTrunkAndRightArm.get(j).asFloat64()-self.jointsDistandeFromBounds
+                outsideBounds = True
+            else:
+                goalQinsideBounds[j] = trunkCurrentQ[j]
+
+        armCurrentQ = yarp.DVector(self.numRightArmJoints)
+        if not self.rightArmIEncoders.getEncoders(armCurrentQ):
+            print("Unable to get arm encoders position")
+            raise SystemExit
+        
+        for j in range(self.numRightArmJoints):
+            if(armCurrentQ[j]<= self.minsTrunkAndRightArm.get(j+2).asFloat64()):
+                goalQinsideBounds[j+2] = self.minsTrunkAndRightArm.get(j+2).asFloat64()+self.jointsDistandeFromBounds
+                outsideBounds = True
+            elif(armCurrentQ[j]>= self.maxsTrunkAndRightArm.get(j+2).asFloat64()):
+                goalQinsideBounds[j+2] = self.maxsTrunkAndRightArm.get(j+2).asFloat64()-self.jointsDistandeFromBounds
+                outsideBounds = True
+            else:
+                goalQinsideBounds[j+2] = armCurrentQ[j]
+        
+        return outsideBounds, goalQinsideBounds
+
+
         
     def plotTrajectories(self, jointsTrajectory, smoothJointsTrajectoryTrunk, smoothJointsTrajectoryRightArm):
         arr = np.asarray(jointsTrajectory)
@@ -345,9 +582,9 @@ class TestTrajectoryGeneration():
         # plt.close()
     
     def followJointsTrajectory(self, rightArm, jointsTrajectoryTrunk, jointsTrajectoryRightArm):
-        print("followJointsTrajectory ", self.numPointTrajectory,
-              len(jointsTrajectoryTrunk))
+
         self.numPointTrajectory = 0
+        print("followJointsTrajectory ", self.numPointTrajectory, len(jointsTrajectoryTrunk))
         period = 50
         trunkModes = yarp.IVector(2,yarp.VOCAB_CM_POSITION_DIRECT)
         if not self.trunkIControlMode.setControlModes(trunkModes):
@@ -387,6 +624,7 @@ class TestTrajectoryGeneration():
         else:
             print("Selected left arm")
         for j in range(1, bGraspingPoses.size()):
+            print("Lets check grasping pose: ", j)
             bGraspingPose = bGraspingPoses.get(j).asList()
             print(bGraspingPose.toString())
             graspingPose = []
@@ -429,10 +667,7 @@ class TestTrajectoryGeneration():
                    
                 return True, graspingPose,grasping_q, reaching_pose, reaching_q
             else:
-                print("Not valid reaching position")
-            
-            
-        
+                print("Not valid reaching position")    
         return False, graspingPose,grasping_q, reaching_pose, reaching_q
     
     def computeTrajectoryToJointsPosition(self, rightArm, reachingJointsPosition):
@@ -523,6 +758,143 @@ class TestTrajectoryGeneration():
             smoothJointsTrajectoryTrunk.append(trunkJointsPosition)
             smoothJointsTrajectoryRightArm.append(jointsPosition)
         return smoothJointsTrajectoryTrunk, smoothJointsTrajectoryRightArm
+    
+    def moveTowardsObject(self):
+        print("Aproach to object")
+        trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
+        if (not self.trunkIEncoders.getEncoders(trunkCurrentQ)):
+            print("Unable to get trunk encoders position")
+            raise SystemExit
+
+        armCurrentQ = yarp.DVector(self.numRightArmJoints)
+        if not self.rightArmIEncoders.getEncoders(armCurrentQ):
+            print("Unable to get arm encoders position")
+            raise SystemExit
+
+        current_Q = yarp.DVector(self.numRightArmJoints+self.numTrunkJoints)
+        desire_Q = yarp.DVector(self.numRightArmJoints+self.numTrunkJoints)
+        aproachingQs = []
+        goal_q = []
+                        
+        for j in range(self.numTrunkJoints):
+            current_Q[j] = trunkCurrentQ[j]
+            goal_q.append(trunkCurrentQ[j])
+        for j in range(0, self.numRightArmJoints):
+            current_Q[j+2] = armCurrentQ[j]
+            goal_q.append(armCurrentQ[j])
+       
+        self.reachingPose = yarp.DVector(6)
+        self.trunkRightArmICartesianSolver.fwdKin(current_Q, self.reachingPose)
+        frame_reaching_base = self.vectorToFrame(self.reachingPose)
+                        
+        # First we need to get the encoders for the first postion
+        aproachingQs.append(goal_q)
+        self.d = 0
+        while self.d <= 0.95*self.reachingDistance:
+            print(self.d)
+            self.d = self.d + self.reachingDistance/100.0
+
+            frame_aux_reaching = PyKDL.Frame()
+            frame_aux_reaching.p.z(self.d)
+
+            frame_aux_base = frame_reaching_base*frame_aux_reaching
+
+            aux_pose = self.frameToVector(frame_aux_base)
+                            
+            x_vector = yarp.DVector(6)
+            for i in range(len(x_vector)):
+                x_vector[i] = aux_pose[i]
+           
+            if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
+                goal_q = []
+                for i in range(0,self.numTrunkJoints+self.numRightArmJoints):
+                    goal_q.append(desire_Q[i])
+                aproachingQs.append(desire_Q)
+                print("current_Q: ", current_Q)
+                print("desire_Q: ", current_Q)
+                print("distance: ", self.d)
+                current_Q = desire_Q
+                print("Aproaching Qs: ", aproachingQs)
+        # Lets smooth the trajectory
+        self.jointsTrajectory = aproachingQs
+        if(len(self.jointsTrajectory)>20):
+            self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm = self.computeSmoothJointsTrajectory(200)
+            self.plotTrajectories(self.jointsTrajectory, self.smoothJointsTrajectoryTrunk,self.smoothJointsTrajectoryRightArm)             
+            self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)
+    
+    def moveUpObject(self):
+        print("Aproach to object")
+        trunkCurrentQ = yarp.DVector(self.numTrunkJoints)
+        if (not self.trunkIEncoders.getEncoders(trunkCurrentQ)):
+            print("Unable to get trunk encoders position")
+            raise SystemExit
+
+        armCurrentQ = yarp.DVector(self.numRightArmJoints)
+        if not self.rightArmIEncoders.getEncoders(armCurrentQ):
+            print("Unable to get arm encoders position")
+            raise SystemExit
+
+        current_Q = yarp.DVector(self.numRightArmJoints+self.numTrunkJoints)
+        desire_Q = yarp.DVector(self.numRightArmJoints+self.numTrunkJoints)
+        aproachingQs = []
+        goal_q = []
+                        
+        for j in range(self.numTrunkJoints):
+            current_Q[j] = trunkCurrentQ[j]
+            goal_q.append(trunkCurrentQ[j])
+        for j in range(0, self.numRightArmJoints):
+            current_Q[j+2] = armCurrentQ[j]
+            goal_q.append(armCurrentQ[j])
+       
+        self.reachingPose = yarp.DVector(6)
+        self.trunkRightArmICartesianSolver.fwdKin(current_Q, self.reachingPose)
+        frame_reaching_base = self.vectorToFrame(self.reachingPose)
+                        
+        # First we need to get the encoders for the first postion
+        aproachingQs.append(goal_q)
+        self.d = 0
+        frame_aux_base = frame_reaching_base
+        while self.d <= 0.95*self.reachingDistance:
+            print(self.d)
+            self.d = self.d + self.reachingDistance/100.0
+
+            # frame_aux_reaching = PyKDL.Frame()
+            # frame_aux_reaching.p.z(self.d)
+
+            frame_aux_base.p.z(self.d)
+
+            aux_pose = self.frameToVector(frame_aux_base)
+                            
+            x_vector = yarp.DVector(6)
+            for i in range(len(x_vector)):
+                x_vector[i] = aux_pose[i]
+           
+            if(self.trunkRightArmICartesianSolver.invKin(x_vector, current_Q, desire_Q)):
+                goal_q = []
+                for i in range(0,self.numTrunkJoints+self.numRightArmJoints):
+                    goal_q.append(desire_Q[i])
+                aproachingQs.append(desire_Q)
+                print("current_Q: ", current_Q)
+                print("desire_Q: ", current_Q)
+                print("distance: ", self.d)
+                current_Q = desire_Q
+                print("Aproaching Qs: ", aproachingQs)
+        # Lets smooth the trajectory
+        self.jointsTrajectory = aproachingQs
+        if(len(self.jointsTrajectory)>20):
+            self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm = self.computeSmoothJointsTrajectory(200)
+            self.plotTrajectories(self.jointsTrajectory, self.smoothJointsTrajectoryTrunk,self.smoothJointsTrajectoryRightArm)             
+            self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)
+
+    def checkJointsPosition(self, desiredJointsPosition, iEncoders, numJoints):
+        currentQ = yarp.DVector(numJoints)
+        iEncoders.getEncoders(currentQ)
+        print(list(currentQ))
+        for joint in range(numJoints):
+            # print(currentQ[joint])
+            if abs(currentQ[joint]-desiredJointsPosition[joint]) > self.jointsPositionError:
+                return False
+        return True
 
 yarp.Network.init()
 

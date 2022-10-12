@@ -20,9 +20,9 @@ using namespace roboticslab::KdlVectorConverter;
 #define DEFAULT_PREFIX "/trajectoryGeneration/"
 #define DEFAULT_DEVICE_NAME "trunkAndRightArm"
 #define DEFAULT_KINEMATICS_CONFIG "teo-trunk-rightArm-fetch.ini"
-#define DEFAULT_RANGE_RRT 2.0
-#define DEFAULT_PRUNE_THRESHOLD 0.6
-#define DEFAULT_MAX_PLANNER_TIME 2.0
+#define DEFAULT_RANGE_RRT 1.0
+#define DEFAULT_PRUNE_THRESHOLD 0.5
+#define DEFAULT_MAX_PLANNER_TIME 5.0
 
 
 std::vector<std::string>availablePlanners = {"RRTConnect", "RRTStar"};
@@ -571,7 +571,6 @@ bool TrajectoryGeneration::isValid(const ob::State *state)
 
 
             m_checkCollisions->updateCollisionObjectsTransform(desireQ);
-
             bool collide = m_checkCollisions->collision();
             return !collide;
         }
@@ -1308,11 +1307,9 @@ bool TrajectoryGeneration::read(yarp::os::ConnectionReader &connection)
                 std::vector<int> label_idx; 
                 std::vector<std::array<float,11>> params;
                 getSuperquadrics(label_idx, params);
-                if(label_idx.size() != 0){
-                    m_checkCollisions->setSuperquadrics(label_idx, params);
-                    m_checkCollisions->updateEnvironmentCollisionObjects();
-                    yInfo()<<label_idx;
-                 }
+                m_checkCollisions->setSuperquadrics(label_idx, params);
+                m_checkCollisions->updateEnvironmentCollisionObjects();
+
             }break;
             case VOCAB_UPDATE_POINTCLOUD:{
                 yInfo() << "Update the pointcloud for collision checking";
