@@ -48,17 +48,11 @@
 		<deployer>yarpdev</deployer>
 	</module>
 
-	<module>
-		<name>trajectoryGeneration</name>
-		<parameters> --robot teoSim --prefix /trajectoryGeneration/trunkAndRightArm --planningSpace joint --deviceName trunkAndRightArm --kinematicsConfig teo-trunk-rightArm-fetch.ini
-		</parameters>
-		<node>localhost</node>
-	</module>
 
 	<module>
-		<name>trajectoryGeneration</name>
-		<parameters> --from /usr/local/share/teo-sharon/applications/conf/TrajectoryGenerationTrunkAndLeftArm.ini
-		</parameters>
+		<name>TrajectoryGeneration</name>
+		<parameters>--from /usr/local/share/teo-trajectory-generation/contexts/trajectoryGeneration/TrajectoryGenerationTrunkAndRightArmSim.ini</parameters>
+		<deployer>yarpdev</deployer>
 		<node>localhost</node>
 	</module>
 	
