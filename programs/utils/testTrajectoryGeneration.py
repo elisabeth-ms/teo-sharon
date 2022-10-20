@@ -9,9 +9,10 @@ import time
 import kinematics_dynamics
 
 
+
 VOCAB_OK = yarp.createVocab32('o', 'k')
 VOCAB_FAIL = yarp.createVocab32('f', 'a', 'i', 'l')
-robot = '/teoSim'
+robot = '/teo'
 prefix = '/demoSharon'
 
 
@@ -70,6 +71,8 @@ class TestTrajectoryGeneration():
         
         self.smoothJointsTrajectoryTrunk = []
         self.smoothJointsTrajectoryRightArm = []
+        self.openValue = 100
+        self.closeValue = -100
         
         
         self.rightArmOptions.put('device', 'remote_controlboard')
@@ -203,7 +206,7 @@ class TestTrajectoryGeneration():
 
         self.rightHandOptions.put('device', 'remote_controlboard')
         self.rightHandOptions.put('remote', robot+'/rightHand')
-        self.rightHandOptions.put('local', robot+'/rightHand')
+        self.rightHandOptions.put('local', '/remoteRightHand')
 
         self.rightHandDevice = yarp.PolyDriver(self.rightHandOptions)
         self.rightHandDevice.open(self.rightHandOptions)
@@ -212,14 +215,17 @@ class TestTrajectoryGeneration():
             print('Cannot open rightHand device!')
             raise SystemExit
 
-        self.rightHandIPositionControl = self.rightHandDevice.viewIPositionControl()
+        if robot == '/teoSim':
+            self.rightHandIPositionControl = self.rightHandDevice.viewIPositionControl()
 
-        if self.rightHandIPositionControl == []:
-            print("Right hand position control interface NOT available")
-            raise SystemExit
+            if self.rightHandIPositionControl == []:
+                print("Right hand position control interface NOT available")
+                raise SystemExit
+            else:
+                print("Right hand position control interface available.")
         else:
-            print("Right hand position control interface available.")
-        
+            self.pwmRight = self.rightHandDevice.viewIPWMControl()
+            
         rf = yarp.ResourceFinder()
         rf.setDefaultContext("kinematics")
         trunkRightKinPath = rf.findFileByName("teo-trunk-rightArm-fetch.ini")
@@ -227,7 +233,7 @@ class TestTrajectoryGeneration():
         self.trunkRightArmSolverOptions.fromConfigFile(trunkRightKinPath)
         self.trunkRightArmSolverOptions.put("device", "KdlSolver")
         self.trunkRightArmSolverOptions.put("ik", "nrjl")
-        self.trunkRightArmSolverOptions.put("eps",0.005)
+        self.trunkRightArmSolverOptions.put("eps",0.008)
         self.trunkRightArmSolverOptions.put("maxIter",100000)
 
         self.trunkRightArmSolverOptions.fromString(
@@ -378,7 +384,11 @@ class TestTrajectoryGeneration():
                 self.followJointsTrajectory(self.rightArm, self.smoothJointsTrajectoryTrunk, self.smoothJointsTrajectoryRightArm)
         
         print("Open rightHand")
-        self.rightHandIPositionControl.positionMove(0, 1200)
+        if robot == '/teoSim':
+            self.rightHandIPositionControl.positionMove(0, 1200)
+        else:
+            self.pwmRight.setRefDutyCycle(0, self.openValue) # [-100, 100]
+
         yarp.delay(5.0)
 
         cmd.clear()
@@ -402,7 +412,10 @@ class TestTrajectoryGeneration():
        
         
         print("Close rightHand")
-        self.rightHandIPositionControl.positionMove(0, -200)
+        if robot == '/teoSim':
+            self.rightHandIPositionControl.positionMove(0, -200)
+        else:
+            self.pwmRight.setRefDutyCycle(0, self.closeValue) # [-100, 100]
         yarp.delay(5.0)
 
 

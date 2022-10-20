@@ -20,7 +20,7 @@
 	<module>
 		<name>TrajectoryGeneration</name>
 		<parameters>--context trajectoryGeneration --from TrajectoryGenerationTrunkAndRightArm.ini</parameters>
-		<node>localhost</node>
+		<node>manipulation</node>
 		<deployer>yarpdev</deployer>
 	</module>
 
@@ -46,7 +46,7 @@
 		<parameters>../programs/demoSharon/demo_sharon.py</parameters>
 		<node>localhost</node>
 	</module-->
-	
+
 	 <module>
         	<name>yarpview</name>
         	<parameters>--name /yarpview/rgbdObjectDetection/img:i</parameters>

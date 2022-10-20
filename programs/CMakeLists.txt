@@ -3,10 +3,7 @@
 # CopyPolicy: Released under the terms of the LGPLv2.1 or later
 
 # add_subdirectory(CropSalientObject)
-add_subdirectory(TrajectoryGeneration)
-add_subdirectory(GetGraspingPoses)
 add_subdirectory(MapHumanHandTrajectoryToRobotEndEffector)
 add_subdirectory(MapHumanHandTrajectoryToRobotJointSpace)
 add_subdirectory(MapHumanToRobotMotionWholeTrajectory)
-add_subdirectory(collisionsVisualization)
 add_subdirectory(MapHumanToRobotMotionPerFrameIK)
