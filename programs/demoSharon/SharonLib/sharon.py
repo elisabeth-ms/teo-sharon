@@ -6,6 +6,10 @@ import time
 import roboticslab_kinematics_dynamics
 from SharonLib.config_asr import word_dict
 import PyKDL
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+
 
 VOCAB_OK = yarp.createVocab32('o', 'k')
 VOCAB_FAIL = yarp.createVocab32('f', 'a', 'i', 'l')
@@ -635,6 +639,93 @@ class Sharon():
             print("JointsTrajectory")
             return True, jointsTrajectory
     
+    def plotTrajectories(self, jointsTrajectory, smoothJointsTrajectory):
+        arr = np.asarray(jointsTrajectory)
+        t = np.linspace(0,1.0, len(jointsTrajectory))
+
+        arr_smooth = np.asarray(smoothJointsTrajectory)
+        t_smooth = np.linspace(0,1.0, len(smoothJointsTrajectory))
+
+
+        fig, ax = plt.subplots(8, sharex=True)
+        plt.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.05)
+        # set axes labels
+        # ax[0].set_xlabel("num point")
+        ax[0].set_ylabel("Axial Trunk [deg]", rotation=0, ha="right")
+        ax[1].set_ylabel("Frontal Trunk [deg]",  rotation=0, ha="right")
+        
+        if self.use_right_arm:
+            ax[2].set_ylabel("Frontal Right Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[3].set_ylabel("Sagittal Right Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[4].set_ylabel("Axial Right Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[5].set_ylabel("Frontal Right Elbow [deg]",
+                             rotation=0, ha="right")
+            ax[6].set_ylabel("Axial Right Wrist [deg]", rotation=0, ha="right")
+            ax[7].set_ylabel("Frontal Right Wrist [deg]",
+                             rotation=0, ha="right")
+        else:
+            ax[2].set_ylabel("Frontal Left Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[3].set_ylabel("Sagittal Left Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[4].set_ylabel("Axial Left Shoulder [deg]",
+                             rotation=0, ha="right")
+            ax[5].set_ylabel("Frontal Left Elbow [deg]",
+                             rotation='horizontal', labelpad=15)
+            ax[6].set_ylabel("Axial Left Wrist [deg]",
+                             rotation='horizontal', labelpad=15)
+            ax[7].set_ylabel("Frontal Left Wrist [deg]",
+                             rotation='horizontal', labelpad=15)
+
+        fig.suptitle("Joints trajectories.")
+        for i in range(8):
+            ax[i].grid()
+            ax[i].set_xlim(0, 1)
+            ax[i].yaxis.set_major_locator(MaxNLocator(5))
+        ax[0].plot(t, arr[:, 0], label='q0', color='skyblue')
+        ax[0].plot(t_smooth, arr_smooth[:, 0], label='q0 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[1].plot(t, arr[:, 1], label='q1')
+        ax[1].plot(t_smooth, arr_smooth[:, 1], label='q1 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[2].plot(t, arr[:, 2], label='q2')
+        ax[2].plot(t_smooth, arr_smooth[:, 2], label='q2 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[3].plot(t, arr[:, 3], label='q3')
+        ax[3].plot(t_smooth, arr_smooth[:, 3], label='q3 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[4].plot(t, arr[:, 4], label='q4')
+        ax[4].plot(t_smooth, arr_smooth[:, 4], label='q4 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[5].plot(t, arr[:, 5], label='q5')
+        ax[5].plot(t_smooth, arr_smooth[:, 5], label='q5 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[6].plot(t, arr[:, 6], label='q6')
+        ax[6].plot(t_smooth, arr_smooth[:, 6], label='q6 smooth',
+                   color='red', linestyle='dashed')
+
+        ax[7].plot(t, arr[:, 7], label='Joint trajectory')
+        ax[7].plot(t_smooth, arr_smooth[:, 7],
+                   label='Smoothed joint trajectory', color='red', linestyle='dashed')
+        
+        ax[7].xaxis.set_ticks(np.linspace(0, 1.0, 100))
+
+        handles, labels = ax[7].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper right')
+
+        plt.show()
+        plt.figure().clear()
+        plt.close()
+    
     def computeSmoothJointsTrajectory(self, jointsTrajectory, nPoints):
         smoothJointsTrajectory = []
         arr = np.asarray(jointsTrajectory)
@@ -1072,6 +1163,8 @@ class Sharon():
             else:
                 nPoints = 1000 
             smoothJointsTrajectory = self.computeSmoothJointsTrajectory(jointsTrajectory,nPoints)
+            self.plotTrajectories(jointsTrajectory, smoothJointsTrajectory)
+            
             self.followJointsTrajectory(smoothJointsTrajectory)
             
             self.openHand()
