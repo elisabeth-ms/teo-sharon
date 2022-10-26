@@ -8,8 +8,12 @@ from SharonLib.config_asr import word_dict
 import PyKDL
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+import datetime
+import os
+import csv
+from PIL import Image
 
-
+parent_directory = '/home/elisabeth/repos/teo-sharon/data/'
 
 VOCAB_OK = yarp.createVocab32('o', 'k')
 VOCAB_FAIL = yarp.createVocab32('f', 'a', 'i', 'l')
@@ -31,7 +35,33 @@ class Sharon():
         self.available_right_arm_controlboard = available_right_arm_controlboard
         self.available_left_arm_controlboard = available_left_arm_controlboard
         self.available_trunk_controlboard = available_trunk_controlboard
-        print(self.robot)
+        now = datetime.datetime.now()
+        directory = str(now.year)+"-"+str(now.month)+"-"+str(now.day)+"_"+str(now.hour)+":"+str(now.minute)+":"+str(now.second)
+        
+        self.path = os.path.join(parent_directory, directory)
+        os.mkdir(self.path)
+        os.mkdir(self.path+'/rgb')
+        os.mkdir(self.path+'/depth')
+        self.init = None
+        
+        
+        self.task_execution_csv = open(self.path+"/"+"tasks_execution.csv", "w", newline="\n") 
+        # now you have an empty file already
+        writer = csv.writer(self.task_execution_csv)
+        # write a row to the csv file
+        writer.writerow(['Demo executed with '+ self.robot])
+        if self.use_right_arm:
+            writer.writerow(['Using trunk and right arm.'])
+        else:
+            writer.writerow(['Using trunk and left arm.'])
+            
+        if self.only_asr:
+            writer.writerow(['Using only asr.'])
+        else:
+            writer.writerow(['Using asr and gaze.'])
+
+        
+        
         # Trunk device
         self.trunkOptions = yarp.Property()
         self.trunkDevice = None
@@ -109,12 +139,25 @@ class Sharon():
         
         # RgbdObjectDetection
         self.xtionObjectDetectionsPort = yarp.BufferedPortBottle()
+        self.realsenseImagePort = yarp.Port()
+        self.realsenseDepthImagePort = yarp.Port()
+
 
         self.graspingPose=yarp.Bottle()
         self.graspingQ = yarp.Bottle()
         self.reachingPose = yarp.Bottle()
         self.reachingQ = yarp.Bottle()
         
+        
+        self.img_array = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.yarp_image = yarp.ImageRgb()
+        self.yarp_image.resize(640, 480)
+        self.yarp_image.setExternal(self.img_array.data, self.img_array.shape[1], self.img_array.shape[0])
+        
+        self.depthImgArray = np.random.uniform(0., 65535., (480, 640)).astype(np.float32)
+        self.yarpImgDepth = yarp.ImageFloat()
+        self.yarpImgDepth.resize(640,480)
+        self.yarpImgDepth.setExternal(self.depthImgArray.data,self.depthImgArray.shape[1], self.depthImgArray.shape[0])
         
         
     def configure(self):
@@ -395,6 +438,14 @@ class Sharon():
         self.xtionObjectDetectionsPort.open(self.prefix+"/rgbdObjectDetection/state:i")
         yarp.Network.connect("/rgbdObjectDetection/state:o", self.prefix+"/rgbdObjectDetection/state:i")
         
+        self.realsenseImagePort.open(self.prefix+"/realsense2/rgbImage:i")
+        yarp.Network.connect("/realsense2/rgbImage:o", self.prefix+"/realsense2/rgbImage:i")
+        
+        self.realsenseDepthImagePort.open(self.prefix+"/realsense2/depthImage:i")
+        yarp.Network.connect("/realsense2/depthImage:o", self.prefix+"/realsense2/depthImage:i")
+        
+
+        
         if self.available_right_hand_controlboard:
             # Open rightHand device
             self.rightHandOptions = yarp.Property()
@@ -536,6 +587,7 @@ class Sharon():
 
             return True, IoU
         else:
+            print("No IoU")
             IoU = 0
         return False, IoU
     
@@ -544,35 +596,41 @@ class Sharon():
         print(self.superquadricsBoundingBoxes.size())
         print(self.detections.size())
         
-        for i in range(self.superquadricsBoundingBoxes.size()):
-            superquadricBB = self.superquadricsBoundingBoxes.get(i)
-            label_idx = superquadricBB.find("label_idx").asInt32()
-            print("label_idx: ",label_idx)
-            tlx = superquadricBB.find("tlx").asFloat64()
-            tly = superquadricBB.find("tly").asFloat64()
-            brx = superquadricBB.find("brx").asFloat64()
-            bry = superquadricBB.find("bry").asFloat64()
-            bbox = [tlx, tly, brx, bry]
-            print("i: ",i, bbox)
+        
+        for j in range(self.detections.size()):
+            detection = self.detections.get(j)
+            tlxDetection = detection.find("tlx").asFloat64()
+            tlyDetection = detection.find("tly").asFloat64()
+            brxDetection = detection.find("brx").asFloat64()
+            bryDetection = detection.find("bry").asFloat64()
+            bboxDetection = [tlxDetection, tlyDetection, brxDetection, bryDetection]
+            print("j: ",j, bboxDetection)
+        
             IoU = 0
-            auxSuperquadric = yarp.Bottle()
-            for j in range(self.detections.size()):
-                detection = self.detections.get(j)
-                tlxDetection = detection.find("tlx").asFloat64()
-                tlyDetection = detection.find("tly").asFloat64()
-                brxDetection = detection.find("brx").asFloat64()
-                bryDetection = detection.find("bry").asFloat64()
-                bboxDetection = [tlxDetection, tlyDetection, brxDetection, bryDetection]
-                print("j: ",j, bboxDetection)
+            current_label = None
+            for i in range(self.superquadricsBoundingBoxes.size()):
+                superquadricBB = self.superquadricsBoundingBoxes.get(i)
+                label_idx = superquadricBB.find("label_idx").asInt32()
+                print("label_idx: ",label_idx)
+                tlx = superquadricBB.find("tlx").asFloat64()
+                tly = superquadricBB.find("tly").asFloat64()
+                brx = superquadricBB.find("brx").asFloat64()
+                bry = superquadricBB.find("bry").asFloat64()
+                bbox = [tlx, tly, brx, bry]
+                print("i: ",i, bbox)
+                auxSuperquadric = yarp.Bottle()
                 print(i,j)
                 found,currentIoU = self.computeIntersectionOverUnion(bbox, bboxDetection)
                 if currentIoU > IoU:
                     IoU = currentIoU
-                    dictObject =  auxSuperquadric.addDict()  
-                    dictObject.put('category',detection.find("category").asString() ) 
-                    dictObject.put('label_idx',superquadricBB.find("label_idx").asInt32() )                    
-                    print(auxSuperquadric.toString())
-            self.labelSuperquadricsCategory.append(auxSuperquadric)
+                    current_label = superquadricBB.find("label_idx").asInt32()
+                 
+            if IoU != 0:
+                dictObject =  auxSuperquadric.addDict()
+                dictObject.put('category',detection.find("category").asString() ) 
+                dictObject.put('label_idx',current_label)                    
+                print(auxSuperquadric.toString())
+                self.labelSuperquadricsCategory.append(auxSuperquadric)
         print(self.labelSuperquadricsCategory.toString())
    
     def computeTrajectoryToJointsPosition(self, rightArm, jointsPosition):
@@ -1035,6 +1093,12 @@ class Sharon():
       
     
     def state0(self, initTrunkPosition):
+        
+        writer = csv.writer(self.task_execution_csv)
+        # write a row to the csv file
+        
+
+        
         # First we need to stop the /getGraspingPoses process
         cmd = yarp.Bottle()
         response = yarp.Bottle()
@@ -1042,8 +1106,36 @@ class Sharon():
         self.rpcClientGetGraspingPoses.write(cmd, response)
         yarp.delay(1.0)
         
+        writer.writerow(['------ State0: Moving the trunk to the initial position ------'])
+        if self.use_right_arm:
+            armCurrentQ = yarp.DVector(self.numRightArmJoints)
+            if not self.rightArmIEncoders.getEncoders(armCurrentQ):
+                print("Unable to get trunkAndRightArm encoders position")
+                writer.writerow(['Unable to get trunkAndRightArm encoders position.'])
+                raise SystemExit
+            values = []
+            for i in range(0,2):
+                values.append(armCurrentQ[i])
+            writer.writerow(['Current Joints Position: '+ str(values)])
+            writer.writerow(['Goal Trunk Joints Position: '+str(initTrunkPosition)])
+        
+        self.init = time.time()
+        writer.writerow(['Start_time: '+ str(self.init-self.init)])
         # Put only the trunk in the init position
         self.putTrunkToInitPositionWithControlPosition(initTrunkPosition)
+        current = time.time()
+        writer.writerow(['End_time: '+ str(current-self.init)])
+        if self.use_right_arm:
+            armCurrentQ = yarp.DVector(self.numRightArmJoints)
+            if not self.rightArmIEncoders.getEncoders(armCurrentQ):
+                print("Unable to get trunkAndRightArm encoders position")
+                writer.writerow(['Unable to get trunkAndRightArm encoders position.'])
+                raise SystemExit
+            values = []
+            for i in range(0,2):
+                values.append(armCurrentQ[i])
+        writer.writerow(['Trunk joints position: '+ str(values)])
+        
         
         # rsm the getGraspingPoses server
         cmd = yarp.Bottle()
@@ -1059,30 +1151,71 @@ class Sharon():
         self.rpcClientGetGraspingPoses.write(cmd, response)
         yarp.delay(1.0)
         
+        
+        self.realsenseImagePort.read(self.yarp_image)
+        current = time.time()
+  
+        im = Image.fromarray(self.img_array)
+        aux = current-self.init
+        im.save(self.path+"/rgb/"+ str(aux)+'.jpg')
+
+        self.realsenseDepthImagePort.read(self.yarpImgDepth)            
+        formatted = (self.depthImgArray/self.depthImgArray.max()*65535/2.0).astype('uint16')
+        # print("depth max: ", depthImgArray.max())
+        # print(formatted)
+        self.imDepth = Image.fromarray(formatted)
+        self.imDepth.save(self.path+"/depth/"+ str(aux)+'.png', 'png')
+
+        writer.writerow(['Store rgb and depth images for timestamp: '+str(aux)])
+        
         # get all the superquadrics from GetGraspingPoses server
+        writer.writerow(['------ State0: Get Superquadrics ------'])
+        start = time.time()
         cmd.clear()
         cmd.addString('gsup')
         self.rpcClientGetGraspingPoses.write(cmd, self.superquadrics)
+        current = time.time()
         print(self.superquadrics.toString())
+        writer.writerow(['Start_time: '+ str(start-self.init)])
+        writer.writerow(['End_time: '+ str(current-self.init)])
+        writer.writerow(['Superquadrics: '+ self.superquadrics.toString()])
         yarp.delay(1.0)
 
         # get all the superquadrics from GetGraspingPoses server
+        writer.writerow(['------ State0: Get Superquadrics Bounding Boxes------'])
+        start = time.time()
         cmd.clear()
         cmd.addString('gsbb')
         self.rpcClientGetGraspingPoses.write(cmd, self.superquadricsBoundingBoxes)
+        current = time.time()
+        writer.writerow(['Start_time: '+ str(start-self.init)])
+        writer.writerow(['End_time: '+ str(current-self.init)])
+        writer.writerow(['Superquadrics BBoxes: '+ self.superquadricsBoundingBoxes.toString()])
         print(self.superquadricsBoundingBoxes.toString())
         yarp.delay(1.0)
         
         
 
-        
-        
+        writer.writerow(['------ State0: Get Object Detections------'])
+
         # get the object detections
         print("Now detections")
+        start = time.time()
         self.detections = self.xtionObjectDetectionsPort.read(False)
+        current = time.time()
+        writer.writerow(['Start_time: '+ str(start-self.init)])
+        writer.writerow(['End_time: '+ str(current-self.init)])
+        writer.writerow(['Object Detections: '+ self.detections.toString()])
+
         print(self.detections.toString())
         
+        
+        start = time.time()
         self.setLabelSuperquadricsCategory()
+        current = time.time()
+        writer.writerow(['Start_time: '+ str(start-self.init)])
+        writer.writerow(['End_time: '+ str(current-self.init)])
+        writer.writerow(['Category associated to labeled supercuadrics: '+ self.labelSuperquadricsCategory.toString()])
         
         # print("Lets remove")
         # for i in range(self.superquadrics.size()):
