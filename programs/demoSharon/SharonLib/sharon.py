@@ -1179,7 +1179,7 @@ class Sharon():
         writer.writerow(['Start_time: '+ str(start-self.init)])
         writer.writerow(['End_time: '+ str(current-self.init)])
         writer.writerow(['Superquadrics: '+ self.superquadrics.toString()])
-        yarp.delay(1.0)
+        yarp.delay(4.0)
 
         # get all the superquadrics from GetGraspingPoses server
         writer.writerow(['------ State0: Get Superquadrics Bounding Boxes------'])
@@ -1192,7 +1192,7 @@ class Sharon():
         writer.writerow(['End_time: '+ str(current-self.init)])
         writer.writerow(['Superquadrics BBoxes: '+ self.superquadricsBoundingBoxes.toString()])
         print(self.superquadricsBoundingBoxes.toString())
-        yarp.delay(1.0)
+        yarp.delay(2.0)
         
         
 
@@ -1242,18 +1242,23 @@ class Sharon():
         response.clear()
         cmd.addString('ssup')
         self.rpcClientTrajectoryGeneration.write(cmd, response)
+        yarp.delay(1.0)
         print(response.toString())
         print(response.size())  
         
         
     def state1(self, initTrunkAndArm):
         found, jointsTrajectory = self.computeTrajectoryToJointsPosition(self.use_right_arm,initTrunkAndArm)
-        if len(jointsTrajectory) < 100:
-            nPoints = 700
-        else:
-             nPoints = 1000 
-        smoothJointsTrajectory = self.computeSmoothJointsTrajectory(jointsTrajectory,nPoints)
-        self.followJointsTrajectory(smoothJointsTrajectory)
+        
+        if found: 
+            if len(jointsTrajectory) < 100:
+                nPoints = 800
+            else:
+                nPoints = 1000 
+            smoothJointsTrajectory = self.computeSmoothJointsTrajectory(jointsTrajectory,nPoints)
+            self.plotTrajectories(jointsTrajectory, smoothJointsTrajectory)
+            self.followJointsTrajectory(smoothJointsTrajectory)
+        
         
     def state2(self):
         # Here we wait for the command from asr
@@ -1294,7 +1299,7 @@ class Sharon():
             if len(jointsTrajectory) < 100:
                 nPoints = 700
             else:
-                nPoints = 1000 
+                nPoints = 1300 
             smoothJointsTrajectory = self.computeSmoothJointsTrajectory(jointsTrajectory,nPoints)
             self.plotTrajectories(jointsTrajectory, smoothJointsTrajectory)
             
@@ -1335,6 +1340,7 @@ class Sharon():
             
             return True
         return False
+    
     def openHand(self):
         print("Open Hand")
         if self.use_right_arm:
