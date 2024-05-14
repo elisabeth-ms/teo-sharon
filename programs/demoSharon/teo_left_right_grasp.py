@@ -18,12 +18,12 @@ import rclpy
 from rclpy.node import Node
 import PyKDL
 
-robot = '/teo'
+robot = '/teoSim'
 prefix = '/demoSharon'
-camera = '/teo/realsense2'
+camera = '/teoSim/camera'
 available_right_hand_controlboard = False
-available_left_hand_controlboard = False
-available_right_arm_controlboard = True
+available_left_hand_controlboard = True
+available_right_arm_controlboard = False
 available_left_arm_controlboard = True
 available_head_controlboard = False
 available_trunk_controlboard = True
@@ -330,8 +330,8 @@ class DemoSharon(yarp.RFModule):
             self.leftHandOptions.put('local', robot+'/leftHand')
 
             self.leftHandDevice = self.config_device(self.leftHandOptions, "leftHand")
-            
-            
+
+        print("Devices opened...")
            
 
         # Right hand position control interface
@@ -345,6 +345,18 @@ class DemoSharon(yarp.RFModule):
                 print("Right hand position control interface available.")
         elif available_right_hand_controlboard and robot == '/teo':
             self.rightHandIPWMControl = self.rightHandDevice.viewIPWMControl()
+            
+        # Left hand position control interface
+        if available_left_hand_controlboard and robot == '/teoSim':
+            self.leftHandIPositionControl = self.leftHandDevice.viewIPositionControl()
+
+            if self.leftHandIPositionControl == []:
+                print("Left hand position control interface NOT available")
+                raise SystemExit
+            else:
+                print("Left hand position control interface available.")
+        elif available_left_hand_controlboard and robot == '/teo':
+            self.leftHandIPWMControl = self.leftHandDevice.viewIPWMControl()
 
 
         if available_right_arm_controlboard:
@@ -623,7 +635,9 @@ class DemoSharon(yarp.RFModule):
                     self.sayOnce = True
     
     def doState1(self):
-                    
+        if self.firstInState:
+            self.updateSuperquadricsTrajectoryGeneration()
+            print("State 1: Lets update the collisions in the trajectory generation using the superquadrics of the objects on the table.")        
         if available_head_controlboard:
             for joint in range(self.numHeadJoints):
                 self.headIPositionControl.positionMove(joint, self.initHeadJointsPosition[joint])
@@ -644,9 +658,26 @@ class DemoSharon(yarp.RFModule):
     
     def doState2(self):
         if self.firstInState:
+          
+          
           cmd = yarp.Bottle()                    
           cmd.addVocab32('ggp')
-          cmd.addInt8(2)
+          if self.use_right_arm:
+            cmd.addString('r')
+            right_hand_pose = yarp.DVector()
+            q = self.initTrunkJointsPosition + self.initRightArmJointsPosition2
+            q_vector = yarp.DVector(q)
+            print(q)
+            self.trunkRightArmICartesianSolver.fwdKin(q_vector, right_hand_pose)
+            print("Right hand pose: ", right_hand_pose[0], right_hand_pose[1], right_hand_pose[2], right_hand_pose[3], right_hand_pose[4], right_hand_pose[5])
+          else:
+            cmd.addString('l')
+            left_hand_pose = yarp.DVector()
+            q = self.initTrunkJointsPosition + self.initLeftArmJointsPosition2
+            q_vector = yarp.DVector(q)
+            self.trunkLeftArmICartesianSolver.fwdKin(q_vector, left_hand_pose)
+            print("Left hand pose: ", left_hand_pose[0], left_hand_pose[1], left_hand_pose[2], left_hand_pose[3], left_hand_pose[4], left_hand_pose[5])
+          cmd.addInt8(1)
           response = yarp.Bottle()
           print(cmd.toString())
           self.rpcClientGetGraspingPoses.write(cmd, response)
@@ -700,36 +731,66 @@ class DemoSharon(yarp.RFModule):
 
 
 
-              lengthArrow = 0.1
-              auxV1 = unit_z * lengthArrow
-              marker.id = 0
-              marker.type = Marker.ARROW
-              marker.action = Marker.ADD
-    # geometry_msgs::msg::Point pointRos;
-    # pointRos.x = frame.p[0] - auxV1[0];
-    # pointRos.y = frame.p[1] - auxV1[1];
-    # pointRos.z = frame.p[2] - auxV1[2];
-    # marker.points.clear();
-    # marker.points.push_back(pointRos);
-    # pointRos.x = frame.p[0];
-    # pointRos.y = frame.p[1];
-    # pointRos.z = frame.p[2];
-    # marker.pose.orientation.w = 1.0;
-    # marker.points.push_back(pointRos);
-    # marker.scale.x = 0.005;
-    # marker.scale.y = 0.02;
-    # marker.scale.z = 0.02;
-    # marker.color.a = 1.0; // Don't forget to set the alpha!
-    # marker.color.r = 0.0;
-    # marker.color.g = 0.0;
-    # marker.color.b = 1.0;
-    # markerArray.markers.push_back(marker);
+
+              
+              
+              # geometry_msgs::msg::Point pointRos;
+              # pointRos.x = frame.p[0] - auxV1[0];
+              # pointRos.y = frame.p[1] - auxV1[1];
+              # pointRos.z = frame.p[2] - auxV1[2];
+              # marker.points.clear();
+              # marker.points.push_back(pointRos);
+              # pointRos.x = frame.p[0];
+              # pointRos.y = frame.p[1];
+              # pointRos.z = frame.p[2];
+              # marker.pose.orientation.w = 1.0;
+              # marker.points.push_back(pointRos);
+              # marker.scale.x = 0.005;
+              # marker.scale.y = 0.02;
+              # marker.scale.z = 0.02;
+              # marker.color.a = 1.0; // Don't forget to set the alpha!
+              # marker.color.r = 0.0;
+              # marker.color.g = 0.0;
+              # marker.color.b = 1.0;
+              # markerArray.markers.push_back(marker);
 
               
               self.jointsTrajectory = []
               found, self.jointsTrajectory = self.computeTrajectoryToJointsPosition(self.use_right_arm, self.reachingQ)
 
               if found:
+                
+                  lengthArrow = 0.1
+                  auxV1 = unit_z * lengthArrow
+                  marker.id = 0
+                  marker.type = Marker.ARROW
+                  marker.action = Marker.ADD
+                  
+                  p1 = Point()
+                  p1.x = grasp_pose_frame.p[0] - auxV1[0]
+                  p1.y = grasp_pose_frame.p[1] - auxV1[1]
+                  p1.z = grasp_pose_frame.p[2] - auxV1[2]
+                  
+                  p2 = Point()
+                  p2.x = grasp_pose_frame.p[0]
+                  p2.y = grasp_pose_frame.p[1]
+                  p2.z = grasp_pose_frame.p[2]
+                  
+                  marker.points.append(p1)
+                  marker.points.append(p2)
+                  
+                  marker.scale.x = 0.01
+                  marker.scale.y = 0.02
+                  marker.scale.z = 0.02
+                  marker.color.a = 1.0
+                  marker.color.r = 0.2
+                  marker.color.g = 0.8
+                  marker.color.b = 0.0
+                  marker_array.markers.append(marker)
+                
+                  
+                  self.ros2_publisher_node.publisher_maker_array.publish(marker_array)
+
                   self.numPointTrajectory = 0
                   # Lets plot the trajectory
                   print(len(self.jointsTrajectory))
@@ -982,7 +1043,16 @@ class DemoSharon(yarp.RFModule):
                 jointsTrajectory.append(jointsPosition)
             print("JointsTrajectory")
             return True, jointsTrajectory
-
+          
+    def updateSuperquadricsTrajectoryGeneration(self):
+        cmd = yarp.Bottle()
+        cmd.addVocab32('ssup')
+        response = yarp.Bottle()
+        if self.use_right_arm:
+            self.rpcClientTrajectoryGenerationRight.write(cmd, response)
+        else:
+            self.rpcClientTrajectoryGenerationLeft.write(cmd, response)
+        
     def computeFeasibleOrientation(self, rightArm, locationTCP, reachingDistance):
         if rightArm:  # Compute the a feasible orientation for the rightArm
             print("Selected right arm.")
